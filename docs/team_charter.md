@@ -2,7 +2,7 @@
 ## Integrantes y disponibilidad
 | Integrante | Responsabilidad | Disponibilidad | Restricción |
 |---|---|---|---|
-| Adriana Alvarez | Scrum Master/Backlog |  | Lun-Vie, 15:00-21:00 | No puede fines de semana |
+| Adriana Alvarez | Scrum Master/Backlog | Lun-Vie, 15:00-21:00 | No puede fines de semana |
 | Diego Laguna    | Modelos ML/Backend | Lun, Vier 16:30 | No puede domingos |
 | Adrian Gonzales | Pruebas/Backend | Mar, Vier 09:00-12:00 | No puede fines de semana |
 | Adrián Ordóñez  | Frontend | Lun-Vier 22:00 | No puede mañanas entre semana |
