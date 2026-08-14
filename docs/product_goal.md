@@ -1,0 +1,2 @@
+# Product Goal
+Para pacientes y médicos que necesitan un mejor seguimiento de la glucosa, construiremos un sistema que registra y centraliza las mediciones de glucosa, utiliza Machine Learning para analizar patrones y generar alertas basadas en evidencia, y ofrece un chatbot para resolver consultas de los pacientes, mejorando el seguimiento y facilitando la toma de decisiones médicas.
