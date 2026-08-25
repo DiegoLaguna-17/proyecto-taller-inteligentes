@@ -1,0 +1,29 @@
+# --- General ---
+.DS_Store
+*.log
+.env
+.env.local
+
+# --- Backend (Python / FastAPI) ---
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/app/ml/*.pkl
+
+# --- Mobile (React Native) ---
+mobile/node_modules/
+mobile/android/app/build/
+mobile/ios/build/
+mobile/ios/Pods/
+mobile/.expo/
+mobile/*.log
+mobile/coverage/
+
+# --- Editor ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
