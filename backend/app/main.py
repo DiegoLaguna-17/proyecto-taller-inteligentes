@@ -6,7 +6,7 @@ Punto de entrada de la aplicación. Ver /requirements.md, /design.md y
 este proyecto sigue Spec Driven Development.
 """
 from fastapi import FastAPI
-
+from app.ml import riesgo
 app = FastAPI(
     title="GlucoTracker API",
     version="1.0.0",
@@ -14,6 +14,7 @@ app = FastAPI(
                  "clasificación ML, alertas y chatbot.",
 )
 
+app.include_router(riesgo.router) 
 
 @app.get("/health")
 def health_check():
