@@ -2,18 +2,25 @@
 > GlucoTracker — Version 1.0.0 — 2026-08-24
 
 ## Architecture Overview
-Arquitectura cliente-servidor distribuida. La app móvil (React Native) consume una API REST expuesta por un backend en FastAPI, que centraliza tanto la lógica de negocio como el módulo de Machine Learning (clasificación de glucosa) y el módulo de NLP del chatbot, evitando microservicios adicionales. La persistencia se resuelve con Supabase (PostgreSQL gestionado). El backend se despliega en Azure.
+Arquitectura de monolito modular basada en microservicios lógicos desacoplados. La app móvil (React Native) consume una API REST expuesta por un backend en FastAPI, que centraliza tanto la lógica de negocio como el módulo de Machine Learning (clasificación de glucosa) y el módulo de NLP del chatbot, evitando una complejidad innecesaria de microservicios distribuidos en esta etapa (ver ADR-0001). La persistencia se resuelve con Supabase/PostgreSQL gestionado (ver ADR-0002). El backend se despliega en Azure (ver ADR-0003).
 
 **Stack**: React Native (frontend móvil) · FastAPI/Python (backend + ML + NLP) · Supabase/PostgreSQL (base de datos)
 **Deployment**: Azure (hosting del backend y del módulo de ML), con conexión segura vía certificados SSL
 
-## System Diagram
+## System Diagram (C4 Model Reference)
+
+La arquitectura formal del sistema está documentada mediante el estándar C4:
+- **Nivel 1 (Contexto):** [Ver Diagrama de Contexto](docs/architecture/c4-context.md) — Muestra la interacción de Pacientes, Médicos y Administradores con GlucoTracker.
+- **Nivel 2 (Contenedores):** [Ver Diagrama de Contenedores](docs/architecture/c4-container.md) — Detalla la App Móvil, la API FastAPI, Supabase y los módulos internos de ML y NLP.
+
+Resumen visual del flujo de contenedores:
+
 ```
 [App Móvil - React Native]
         |  HTTPS/REST
         v
 [Backend API - FastAPI en Azure]
-        |-- Módulo ML (clasificación SVC/Árbol de Decisión)
+        |-- Módulo ML (clasificación SVC/Árbol de Decisión - ver ADR-0004)
         |-- Módulo NLP (chatbot)
         |
         v
@@ -22,6 +29,13 @@ Arquitectura cliente-servidor distribuida. La app móvil (React Native) consume 
         v
 [Notificaciones push -> dispositivo del Médico]
 ```
+
+## Architecture Decision Records (ADR)
+Las decisiones técnicas críticas del proyecto han sido formalizadas y justificadas frente a alternativas descartadas:
+1. **ADR-0001:** [Uso de Backend Monolítico con FastAPI](docs/adr/0001-backend-monolitico-fastapi.md)
+2. **ADR-0002:** [Uso de Supabase / PostgreSQL](docs/adr/0002-supabase-postgresql.md)
+3. **ADR-0003:** [Selección de Azure como Entorno Cloud](docs/adr/0003-despliegue-azure.md)
+4. **ADR-0004:** [Selección de Modelo Baseline (SVC / Árbol de Decisión)](docs/adr/0004-modelo-clasificacion-baseline.md)
 
 ## Data Models
 
@@ -140,6 +154,9 @@ glucotracker/
 │   │   ├── models/             # Esquemas / ORM
 │   │   └── core/                # Config, seguridad, conexión a Supabase
 │   └── requirements.txt
+├── docs/
+│   ├── architecture/        # Diagramas C4 (Contexto y Contenedores)
+│   └── adr/                 # Architecture Decision Records
 ├── requirements.md
 ├── design.md
 ├── tasks.md
@@ -164,3 +181,4 @@ glucotracker/
 | Version | Date | Change |
 |---|---|---|
 | 1.0.0 | 2026-08-24 | Initial design, derivado de Especificacion_Sistema_GlucoTracker.md; deployment confirmado en Azure |
+| 1.1.0 | 2026-03-01 | Actualización para integrar formalmente Modelos C4 y registros ADR |
