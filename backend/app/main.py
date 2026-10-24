@@ -42,4 +42,15 @@ def health_check():
     """Endpoint de salud — usado para verificar TASK-002/TASK-003."""
     return {"status": "ok", "service": "glucotracker-backend"}
 
+# Registro de routers
+app.include_router(auth.router)
+app.include_router(medicos.router)
+app.include_router(pacientes.router)
+app.include_router(administradores.router)
+app.include_router(registro.router)
+app.include_router(general.router)
+app.include_router(pdf.router)
 
+# Si el router ML previo está disponible, incluirlo sin cambios
+if has_ml_riesgo:
+    app.include_router(riesgo.router)
