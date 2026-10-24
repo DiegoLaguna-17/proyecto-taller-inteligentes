@@ -105,7 +105,7 @@ async def registrar_paciente(
                 "fecha_nac": fecha_nac,
                 "teléfono": telefono,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_usr.data or len(res_usr.data) == 0:
             raise Exception("No se pudo insertar el usuario")
@@ -124,7 +124,7 @@ async def registrar_paciente(
                 "numero_emergencia": numero_emergencia,
                 "foto_perfil": img_url,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_pac.data or len(res_pac.data) == 0:
             raise Exception("No se pudo insertar el paciente")
@@ -165,54 +165,52 @@ async def perfil_paciente(idPaciente: str, request: Request):
 
     try:
         res = sb.supabase.from_("paciente").select(
-            """
-            id_paciente,
-            genero,
-            altura,
-            peso,
-            embarazo,
-            nombre_emergencia,
-            numero_emergencia,
-            foto_perfil,
-            usuario!inner (
-                id_usuario,
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                fecha_registro
-            ),
-            nivel_actividad_fisica (
-                descripcion
-            ),
-            medico (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            paciente_enfermedad (
-                enfermedades_base (
-                    nombre_enfermedad
-                )
-            ),
-            tratamiento_enfermedad (
-                dosis,
-                tratamientos (
-                    nombre_tratamiento,
-                    descripcion
-                )
-            ),
-            seguimiento_embarazo (
-                semanas_embarazo,
-                fecha_registro,
-                fecha_terminacion
-            )
-            """
+            "id_paciente,"
+            "genero,"
+            "altura,"
+            "peso,"
+            "embarazo,"
+            "nombre_emergencia,"
+            "numero_emergencia,"
+            "foto_perfil,"
+            "usuario!inner("
+            "id_usuario,"
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "fecha_registro"
+            "),"
+            "nivel_actividad_fisica("
+            "descripcion"
+            "),"
+            "medico("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "paciente_enfermedad("
+            "enfermedades_base("
+            "nombre_enfermedad"
+            ")"
+            "),"
+            "tratamiento_enfermedad("
+            "dosis,"
+            "tratamientos("
+            "nombre_tratamiento,"
+            "descripcion"
+            ")"
+            "),"
+            "seguimiento_embarazo("
+            "semanas_embarazo,"
+            "fecha_registro,"
+            "fecha_terminacion"
+            ")"
         ).eq("id_paciente", id_paciente).maybe_single().execute()
 
         data = res.data
@@ -296,30 +294,28 @@ async def registros_paciente(idPaciente: str, request: Request):
 
     try:
         res = sb.supabase.from_("registro_glucosa").select(
-            """
-            id_registro,
-            fecha,
-            hora,
-            nivel_glucosa,
-            observaciones,
-            momento_dia (
-                momento
-            ),
-            medico (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            alertas (
-                id_alerta,
-                tipo_alerta (
-                    tipo
-                ),
-                retroalimentacion (
-                    mensaje
-                )
-            )
-            """
+            "id_registro,"
+            "fecha,"
+            "hora,"
+            "nivel_glucosa,"
+            "observaciones,"
+            "momento_dia("
+            "momento"
+            "),"
+            "medico("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "alertas("
+            "id_alerta,"
+            "tipo_alerta("
+            "tipo"
+            "),"
+            "retroalimentacion("
+            "mensaje"
+            ")"
+            ")"
         ).eq("id_paciente", id_paciente).order("fecha", desc=True).order("hora", desc=True).execute()
 
         data = res.data or []
@@ -390,7 +386,7 @@ async def registrar_glucosa(req_body: RegistrarGlucosaBody, request: Request):
                 "nivel_glucosa": req_body.nivel_glucosa,
                 "observaciones": req_body.observaciones,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res.data or len(res.data) == 0:
             raise Exception("No se pudo insertar el registro")
@@ -443,7 +439,7 @@ async def actualizar_paciente(id_usuario: str, req_body: ActualizarPacienteBody,
             "nombre_completo": req_body.nombre,
             "correo": req_body.correo,
             "teléfono": req_body.telefono,
-        }).eq("id_usuario", id_usr).select().single().execute()
+        }).eq("id_usuario", id_usr).execute()
 
         update_paciente_data = {
             "altura": req_body.altura,
@@ -454,7 +450,7 @@ async def actualizar_paciente(id_usuario: str, req_body: ActualizarPacienteBody,
         if req_body.embarazo is not None:
             update_paciente_data["embarazo"] = req_body.embarazo
 
-        res_pac_upd = sb.supabase.from_("paciente").update(update_paciente_data).eq("id_usuario", id_usr).select().single().execute()
+        res_pac_upd = sb.supabase.from_("paciente").update(update_paciente_data).eq("id_usuario", id_usr).execute()
 
         if req_body.embarazo is True and req_body.semanas_embarazo and int(req_body.semanas_embarazo) > 0:
             sb.supabase.from_("seguimiento_embarazo").insert({
@@ -479,8 +475,8 @@ async def actualizar_paciente(id_usuario: str, req_body: ActualizarPacienteBody,
 
         await registrar_auditoria(request, rol="paciente", status_code=200, id_usuario=id_usr, id_rol=id_paciente)
         return {
-            "usuario": res_usr.data,
-            "paciente": res_pac_upd.data,
+            "usuario": res_usr.data[0] if res_usr.data else None,
+            "paciente": res_pac_upd.data[0] if res_pac_upd.data else None,
         }
     except Exception as err:
         err_msg = str(err)

@@ -52,7 +52,7 @@ async def ver_especialidades():
 @router.get("/auditoria")
 async def ver_auditoria():
     try:
-        res = sb.supabase.from_("auditoria_endpoints").select("*, usuario(nombre_completo)").execute()
+        res = sb.supabase.from_("auditoria_endpoints").select("*,usuario(nombre_completo)").execute()
         return res.data or []
     except Exception as error:
         print("Error obteniendo auditoría:", error)

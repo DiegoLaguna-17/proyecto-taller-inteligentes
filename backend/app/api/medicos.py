@@ -74,7 +74,7 @@ async def registrar_medico(
                 "teléfono": telefono,
                 "fecha_nac": fecha_nac,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_usr.data or len(res_usr.data) == 0:
             raise Exception("No se pudo crear el usuario")
@@ -89,7 +89,7 @@ async def registrar_medico(
                 "carnet_profesional": img_url,
                 "administrador_id_admin": 1,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_med.data or len(res_med.data) == 0:
             raise Exception("No se pudo crear el médico")
@@ -105,7 +105,7 @@ async def registrar_medico(
 @router.get("/ver")
 async def ver_medicos():
     try:
-        res = sb.supabase.from_("medico").select("id_medico, usuario ( nombre_completo )").execute()
+        res = sb.supabase.from_("medico").select("id_medico,usuario(nombre_completo)").execute()
         return res.data or []
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": str(err)})
@@ -119,26 +119,24 @@ async def perfil_medico(idUsuario: str, request: Request):
 
     try:
         res = sb.supabase.from_("medico").select(
-            """
-            id_medico,
-            matricula_profesional,
-            departamento,
-            carnet_profesional,
-            especialidad (
-                nombre
-            ),
-            usuario!inner (
-                nombre_completo,
-                correo,
-                fecha_nac,
-                teléfono
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            )
-            """
+            "id_medico,"
+            "matricula_profesional,"
+            "departamento,"
+            "carnet_profesional,"
+            "especialidad("
+            "nombre"
+            "),"
+            "usuario!inner("
+            "nombre_completo,"
+            "correo,"
+            "fecha_nac,"
+            "teléfono"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            ")"
         ).eq("id_usuario", id_usuario).maybe_single().execute()
 
         data = res.data
@@ -177,55 +175,53 @@ async def ver_pacientes(idMedico: str, request: Request):
 
     try:
         res = sb.supabase.from_("paciente").select(
-            """
-            id_paciente,
-            genero,
-            peso,
-            altura,
-            numero_emergencia,
-            nombre_emergencia,
-            foto_perfil,
-            usuario!inner (
-                id_usuario,
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                estado
-            ),
-            nivel_actividad_fisica (
-                descripcion
-            ),
-            paciente_enfermedad (
-                enfermedades_base (
-                    nombre_enfermedad
-                )
-            ),
-            tratamiento_enfermedad (
-                dosis,
-                tratamientos (
-                    nombre_tratamiento,
-                    descripcion
-                )
-            ),
-            registro_glucosa (
-                fecha,
-                hora,
-                nivel_glucosa,
-                observaciones,
-                momento_dia (
-                    momento
-                ),
-                alertas (
-                    tipo_alerta (
-                        tipo
-                    ),
-                    retroalimentacion (
-                        mensaje
-                    )
-                )
-            )
-            """
+            "id_paciente,"
+            "genero,"
+            "peso,"
+            "altura,"
+            "numero_emergencia,"
+            "nombre_emergencia,"
+            "foto_perfil,"
+            "usuario!inner("
+            "id_usuario,"
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "estado"
+            "),"
+            "nivel_actividad_fisica("
+            "descripcion"
+            "),"
+            "paciente_enfermedad("
+            "enfermedades_base("
+            "nombre_enfermedad"
+            ")"
+            "),"
+            "tratamiento_enfermedad("
+            "dosis,"
+            "tratamientos("
+            "nombre_tratamiento,"
+            "descripcion"
+            ")"
+            "),"
+            "registro_glucosa("
+            "fecha,"
+            "hora,"
+            "nivel_glucosa,"
+            "observaciones,"
+            "momento_dia("
+            "momento"
+            "),"
+            "alertas("
+            "tipo_alerta("
+            "tipo"
+            "),"
+            "retroalimentacion("
+            "mensaje"
+            ")"
+            ")"
+            ")"
         ).eq("id_medico", id_medico).eq("usuario.estado", True).execute()
 
         data = res.data or []
@@ -279,29 +275,27 @@ async def alertas_activas(idMedico: str, request: Request):
 
     try:
         res = sb.supabase.from_("alertas").select(
-            """
-            id_alerta,
-            estado,
-            tipo_alerta!inner (
-                tipo
-            ),
-            registro_glucosa!inner (
-                fecha,
-                hora,
-                nivel_glucosa,
-                observaciones,
-                id_medico,
-                paciente!inner (
-                    id_paciente,
-                    usuario!inner (
-                        nombre_completo
-                    )
-                ),
-                momento_dia (
-                    momento
-                )
-            )
-            """
+            "id_alerta,"
+            "estado,"
+            "tipo_alerta!inner("
+            "tipo"
+            "),"
+            "registro_glucosa!inner("
+            "fecha,"
+            "hora,"
+            "nivel_glucosa,"
+            "observaciones,"
+            "id_medico,"
+            "paciente!inner("
+            "id_paciente,"
+            "usuario!inner("
+            "nombre_completo"
+            ")"
+            "),"
+            "momento_dia("
+            "momento"
+            ")"
+            ")"
         ).eq("estado", True).eq("registro_glucosa.id_medico", id_medico).execute()
 
         data = res.data or []
@@ -339,33 +333,31 @@ async def alertas_resueltas(idMedico: str, request: Request):
 
     try:
         res = sb.supabase.from_("alertas").select(
-            """
-            id_alerta,
-            estado,
-            tipo_alerta!inner (
-                tipo
-            ),
-            retroalimentacion (
-                mensaje
-            ),
-            registro_glucosa!inner (
-                fecha,
-                hora,
-                nivel_glucosa,
-                observaciones,
-                id_paciente,
-                id_medico,
-                paciente (
-                    id_paciente,
-                    usuario (
-                        nombre_completo
-                    )
-                ),
-                momento_dia (
-                    momento
-                )
-            )
-            """
+            "id_alerta,"
+            "estado,"
+            "tipo_alerta!inner("
+            "tipo"
+            "),"
+            "retroalimentacion("
+            "mensaje"
+            "),"
+            "registro_glucosa!inner("
+            "fecha,"
+            "hora,"
+            "nivel_glucosa,"
+            "observaciones,"
+            "id_paciente,"
+            "id_medico,"
+            "paciente("
+            "id_paciente,"
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "momento_dia("
+            "momento"
+            ")"
+            ")"
         ).eq("estado", False).eq("registro_glucosa.id_medico", id_medico).execute()
 
         data = res.data or []
@@ -419,9 +411,9 @@ async def retroalimentacion_alerta(req_body: ResponderAlertaBody, request: Reque
                 "mensaje": req_body.mensaje,
                 "alertas_id_alerta": req_body.alertas_id_alerta,
             }
-        ]).select().execute()
+        ]).execute()
 
-        res_upd = sb.supabase.from_("alertas").update({"estado": False}).eq("id_alerta", req_body.alertas_id_alerta).select().execute()
+        res_upd = sb.supabase.from_("alertas").update({"estado": False}).eq("id_alerta", req_body.alertas_id_alerta).execute()
 
         await registrar_auditoria(request, rol="medico", status_code=200, id_rol=req_body.id_medico)
         return {
@@ -459,7 +451,7 @@ async def registrar_glucosa_medico(req_body: RegistrarGlucosaMedicoBody, request
                 "nivel_glucosa": req_body.nivel_glucosa,
                 "observaciones": req_body.observaciones,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res.data or len(res.data) == 0:
             raise Exception("No se pudo insertar el registro")

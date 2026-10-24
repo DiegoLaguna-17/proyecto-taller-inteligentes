@@ -122,7 +122,7 @@ def test_pacientes_solicitantes_semanas_embarazo(client, mock_supabase):
             "administrador": None,
             "paciente_enfermedad": [],
             "tratamiento_enfermedad": [],
-            "seguimiento_embarazo": [{"semanas_gestacion": 18, "activo": True}]
+            "seguimiento_embarazo": [{"semanas_embarazo": 18, "fecha_terminacion": None}]
         }
     ]
     mock_supabase.set_table_mock("paciente", MockQueryBuilder(data=solicitantes_mock))

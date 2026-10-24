@@ -5,6 +5,33 @@ from app.main import app
 import app.core.supabase as supabase_module
 import app.services.email_service as email_module
 
+class MockMutationBuilder:
+    """Respuesta de insert/update/delete en el cliente real: solo filtros y
+    execute (sin select/single), y `data` siempre es una lista de filas."""
+
+    def __init__(self, data=None, error=None):
+        if data is None:
+            data = []
+        self._data = data if isinstance(data, list) else [data]
+        self._error = error
+
+    def eq(self, *args, **kwargs):
+        return self
+
+    def neq(self, *args, **kwargs):
+        return self
+
+    def is_(self, *args, **kwargs):
+        return self
+
+    def execute(self):
+        if self._error:
+            raise self._error
+        mock_response = MagicMock()
+        mock_response.data = self._data
+        return mock_response
+
+
 class MockQueryBuilder:
     def __init__(self, data=None, error=None):
         self._data = data if data is not None else []
@@ -14,13 +41,13 @@ class MockQueryBuilder:
         return self
 
     def insert(self, *args, **kwargs):
-        return self
+        return MockMutationBuilder(self._data, self._error)
 
     def update(self, *args, **kwargs):
-        return self
+        return MockMutationBuilder(self._data, self._error)
 
     def delete(self, *args, **kwargs):
-        return self
+        return MockMutationBuilder(self._data, self._error)
 
     def eq(self, *args, **kwargs):
         return self

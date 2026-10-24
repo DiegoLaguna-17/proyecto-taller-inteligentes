@@ -35,19 +35,17 @@ async def datos_para_glucosa(idUsuario: str, request: Request):
 
     try:
         res = sb.supabase.from_("paciente").select(
-            """
-            id_paciente,
-            embarazo,
-            id_medico,
-            usuario!inner (
-                fecha_nac
-            ),
-            paciente_enfermedad (
-                enfermedades_base (
-                    nombre_enfermedad
-                )
-            )
-            """
+            "id_paciente,"
+            "embarazo,"
+            "id_medico,"
+            "usuario!inner("
+            "fecha_nac"
+            "),"
+            "paciente_enfermedad("
+            "enfermedades_base("
+            "nombre_enfermedad"
+            ")"
+            ")"
         ).eq("id_paciente", id_paciente).maybe_single().execute()
 
         data = res.data
@@ -104,7 +102,7 @@ async def registrar_alerta(req_body: RegistrarAlertaRequest, request: Request):
                 "id_medico": id_medico,
                 "fecha_alerta": fecha_alerta,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_alerta.data or len(res_alerta.data) == 0:
             raise Exception("No se pudo insertar la alerta")

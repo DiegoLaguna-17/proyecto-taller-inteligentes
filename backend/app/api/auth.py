@@ -148,7 +148,6 @@ async def update_password(id_usuario: int, req_body: UpdatePasswordRequest, requ
         res = sb.supabase.from_("usuario") \
             .update({"contrasena": hashed_password}) \
             .eq("id_usuario", id_usuario) \
-            .select("id_usuario, nombre_completo, correo") \
             .execute()
 
         if not res.data or len(res.data) == 0:
@@ -156,7 +155,7 @@ async def update_password(id_usuario: int, req_body: UpdatePasswordRequest, requ
 
         return {
             "message": "Contraseña actualizada correctamente.",
-            "usuario": res.data[0]
+            "usuario": {k: res.data[0].get(k) for k in ("id_usuario", "nombre_completo", "correo")}
         }
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": "Error interno del servidor."})

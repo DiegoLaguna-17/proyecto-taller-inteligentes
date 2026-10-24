@@ -20,24 +20,22 @@ def formatear_fecha(fecha_str: Optional[str]) -> Optional[str]:
 async def medicos_activos(request: Request):
     try:
         res = sb.supabase.from_("medico").select(
-            """
-            id_medico,
-            matricula_profesional,
-            departamento,
-            carnet_profesional,
-            usuario!inner (
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                estado
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            )
-            """
+            "id_medico,"
+            "matricula_profesional,"
+            "departamento,"
+            "carnet_profesional,"
+            "usuario!inner("
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "estado"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            ")"
         ).eq("usuario.estado", True).execute()
 
         data = res.data or []
@@ -80,24 +78,22 @@ async def medicos_activos(request: Request):
 async def medicos_solicitantes(request: Request):
     try:
         res = sb.supabase.from_("medico").select(
-            """
-            id_medico,
-            matricula_profesional,
-            departamento,
-            carnet_profesional,
-            usuario!inner (
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                estado
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            )
-            """
+            "id_medico,"
+            "matricula_profesional,"
+            "departamento,"
+            "carnet_profesional,"
+            "usuario!inner("
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "estado"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            ")"
         ).eq("usuario.estado", False).execute()
 
         data = res.data or []
@@ -153,47 +149,45 @@ async def activar_medico(idMedico: str, req_body: ActivarRequest, request: Reque
 async def pacientes_activos(request: Request):
     try:
         res = sb.supabase.from_("paciente").select(
-            """
-            id_paciente,
-            genero,
-            peso,
-            altura,
-            nombre_emergencia,
-            numero_emergencia,
-            foto_perfil,
-            usuario!inner (
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                estado
-            ),
-            nivel_actividad_fisica (
-                descripcion
-            ),
-            medico (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            administrador!inner (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            paciente_enfermedad (
-                enfermedades_base (
-                    nombre_enfermedad
-                )
-            ),
-            tratamiento_enfermedad (
-                dosis,
-                tratamientos (
-                    nombre_tratamiento,
-                    descripcion
-                )
-            )
-            """
+            "id_paciente,"
+            "genero,"
+            "peso,"
+            "altura,"
+            "nombre_emergencia,"
+            "numero_emergencia,"
+            "foto_perfil,"
+            "usuario!inner("
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "estado"
+            "),"
+            "nivel_actividad_fisica("
+            "descripcion"
+            "),"
+            "medico("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "administrador!inner("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "paciente_enfermedad("
+            "enfermedades_base("
+            "nombre_enfermedad"
+            ")"
+            "),"
+            "tratamiento_enfermedad("
+            "dosis,"
+            "tratamientos("
+            "nombre_tratamiento,"
+            "descripcion"
+            ")"
+            ")"
         ).eq("usuario.estado", True).execute()
 
         data = res.data or []
@@ -246,52 +240,50 @@ async def pacientes_activos(request: Request):
 async def pacientes_solicitantes(request: Request):
     try:
         res = sb.supabase.from_("paciente").select(
-            """
-            id_paciente,
-            genero,
-            peso,
-            altura,
-            nombre_emergencia,
-            numero_emergencia,
-            foto_perfil,
-            embarazo,
-            usuario!inner (
-                nombre_completo,
-                fecha_nac,
-                teléfono,
-                correo,
-                estado
-            ),
-            nivel_actividad_fisica (
-                descripcion
-            ),
-            medico (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            ),
-            paciente_enfermedad (
-                enfermedades_base (
-                    nombre_enfermedad
-                )
-            ),
-            tratamiento_enfermedad (
-                dosis,
-                tratamientos (
-                    nombre_tratamiento,
-                    descripcion
-                )
-            ),
-            seguimiento_embarazo (
-                semanas_gestacion,
-                activo
-            )
-            """
+            "id_paciente,"
+            "genero,"
+            "peso,"
+            "altura,"
+            "nombre_emergencia,"
+            "numero_emergencia,"
+            "foto_perfil,"
+            "embarazo,"
+            "usuario!inner("
+            "nombre_completo,"
+            "fecha_nac,"
+            "teléfono,"
+            "correo,"
+            "estado"
+            "),"
+            "nivel_actividad_fisica("
+            "descripcion"
+            "),"
+            "medico("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            "),"
+            "paciente_enfermedad("
+            "enfermedades_base("
+            "nombre_enfermedad"
+            ")"
+            "),"
+            "tratamiento_enfermedad("
+            "dosis,"
+            "tratamientos("
+            "nombre_tratamiento,"
+            "descripcion"
+            ")"
+            "),"
+            "seguimiento_embarazo("
+            "semanas_embarazo,"
+            "fecha_terminacion"
+            ")"
         ).eq("usuario.estado", False).execute()
 
         data = res.data or []
@@ -319,8 +311,8 @@ async def pacientes_solicitantes(request: Request):
 
             semanas_emb = None
             for seg in p.get("seguimiento_embarazo") or []:
-                if seg.get("activo"):
-                    semanas_emb = seg.get("semanas_gestacion")
+                if seg.get("fecha_terminacion") is None:
+                    semanas_emb = seg.get("semanas_embarazo")
                     break
 
             pacientes_formateados.append({
@@ -381,22 +373,20 @@ async def perfil_admin(idUsuario: str, request: Request):
 
     try:
         res = sb.supabase.from_("administrador").select(
-            """
-            id_admin,
-            cargo,
-            fecha_ingreso,
-            usuario!inner (
-                nombre_completo,
-                correo,
-                fecha_nac,
-                teléfono
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            )
-            """
+            "id_admin,"
+            "cargo,"
+            "fecha_ingreso,"
+            "usuario!inner("
+            "nombre_completo,"
+            "correo,"
+            "fecha_nac,"
+            "teléfono"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            ")"
         ).eq("id_usuario", id_usuario).maybe_single().execute()
 
         data = res.data
@@ -448,7 +438,7 @@ async def agregar_admin(req_body: AgregarAdminRequest, request: Request):
                 "teléfono": req_body.telefono,
                 "estado": True,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_usr.data or len(res_usr.data) == 0:
             raise Exception("Error insertando usuario")
@@ -462,7 +452,7 @@ async def agregar_admin(req_body: AgregarAdminRequest, request: Request):
                 "fecha_ingreso": req_body.fecha_registro,
                 "administrador_id_admin": req_body.administrador_id_admin,
             }
-        ]).select().execute()
+        ]).execute()
 
         if not res_adm.data or len(res_adm.data) == 0:
             raise Exception("Error insertando administrador")
@@ -492,22 +482,20 @@ async def obtener_admins(idAdmin: str, request: Request):
 
     try:
         res = sb.supabase.from_("administrador").select(
-            """
-            id_admin,
-            cargo,
-            fecha_ingreso,
-            usuario!inner (
-                nombre_completo,
-                correo,
-                fecha_nac,
-                teléfono
-            ),
-            administrador (
-                usuario (
-                    nombre_completo
-                )
-            )
-            """
+            "id_admin,"
+            "cargo,"
+            "fecha_ingreso,"
+            "usuario!inner("
+            "nombre_completo,"
+            "correo,"
+            "fecha_nac,"
+            "teléfono"
+            "),"
+            "administrador("
+            "usuario("
+            "nombre_completo"
+            ")"
+            ")"
         ).neq("id_admin", 1).neq("id_admin", id_admin).execute()
 
         data = res.data or []
