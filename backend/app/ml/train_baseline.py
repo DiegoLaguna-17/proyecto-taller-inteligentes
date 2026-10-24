@@ -32,7 +32,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from app.ml.data_prep import (
+from data_prep import (
     COLUMNAS_BINARIAS_COMORBILIDAD,
     COLUMNAS_NUMERICAS_MODELO,
     cargar_summary_crudo,

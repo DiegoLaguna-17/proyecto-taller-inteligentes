@@ -1,0 +1,98 @@
+{
+  "backend/app/api/__init__.py": {
+    "mtime": 1787872875.789555,
+    "seen": 1791851354.794557,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "backend/app/core/__init__.py": {
+    "mtime": 1787872875.789555,
+    "seen": 1791851354.794557,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "backend/app/main.py": {
+    "mtime": 1789620899.2903845,
+    "seen": 1791851354.794557,
+    "ast_hash": "942b9fdb6be28ec53aac1fb4fc492015",
+    "semantic_hash": "942b9fdb6be28ec53aac1fb4fc492015"
+  },
+  "backend/app/ml/__init__.py": {
+    "mtime": 1787872875.8129883,
+    "seen": 1791851354.794557,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "backend/app/ml/baseline_metrics.json": {
+    "mtime": 1789687544.3149037,
+    "seen": 1791851354.794557,
+    "ast_hash": "5dcb492391670b7d32490557d759bfb4",
+    "semantic_hash": "5dcb492391670b7d32490557d759bfb4"
+  },
+  "backend/app/ml/data_prep.py": {
+    "mtime": 1789619693.0047586,
+    "seen": 1791851354.794557,
+    "ast_hash": "4ec836ae52630606f54df91a81475d13",
+    "semantic_hash": "4ec836ae52630606f54df91a81475d13"
+  },
+  "backend/app/ml/exportar_dataset.py": {
+    "mtime": 1789619906.7476408,
+    "seen": 1791851354.794557,
+    "ast_hash": "87790a7596ac917fd0d9e7b450415243",
+    "semantic_hash": "87790a7596ac917fd0d9e7b450415243"
+  },
+  "backend/app/ml/predict.py": {
+    "mtime": 1789619017.169619,
+    "seen": 1791851354.794557,
+    "ast_hash": "56b0f7c93ccbb0883e49c9f4346cb86b",
+    "semantic_hash": "56b0f7c93ccbb0883e49c9f4346cb86b"
+  },
+  "backend/app/ml/riesgo.py": {
+    "mtime": 1789620901.9825554,
+    "seen": 1791851354.794557,
+    "ast_hash": "86c176d72390540af1540be00560b1d6",
+    "semantic_hash": "86c176d72390540af1540be00560b1d6"
+  },
+  "backend/app/ml/train_baseline.py": {
+    "mtime": 1789686937.5089777,
+    "seen": 1791851354.794557,
+    "ast_hash": "28216cf3295deb3e8591004b2636d64e",
+    "semantic_hash": "28216cf3295deb3e8591004b2636d64e"
+  },
+  "backend/app/models/__init__.py": {
+    "mtime": 1787872875.8129883,
+    "seen": 1791851354.794557,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "backend/app/nlp/__init__.py": {
+    "mtime": 1787872875.8162227,
+    "seen": 1791851354.794557,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "backend/app/test_ml.sh": {
+    "mtime": 1789619017.0182116,
+    "seen": 1791851354.794557,
+    "ast_hash": "90c206a5b697e7e6f143b27abf560c8c",
+    "semantic_hash": "90c206a5b697e7e6f143b27abf560c8c"
+  },
+  "mobile/App.tsx": {
+    "mtime": 1787872875.8814988,
+    "seen": 1791851354.794557,
+    "ast_hash": "77c4cfa3f6cd053b2e9eacd705fddafe",
+    "semantic_hash": "77c4cfa3f6cd053b2e9eacd705fddafe"
+  },
+  "mobile/package.json": {
+    "mtime": 1787872875.901855,
+    "seen": 1791851354.794557,
+    "ast_hash": "0ba9aa3f9ffe18e4055e12f130b13f38",
+    "semantic_hash": "0ba9aa3f9ffe18e4055e12f130b13f38"
+  },
+  "mobile/src/services/api.ts": {
+    "mtime": 1787872875.9273155,
+    "seen": 1791851354.794557,
+    "ast_hash": "31f208be849c1cc6600be78115d435a2",
+    "semantic_hash": "31f208be849c1cc6600be78115d435a2"
+  }
+}

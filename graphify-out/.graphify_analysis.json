@@ -1,0 +1,261 @@
+{
+  "communities": {
+    "0": [
+      "backend_app_main",
+      "backend_app_main_health_check",
+      "backend_app_main_rationale_1",
+      "backend_app_main_rationale_21",
+      "backend_app_ml_init",
+      "backend_app_ml_riesgo",
+      "backend_app_ml_riesgo_clasificar_alerta",
+      "backend_app_ml_riesgo_pacienteriesgoinput",
+      "backend_app_ml_riesgo_predecir_riesgo_hipoglucemia",
+      "backend_app_ml_riesgo_rationale_1",
+      "backend_app_ml_riesgo_rationale_26",
+      "backend_app_ml_riesgo_rationale_83",
+      "backend_app_ml_riesgo_rationale_99",
+      "backend_app_ml_riesgo_riesgohipoglucemiaoutput",
+      "basemodel",
+      "fastapi",
+      "get",
+      "post",
+      "pydantic",
+      "typing"
+    ],
+    "1": [
+      "backend_app_ml_data_prep",
+      "backend_app_ml_data_prep_cargar_summary_crudo",
+      "backend_app_ml_data_prep_expandir_a_nivel_de_lectura",
+      "backend_app_ml_data_prep_limpiar_datos_clinicos",
+      "backend_app_ml_data_prep_limpiar_texto_lista",
+      "backend_app_ml_data_prep_preparar_features",
+      "backend_app_ml_data_prep_py_dataframe",
+      "backend_app_ml_data_prep_rationale_1",
+      "backend_app_ml_data_prep_rationale_106",
+      "backend_app_ml_data_prep_rationale_162",
+      "backend_app_ml_data_prep_rationale_201",
+      "backend_app_ml_data_prep_rationale_60",
+      "backend_app_ml_data_prep_rationale_72",
+      "backend_app_ml_data_prep_rationale_88",
+      "backend_app_ml_data_prep_simplificar_agente",
+      "backend_app_ml_data_prep_tiene_palabra",
+      "backend_app_ml_exportar_dataset",
+      "backend_app_ml_exportar_dataset_main",
+      "backend_app_ml_exportar_dataset_rationale_1",
+      "pandas"
+    ],
+    "2": [
+      "backend_app_ml_train_baseline",
+      "backend_app_ml_train_baseline_construir_indices_categoricas",
+      "backend_app_ml_train_baseline_construir_pipeline",
+      "backend_app_ml_train_baseline_entrenar_y_evaluar",
+      "backend_app_ml_train_baseline_py_dataframe",
+      "backend_app_ml_train_baseline_rationale_1",
+      "backend_app_ml_train_baseline_rationale_52",
+      "backend_app_ml_train_baseline_rationale_67",
+      "imblearn_over_sampling",
+      "imblearn_pipeline",
+      "imbpipeline",
+      "json",
+      "numpy",
+      "series",
+      "sklearn_compose",
+      "sklearn_linear_model",
+      "sklearn_metrics",
+      "sklearn_model_selection",
+      "sklearn_preprocessing"
+    ],
+    "3": [
+      "mobile_app",
+      "mobile_app_app",
+      "mobile_app_styles",
+      "mobile_package",
+      "mobile_package_dependencies",
+      "mobile_package_dependencies_react",
+      "mobile_package_dependencies_react_native",
+      "mobile_package_devdependencies",
+      "mobile_package_devdependencies_eslint",
+      "mobile_package_devdependencies_jest",
+      "mobile_package_devdependencies_react_native_eslint_config",
+      "mobile_package_name",
+      "mobile_package_private",
+      "mobile_package_version",
+      "ref_eslint",
+      "ref_jest",
+      "ref_react",
+      "ref_react_native",
+      "ref_react_native_eslint_config"
+    ],
+    "4": [
+      "backend_app_ml_predict",
+      "backend_app_ml_predict_cargar_bundle",
+      "backend_app_ml_predict_construir_dataframe_paciente",
+      "backend_app_ml_predict_predecir_riesgo",
+      "backend_app_ml_predict_py_dataframe",
+      "backend_app_ml_predict_rationale_1",
+      "backend_app_ml_predict_rationale_39",
+      "backend_app_ml_predict_rationale_53",
+      "backend_app_ml_predict_rationale_79",
+      "functools",
+      "joblib",
+      "os"
+    ],
+    "5": [
+      "mobile_package_scripts",
+      "mobile_package_scripts_android",
+      "mobile_package_scripts_ios",
+      "mobile_package_scripts_lint",
+      "mobile_package_scripts_start",
+      "mobile_package_scripts_test"
+    ],
+    "6": [
+      "mobile_src_services_api",
+      "mobile_src_services_api_api_base_url",
+      "mobile_src_services_api_apirequest",
+      "mobile_src_services_api_rationale_6"
+    ],
+    "7": [
+      "backend_app_test_ml",
+      "backend_app_test_ml_sh__entry"
+    ],
+    "8": [
+      "backend_app_api_init"
+    ],
+    "9": [
+      "backend_app_core_init"
+    ],
+    "10": [
+      "backend_app_models_init"
+    ],
+    "11": [
+      "backend_app_nlp_init"
+    ]
+  },
+  "cohesion": {
+    "0": 0.12631578947368421,
+    "1": 0.2,
+    "2": 0.1286549707602339,
+    "3": 0.1111111111111111,
+    "4": 0.21212121212121213,
+    "5": 0.3333333333333333,
+    "6": 0.5,
+    "7": 1.0,
+    "8": 1.0,
+    "9": 1.0,
+    "10": 1.0,
+    "11": 1.0
+  },
+  "gods": [
+    {
+      "id": "backend_app_ml_data_prep_limpiar_datos_clinicos",
+      "label": "limpiar_datos_clinicos()",
+      "degree": 10
+    },
+    {
+      "id": "backend_app_ml_data_prep_preparar_features",
+      "label": "preparar_features()",
+      "degree": 9
+    },
+    {
+      "id": "backend_app_ml_riesgo_predecir_riesgo_hipoglucemia",
+      "label": "predecir_riesgo_hipoglucemia()",
+      "degree": 7
+    },
+    {
+      "id": "backend_app_ml_data_prep_cargar_summary_crudo",
+      "label": "cargar_summary_crudo()",
+      "degree": 7
+    },
+    {
+      "id": "backend_app_ml_train_baseline_construir_pipeline",
+      "label": "construir_pipeline()",
+      "degree": 7
+    },
+    {
+      "id": "backend_app_ml_train_baseline_entrenar_y_evaluar",
+      "label": "entrenar_y_evaluar()",
+      "degree": 7
+    },
+    {
+      "id": "backend_app_ml_predict_predecir_riesgo",
+      "label": "predecir_riesgo()",
+      "degree": 7
+    },
+    {
+      "id": "mobile_package_scripts",
+      "label": "scripts",
+      "degree": 6
+    },
+    {
+      "id": "backend_app_ml_data_prep_expandir_a_nivel_de_lectura",
+      "label": "_expandir_a_nivel_de_lectura()",
+      "degree": 5
+    },
+    {
+      "id": "backend_app_ml_predict_construir_dataframe_paciente",
+      "label": "_construir_dataframe_paciente()",
+      "degree": 5
+    }
+  ],
+  "surprises": [
+    {
+      "source": "entrenar_y_evaluar()",
+      "target": "cargar_summary_crudo()",
+      "source_files": [
+        "backend/app/ml/train_baseline.py",
+        "backend/app/ml/data_prep.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "entrenar_y_evaluar()",
+      "target": "limpiar_datos_clinicos()",
+      "source_files": [
+        "backend/app/ml/train_baseline.py",
+        "backend/app/ml/data_prep.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "entrenar_y_evaluar()",
+      "target": "preparar_features()",
+      "source_files": [
+        "backend/app/ml/train_baseline.py",
+        "backend/app/ml/data_prep.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "predecir_riesgo_hipoglucemia()",
+      "target": "predecir_riesgo()",
+      "source_files": [
+        "backend/app/ml/riesgo.py",
+        "backend/app/ml/predict.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "predecir_riesgo()",
+      "target": "preparar_features()",
+      "source_files": [
+        "backend/app/ml/predict.py",
+        "backend/app/ml/data_prep.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "modelo": "regresion_logistica_baseline",
+  "auc_roc": 0.6404,
+  "precision_hipo": 0.4286,
+  "recall_hipo": 0.4286,
+  "f1_hipo": 0.4286,
+  "matriz_confusion": {
+    "orden": [
+      "real_no",
+      "real_hipo"
+    ],
+    "valores": [
+      [
+        25,
+        4
+      ],
+      [
+        4,
+        3
+      ]
+    ]
+  },
+  "n_train": 157,
+  "n_test": 36,
+  "positivos_test": 7,
+  "random_state": 42
+}
