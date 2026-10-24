@@ -1,5 +1,5 @@
 # design.md
-> GlucoTracker — Version 1.4.6 — 2026-10-24
+> GlucoTracker — Version 1.5.0 — 2026-10-24
 
 ## Architecture Overview
 El backend principal es un monolito modular en FastAPI (ver ADR-0001). Centraliza la lógica de negocio: auth, registros, la **clasificación ADA** Normal/Hipo/Hiper de cada lectura y las alertas al médico. Hay dos servicios independientes:
@@ -337,6 +337,38 @@ Todos los errores responden `{"detail": "<mensaje genérico en español>"}` y nu
   - En cualquier otro caso → `Normal`.
 - **Pendiente:** para el momento `otro`, la regla de hiperglucemia queda **pendiente de revisión clínica** (Open Question). Las etiquetas y los cortes también están sujetos a esa revisión.
 
+## Modelo de demo con datos sintéticos Design
+
+**Principio de honestidad:** el modelo de demo **aprende las reglas que escribió el equipo, no la realidad**. Existe solo para poder mostrar el flujo integrado (app → backend → servicio de ML → médico) mientras no haya pacientes reales. Sus probabilidades y sus métricas **no son evidencia clínica** y no deben presentarse como tal. El modelo real (`backend/ml_service`, Regresión Logística + SMOTE-NC, ADR-0007) **no se modifica ni se reentrena**: sigue siendo experimental, solo informativo y visible solo para el médico. El detalle de las reglas, distribuciones y esquemas está en [docs/ml/generador_sintetico.md](docs/ml/generador_sintetico.md); aquí solo el diseño de las fases.
+
+**Fases** (la S1 es solo documentación; S2 a S4 están pendientes en tasks.md como TASK-011f, 011g y 011h):
+
+| Fase | Qué entrega | Dónde |
+|---|---|---|
+| S1 | Especificación: decisiones, reglas clínicas, distribuciones y esquemas | `docs/ml/generador_sintetico.md` |
+| S2 | Generador reproducible de un dataset sintético a partir de reglas clínicas escritas (no de un modelo estadístico ajustado a los 109 registros reales) | `backend/ml_service/app/sintetico/` (`reglas.py`, `generador.py`), `backend/ml_service/data/sintetico/` |
+| S3 | Entrenamiento del modelo de demo con ese dataset, con artefactos y metadatos propios | `backend/ml_service/app/train_demo.py`, `backend/ml_service/app/artefactos/demo/` |
+| S4 | Selección del modelo con `ML_MODELO` y marca `"modo"` en `/health` y en la respuesta | `config.py`, `predict.py`, `api/riesgo.py`, `main.py` |
+
+**Decisiones cerradas (S1, tomadas con el equipo):** prevalencia objetivo 15 %; 2.000 registros por defecto; señal moderada; el ruido es el muestreo Bernoulli de la probabilidad de las reglas, de modo que el modelo de demo alcance un AUC moderado (0,70 a 0,80) en su propia validación sintética; reglas dudosas incluidas: IMC bajo y HbA1c alta (neuropatía y enfermedad cardiovascular quedan sin efecto); dos interacciones; dependencia continua de la glucosa; género, hipertensión y dislipidemia sin efecto (controles).
+
+**Generador (S2).** Genera registros (una lectura + perfil) con el mismo esquema de entrada que el contrato del servicio. Muestrea el perfil de distribuciones plausibles con correlaciones mínimas, calcula la probabilidad con las reglas clínicas (suma de log-odds), calibra el intercepto para lograr la prevalencia objetivo, muestrea la etiqueta y escribe un CSV (ignorado por git, regenerable) y un JSON de metadatos (versionado, con la huella del CSV). Es determinista dada la semilla. Sus reglas llevan versión propia (`version_reglas`). No lee ni mezcla nada de `backend/ml_service/data/raw/`.
+
+**Modelo de demo (S3).** Mismo tipo de tubería que el real (`construir_pipeline`), entrenado solo con el dataset sintético, con validación cruzada agrupada por paciente sintético. Escribe en `app/artefactos/demo/` un `.pkl` (ignorado por git) y un JSON de metadatos (versionado) con `version_modelo` propia (`1.0.0-demo`), `entrenado_con: "sintetico"`, la versión de las reglas y la huella del dataset. Sus métricas se rotulan "validación sintética, no clínica". **No escribe nunca** en `app/artefactos/` del modelo real ni toca `baseline_metrics.json` ni `cv_metrics.json`.
+
+**Selección del modelo (S4).**
+- Variable `ML_MODELO` con valores `real` (por defecto) o `demo`. Un valor distinto es `ConfiguracionInvalida` (→ 503 genérico). El modelo de demo **solo se usa con `ML_MODELO=demo`**.
+- `predict.py` carga del directorio que corresponde al modo y verifica huella y versiones como hoy (RT-06). En modo `demo` exige además `entrenado_con == "sintetico"` en el JSON; en modo `real` exige que ese campo no diga `sintetico` (el JSON real actual no lo trae y se interpreta como real). Si no coincide, `ModeloNoDisponible` (→ 503).
+- `GET /health` añade `"modo": "real" | "demo"`.
+- **Cambio de contrato:** la respuesta 200 de `POST /api/riesgo/hipoglucemia` añade el campo `modo` (`"real"` o `"demo"`): `{"riesgo_hipoglucemia": float, "version_modelo": str, "modo": str}`. Es una adición compatible (el backend puede ignorarla), pero ADR-0008 describe el contrato como "solo la probabilidad y `version_modelo`"; por eso S4 queda **pendiente de la aprobación de una ADR nueva** (propuesta: ADR-0009, "Modelo de demo con datos sintéticos") antes de implementarse. En modo `demo`, `version_modelo` lleva el sufijo `-demo`.
+- El backend y la app deben mostrar de forma visible que la estimación viene de un modelo de demo cuando `modo == "demo"` (quién lo muestra y qué pasa en producción son Open Questions).
+
+**Reglas de separación (obligatorias):**
+1. Nunca mezclar filas sintéticas con las 109 reales (ni en entrenamiento, ni en validación, ni en archivos).
+2. Nunca evaluar el modelo de demo con datos sintéticos y presentarlo como desempeño clínico.
+3. Nunca usar el modelo de demo salvo con `ML_MODELO=demo` (por defecto, `real`).
+4. El modelo de demo y sus metadatos llevan versión propia (`1.0.0-demo`) y `entrenado_con: "sintetico"`; el dataset lleva la columna `origen = "sintetico"`.
+
 ## File Structure
 ```
 glucotracker/
@@ -369,9 +401,12 @@ glucotracker/
 │   │   │   ├── cv_evaluacion.py # Validación cruzada agrupada + bootstrap por pacientes + referencias y lift (M2/M2b, ML-D3); python -m app.cv_evaluacion
 │   │   │   ├── metadatos.py    # Huella SHA-256, versiones instaladas y lectura/escritura del JSON de metadatos (compartido por train_baseline.py y predict.py)
 │   │   │   ├── predict.py      # Carga única del artefacto (verifica huella y versiones) e inferencia
+│   │   │   ├── sintetico/      # (S2, planeado) reglas.py: reglas clínicas y su versión; generador.py: dataset sintético reproducible
+│   │   │   ├── train_demo.py   # (S3, planeado) entrena el modelo de demo con el dataset sintético
 │   │   │   ├── exportar_dataset.py # Utilidad opcional: exporta el dataset limpio a data/dataset_inputs_hipoglucemia.csv
-│   │   │   └── artefactos/     # modelo_hipoglucemia.pkl (fuera de git) + modelo_hipoglucemia.json (metadatos, en git) + cv_metrics.json (salida de cv_evaluacion.py, solo agregados, en git) + baseline_metrics.json
+│   │   │   └── artefactos/     # (S3 añade demo/: modelo_hipoglucemia_demo.pkl fuera de git + .json en git) modelo_hipoglucemia.pkl (fuera de git) + modelo_hipoglucemia.json (metadatos, en git) + cv_metrics.json (salida de cv_evaluacion.py, solo agregados, en git) + baseline_metrics.json
 │   │   ├── data/raw/           # ShanghaiT2DM_Summary.xlsx (movido con git mv desde backend/data/raw/)
+│   │   ├── data/sintetico/     # (S2, planeado) CSV sintético (fuera de git, regenerable) + JSON de metadatos del dataset (en git); nunca se mezcla con data/raw/
 │   │   ├── tests/              # pytest: preparación de features, predicción con modelo sintético, metadatos, huella, aislamiento, logs, cv_evaluacion (sin red ni Excel real)
 │   │   ├── requirements.txt    # Versiones exactas (incluidas numpy, scipy, imbalanced-learn, joblib, openpyxl)
 │   │   ├── requirements-dev.txt
@@ -437,6 +472,11 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 - **Integridad del artefacto:** antes de predecir se verifican la huella SHA-256 del `.pkl` y las versiones de librerías contra el JSON de metadatos; si no coinciden, responde 503 (RT-06).
 - **Sin efecto clínico automático:** la probabilidad es informativa y no dispara alertas hasta la calibración (ML-D4, REQ-004). Las alertas las decide la clasificación ADA del backend (REQ-005).
 
+### Modelo de demo
+- **Honestidad de la salida:** un modelo entrenado con datos sintéticos no puede presentarse como estimación clínica. Con `modo == "demo"` la respuesta y `/health` lo declaran, y el modelo de demo no se carga salvo con `ML_MODELO=demo`.
+- **Sin datos reales ni identificadores:** el dataset sintético se genera desde reglas y semillas; no contiene filas, valores ni ids de los 109 registros reales (los ids sintéticos tienen el prefijo `sint-`).
+- **Mismas garantías que el modelo real:** huella SHA-256 y versiones verificadas al cargar, errores genéricos y nada de valores de entrada en logs (NFR-001).
+
 ## Open Questions
 - [ ] ¿Qué esquema de autenticación se usará (JWT, sesiones con Supabase Auth, OAuth)? El documento original no lo especifica.
 - [x] ¿El modelo de ML (SVC vs Árbol de Decisión) ya está entrenado y con qué dataset, o se entrena como parte de este proyecto? — **Resuelta (2026-10-24):** se entrena en el proyecto con ShanghaiT2DM (`docs/data_ecosystem.md`). Es una Regresión Logística con SMOTE-NC (ADR-0007, reemplaza a ADR-0004), reproducible con `train_baseline.py`, y estima la probabilidad de hipoglucemia observada en el registro (REQ-004 v1.1.0).
@@ -448,6 +488,8 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
     3. **Instantánea por predicción**: guardar junto al registro (o en una tabla de predicciones) el perfil exacto enviado al modelo. Da trazabilidad y reproducibilidad completas, a cambio de duplicar datos clínicos sensibles (NFR-001). Es complementaria a la 1 o la 2.
     4. **Sin persistir**: la app envía el perfil con cada lectura y el backend solo lo reenvía. No requiere cambios de esquema, pero el paciente tendría que reingresarlo, el médico no lo ve y no hay trazabilidad.
   - También hay que definir quién carga y actualiza el perfil (paciente, médico o ambos) y cómo se mapea `enfermedades_base` (texto libre) a las banderas de comorbilidad.
+- [ ] **Modelo de demo en producción:** ¿se permite `ML_MODELO=demo` fuera de desarrollo y de las demostraciones? ¿Debe el despliegue de producción rechazarlo, y qué rótulo visible muestran el backend y la app cuando `modo == "demo"`? Sin resolver: hasta decidirlo, la demo es solo para entornos de desarrollo y presentaciones.
+- [ ] **Validación de las reglas clínicas del generador:** ¿quién (un profesional de la salud del equipo o externo) revisa y aprueba las reglas y sus magnitudes antes de usar el modelo de demo en una presentación? Hoy todas las reglas están **pendientes de revisión por el equipo** y las magnitudes son supuestos.
 - [ ] **Despliegue del servicio de ML sin ingreso público:** hay que provisionar el recurso en Azure alcanzable solo desde el backend por red interna (TASK-002b). Hasta entonces el aislamiento de red, que es la única protección del endpoint en v1, no está verificado en un entorno real.
 - [ ] **Autenticación backend → servicio de ML:** ¿identidad administrada de Azure, mTLS o token de servicio? En v1 solo hay red interna (ML-D8). Hay que resolverlo antes del despliegue (TASK-002).
 - [ ] **Clasificación ADA para el momento `otro`:** ¿qué regla de hiperglucemia aplica cuando la lectura no es en ayunas ni postprandial? Las etiquetas y los cortes de `reglas_ada.py` también requieren revisión clínica.
@@ -471,4 +513,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.4.4 | 2026-10-24 | Fase M5a: `backend/ml_service/` pasa de destino a existente con `GET /health`. El código del modelo (`data_prep.py`, `train_baseline.py`, `predict.py`, `cv_evaluacion.py`, `exportar_dataset.py`), el dataset y las pruebas se mueven allí con `git mv`; `backend/app/ml/` conserva `riesgo.py` y copias transitorias de `data_prep.py` y `predict.py` hasta M5b/TASK-011e (decisión del usuario). Versiones fijadas con scipy 1.15.3 (última sin el aviso `iprint` de scikit-learn 1.5.2). Metadatos del modelo: se añaden scipy y `conteos`; verificación de huella y versiones al cargar, una sola vez. Variables `ML_ARTEFACTOS_DIR` y `ML_LOG_LEVEL`; puerto 8002. Sin cambios en Data Models ni contratos. |
 | 1.4.5 | 2026-10-24 | Fase M5b: el servicio de ML expone `POST /api/riesgo/hipoglucemia` con el contrato definitivo (valores permitidos validados, campos adicionales → 422, salida con 4 decimales y `version_modelo` del JSON, sin `alerta`; 422/503/500 con `{"detail"}` genérico). Variable `ML_ENABLE_DOCS` (documentación apagada por defecto). `test_ml.sh` pasa al servicio. Sin cambios en Data Models. |
 | 1.4.6 | 2026-10-24 | Fase M6 (TASK-011e): se retira `backend/app/ml/` del backend de negocio y el router de riesgo de `backend/app/main.py`; `backend/requirements.txt` sin dependencias de ML. El texto de § Servicio de ML y de la estructura de archivos deja de describir un estado "actual vs. destino". Estado del modelo declarado: experimental, solo informativo y visible solo para el médico. Open Questions sin cambios (perfil clínico, autenticación entre servicios, despliegue sin ingreso público). Sin cambios en Data Models ni contratos. |
+| 1.5.0 | 2026-10-24 | Fase S1 (solo documentación): nueva sección "Modelo de demo con datos sintéticos" con el diseño de las fases S2 (generador a partir de reglas clínicas), S3 (entrenamiento del modelo de demo con artefactos y metadatos propios) y S4 (`ML_MODELO`, marca `modo` en `/health` y en la respuesta). Decisiones cerradas con el equipo: prevalencia 15 %, 2.000 registros, señal moderada, AUC propio moderado. El cambio de contrato de S4 (campo `modo`) queda pendiente de una ADR nueva. Nuevas Open Questions (modelo de demo en producción; validación de las reglas clínicas). El modelo real no cambia. Sin cambios en Data Models. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |
