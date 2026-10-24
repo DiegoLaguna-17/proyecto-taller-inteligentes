@@ -1,13 +1,13 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-10-24 — Session 4
+> Last updated: 2026-10-24 — Session 8
 
 ## ⚡ Resume from here
 
-**Active task:** TASK-013 / TASK-018 — servicio NLP independiente (`backend/nlp_service/`, ADR-0006). Fase C: TASK-018 completada (endpoint `POST /api/chatbot/consulta`). 013b sigue en `[~]` hasta verificar `git log --follow` tras el commit. Siguiente: prueba manual del usuario con Gemini real (curl y 429), luego TASK-013f/013g (Golden Dataset v1.1 y baseline). TASK-013k sigue pendiente y es independiente.
-**Phase:** Phase 3/4: Lógica de Negocio / Capa de API
-**Status:** in progress — endpoint con 401/429/422/503/502/504; 90 tests verdes; sin despliegue público (auth pendiente de TASK-014)
-**Blocker (if any):** none
+**Active task:** ML — Fase M6 hecha: `backend/app/ml/` retirado del backend (TASK-011e [x]); el ML vive solo en `backend/ml_service/` (endpoint `POST /api/riesgo/hipoglucemia`, 116 pruebas, versiones fijadas). El modelo es **experimental, solo informativo y visible solo para el médico**: la validación cruzada (M2/M2b) muestra que ninguna variante supera el azar y TASK-010b queda en espera. Pendiente en ML: lo que falta de TASK-011a (conteos sobre el Excel real, split agrupado, SMOTE-NC ausente en `predict`) y de TASK-011d (`git log --follow` tras el commit). Otras: TASK-012a/012 (clasificación ADA y alertas), TASK-017 (bloqueada por la Open Question del perfil clínico), TASK-002b/025b/026b. El chatbot sigue con TASK-013f/013g. TASK-013b cerrada.
+**Phase:** Phase 3: Lógica de Negocio
+**Status:** in progress — especificación del ML lista; código de ML sin cambios en esta fase
+**Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
 
 > On session start: read this file first, then requirements.md,
 > design.md, and tasks.md. Do not ask what to work on — resume
@@ -19,6 +19,13 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 14 | 2026-10-24 | Fase M6 (TASK-011e): retirado `backend/app/ml/` y el router de riesgo de `backend/app/main.py`; `backend/requirements.txt` sin librerías de ML; `cv_metrics.json` regenerado (solo cambian fecha, versiones y `generado_por`); README §2 con ADR-0004 reemplazado por ADR-0007; ADR-0006 sin "futuro motor de reglas"; design.md 1.4.6; documentación sin referencias al endpoint antiguo. | backend/app/main.py, backend/requirements.txt, backend/app/ml (eliminado), backend/ml_service/app/artefactos/cv_metrics.json, README.md, CLAUDE.md, .gitignore, design.md, tasks.md, CONTEXT.md, docs/** |
+| 13 | 2026-10-24 | Fase M5b: `backend/ml_service/app/api/riesgo.py` (contrato sin `alerta`, 422/503/500 genéricos), `crear_app()` con `ML_ENABLE_DOCS`, corrección de `hba1c` ausente en `predict.py`, `test_ml.sh` movido con `git mv`, 116 pruebas. Latencia real p50 6.7 ms / p95 8.8 ms. design.md 1.4.5. | backend/ml_service/**, design.md, tasks.md, CONTEXT.md |
+| 12 | 2026-10-24 | Fase M5a: scaffolding de `backend/ml_service/` (main con `/health`, config, errors, metadatos; requirements con versiones exactas incl. scipy 1.15.3; `.env.example`; README; `.venv`). Movidos con `git mv` `data_prep.py`, `train_baseline.py`, `predict.py`, `exportar_dataset.py` y el Excel; movidos `cv_evaluacion.py`, `cv_metrics.json` y las pruebas de M2. `train_baseline.py` escribe `modelo_hipoglucemia.json` con `sha256_pkl`; `predict.py` verifica huella y versiones antes de cargar. Reentrenamiento reproduce AUC 0.640 / recall 0.429. 59 pruebas. RT-06 en mitigación. design.md 1.4.4. | backend/ml_service/**, backend/app/ml/data_prep.py y predict.py (copias transitorias), design.md, tasks.md, CONTEXT.md, README.md, .gitignore, docs/risks.md, docs/model_baseline.md |
+| 11 | 2026-10-24 | Fase M2b: referencias sin entrenamiento (constante, regla por medicación) y lift en `cv_evaluacion.py`; pruebas 18 passed; `cv_metrics.json` regenerado con el Excel real; `docs/model_baseline.md` §4.1 y §5 con la tabla de 7 filas; RD-05 (mediana de HbA1c) en risks.md; TASK-010a cerrada, TASK-010b en espera; design.md 1.4.3. Ninguna variante supera el azar. | backend/app/ml/cv_evaluacion.py, backend/app/ml/cv_metrics.json, backend/tests/ml/test_cv_evaluacion.py, docs/model_baseline.md, docs/risks.md, design.md, tasks.md, CONTEXT.md |
+| 10 | 2026-10-24 | Fase M2 (TASK-010a, en curso): `backend/app/ml/cv_evaluacion.py` + `cv_metrics.json`; pruebas en `backend/tests/ml/` (11 passed); `backend/requirements-dev.txt`. Validación estratificada por paciente (k=5 × 5 semillas) y bootstrap de 1000 sobre pacientes. Ninguna variante tiene el límite inferior del IC del AUC sobre 0.5; no se cambia de modelo. design.md 1.4.2 (nombres de archivo). | backend/app/ml/cv_evaluacion.py, backend/app/ml/cv_metrics.json, backend/tests/ml/test_cv_evaluacion.py, backend/requirements-dev.txt, design.md, tasks.md, CONTEXT.md |
+| 9 | 2026-10-24 | Respuestas del equipo a M1 (solo docs): requirements 1.2.0 (Overview, Actores, NFR-003); ADR-0008 y ADR-0001 reemplazado parcialmente; TASK-002b/025b/026b para el servicio de ML; TASK-013b cerrada con evidencia del commit `de9e753`; Open Question del perfil clínico con 4 opciones; README, C4 (servicio de ML como contenedor, bloques mermaid cerrados), corpus_conocimiento y baseline_chatbot apuntan a `reglas_ada.py`/TASK-012a; JSON de metadatos en git con `sha256_pkl` (design 1.4.1, `.gitignore`). | requirements.md, design.md, tasks.md, CONTEXT.md, README.md, .gitignore, docs/adr/0001-backend-monolitico-fastapi.md, docs/adr/0008-servicio-ml-independiente.md, docs/architecture/c4_container.md, docs/architecture/c4_context.md, docs/nlp/corpus_conocimiento.md, docs/nlp/baseline_chatbot.md |
+| 8 | 2026-10-24 | Fase M1 (solo docs): conteos verificados contra el Excel (109 registros, 100 pacientes, 10 positivos, 4 mixtos, 193 filas, 17 positivas) y métricas reproducidas en memoria. data_ecosystem.md y model_baseline.md corregidos; la comparación con Random Forest del notebook no tiene salidas guardadas, así que se retiró su conclusión. REQ-004 redefinido (aprobado). ADR-0004 reemplazado por ADR-0007. design.md 1.4.0 (servicio de ML, clasificación ADA en el backend, Data Models). Tareas 010a/b, 011a–e y 012a; TASK-012/017/027 ajustadas. Riesgos RIA-01, RD-02, RD-04, RIA-06 y RT-06. | requirements.md, design.md, tasks.md, CONTEXT.md, docs/data_ecosystem.md, docs/model_baseline.md, docs/adr/0004-modelo-clasificacion-baseline.md, docs/adr/0007-regresion-logistica-baseline.md, docs/risks.md |
 | 7 | 2026-10-24 | Fase C (TASK-018): `app/api/chatbot.py`, `auth.py` (401 con auth requerida hasta TASK-014), `rate_limit.py` (ventana de 60 s por IP, en memoria), manejadores de 422 genérico (incluido el 400 de cuerpo no UTF-8) y 503 por configuración inválida, `test_chatbot.sh`. 90 tests verdes; script end-to-end OK con FakeProvider. Sin llamadas a Gemini. | backend/nlp_service/app/{api/,auth.py,rate_limit.py,config.py,main.py}, backend/nlp_service/tests/, backend/nlp_service/test_chatbot.sh, backend/nlp_service/README.md, design.md, tasks.md, CONTEXT.md |
 | 6 | 2026-10-24 | Fase B: scaffolding de `backend/nlp_service/` (venv propio, versiones verificadas con `pip index` + `pip check`), corpus v1 movido con `git mv` + v1.1 con tildes, `umbrales_ada_v1.json`, `config.py`, `clinical.py`, `errors.py`, `llm_client.py` (Gemini + Fake), `prompt_builder.py`, `service.py`, `dev_chat.py`, 59 tests (FakeProvider, sin red). `/health` → 200 con uvicorn. Sin llamadas reales a Gemini. | backend/nlp_service/**, docs/nlp/umbrales_ada_v1.json, .gitignore, design.md, tasks.md, CONTEXT.md, README.md, docs/nlp/corpus_conocimiento.md, docs/nlp/adr_system_prompting_vs_rag.md |
 | 5 | 2026-10-24 | Respuestas del equipo a la Fase A.2 (solo docs): ADR-0001 reemplazado parcialmente; TASK-002a/025a/026a para el servicio NLP; RT-01 prefiere clave pública/JWKS; riesgos RT-03 (superficie expuesta), RT-04 (segundo despliegue) y RT-05 (sin auditoría en BD, aceptado y pendiente de confirmar en la revisión del PR); C4 con el servicio NLP separado; links C4 corregidos; CLAUDE.md y README actualizados. | docs/adr/0001-backend-monolitico-fastapi.md, tasks.md, design.md, docs/risks.md, CLAUDE.md, docs/architecture/c4_container.md, docs/architecture/c4_context.md, README.md, CONTEXT.md |
@@ -46,10 +53,10 @@
 | ~~D9: solo `reglas_ada_v1.txt` se mueve a `backend/app/nlp/corpus/`~~; Golden Dataset queda en `docs/nlp/`. **Destino reemplazado en sesión 4 (ADR-0006)** | Confirmado por el usuario en la sesión 2 | 2 |
 | D11: conflicto httpx documentado en ADR-0005; `requirements.txt` sin cambios hasta TASK-013e | Opción recomendada: subir supabase | 2 |
 | D11 resuelto: `supabase==2.16.0` + `httpx==0.28.1`; `pydantic==2.9.2` se mantiene | supabase 2.33.0 exige pydantic>=2.11.7 (vía realtime); 2.16.0 es la máxima que resuelve con los pines actuales. Ningún código importa supabase hoy | 3 |
-| **Servicio NLP independiente** en `backend/nlp_service/` (`app/`, `tests/`, `requirements*.txt`, `.env.example`, README propios); no importa `backend/app/core` ni `backend/app/ml` (ADR-0006) | Decisión del equipo: desacopla dependencias, fallas y despliegue del chatbot. Reemplaza ADR-0001 solo para el chatbot | 4 |
+| **Servicio NLP independiente** en `backend/nlp_service/` (`app/`, `tests/`, `requirements*.txt`, `.env.example`, README propios); no importa nada de `backend/app/` (ADR-0006) | Decisión del equipo: desacopla dependencias, fallas y despliegue del chatbot. Reemplaza ADR-0001 solo para el chatbot | 4 |
 | La app llama **directo** al servicio NLP con `NLP_API_BASE_URL`, sin pasarela; la seguridad del servicio (longitud, tasa, auth reemplazable, HTTPS, sin log de consultas) es propia | Decisión del equipo. Registrada en design.md § Security, no como NFR nuevo (confirmado por el usuario) | 4 |
 | Se conserva `POST /api/chatbot/consulta` | Sin colisión con la URL base propia; permite revertir sin tocar el cliente | 4 |
-| Solo NLP sale del monolito; ML sigue en `backend/app/ml/` (su migración es una decisión aparte) | Decisión del equipo | 4 |
+| ~~Solo NLP sale del monolito; ML sigue en `backend/app/ml/` (su migración es una decisión aparte)~~ **Reemplazada en sesiones 9 y 14 (ADR-0008, TASK-011e):** el ML también es un servicio independiente y `backend/app/ml/` se retiró | Decisión del equipo | 4 |
 | Constantes ADA + descargo con tildes en `nlp_service/app/clinical.py`; test de contrato contra `docs/nlp/umbrales_ada_v1.json` (JSON, elegido por el usuario) y el corpus. **Reemplaza D4** (`backend/app/core/clinical.py`) | Cada servicio con su copia; el contrato evita la deriva | 4 |
 | Corpus en `nlp_service/app/corpus/`: v1 movido sin cambios y `reglas_ada_v1.1.txt` con tildes como vigente. **Reemplaza el destino de D9** | El descargo con tildes no coincidía con v1; corpus_conocimiento.md §4 prohíbe sobrescribir (elegido por el usuario) | 4 |
 | GeminiProvider (`google-genai`) + FakeProvider; OpenAIProvider diferido; temperature constante 0.2 (no env); versiones propias del servicio | Decisión del equipo | 4 |
@@ -63,6 +70,23 @@
 | Orden: auth (401) → tasa (429) → entrada (422) → proveedor (503/502/504); las peticiones inválidas también cuentan para el límite | Que un cliente sin auth no llegue a validar ni a gastar cuota; abuso con cuerpos inválidos también limitado | 7 |
 | El 400 de FastAPI por cuerpo no decodificable se responde como 422 genérico | El contrato no tiene 400 y el mensaje original estaba en inglés | 7 |
 | **D11 superado** para el chatbot. Se propone revertir `backend/requirements.txt` a `supabase==2.7.4` sin el pin de httpx (TASK-013k, no aplicado) | El backend ya no comparte entorno con google-genai | 4 |
+| **ML-D1:** el modelo solo estima la probabilidad de hipoglucemia observada en el registro; Normal/Hipo/Hiper sale del ML. REQ-004 v1.1.0: probabilidad visible **solo al médico**, informativa | Decisión del equipo; redacción aprobada por el usuario | 8 |
+| **ML-D2:** Regresión Logística con SMOTE-NC es la línea base; se compara con árbol y Random Forest con las mismas semillas; se cambia solo con margen claro, y en empate gana el más simple (ADR-0007) | Decisión del equipo | 8 |
+| **ML-D3:** `StratifiedGroupKFold` o `GroupKFold` repetido por paciente, SMOTE-NC dentro de cada fold, IC por bootstrap sobre pacientes (TASK-010a) | Decisión del equipo | 8 |
+| **ML-D4:** el recall mínimo y el umbral de "Alta" se fijan tras M2 con revisión clínica; hasta entonces el modelo es solo informativo y el contrato no devuelve nivel de alerta (el modelo es experimental y TASK-010b está en espera) | Decisión del equipo; contrato elegido por el usuario | 8 |
+| **ML-D5:** el servicio de ML no clasifica ni decide alertas. La **clasificación ADA** la hace la lógica de negocio del backend (`backend/app/core/reglas_ada.py`) y es el único disparador de alertas. Data Models: `clasificacion_ml` → `clasificacion_ada` y campos de riesgo nuevos | Decisión del equipo + opción elegida por el usuario (backend clasifica con umbrales ADA) | 8 |
+| **ML-D6:** la etiqueta es "hipoglucemia observada en el registro", no del paciente | Decisión del equipo; 4 pacientes tienen visitas con etiquetas distintas | 8 |
+| **ML-D7:** `.pkl` fuera de git; junto a él, un JSON de metadatos versionado (versión, fecha, SHA-256, versiones, métricas); versiones exactas de numpy, imbalanced-learn, joblib y openpyxl (TASK-011b) | Decisión del equipo. En la sesión 9 se confirmó que el JSON va en git, con la huella del `.pkl` dentro (`sha256_pkl`); `.gitignore` excluye `backend/ml_service/app/artefactos/*.pkl` | 8, 9 |
+| **ADR-0008:** modelo de ML como servicio independiente `backend/ml_service/` (alternativas: monolito, carpeta aislada, repo separado). Solo lo llama el backend por red interna, sin autenticación propia en v1 y sin ingreso público. ADR-0001 queda reemplazado parcialmente por ADR-0006 y ADR-0008 | Decisión del equipo | 9 |
+| requirements.md 1.2.0: Overview, Actores y NFR-003 describen el ML solo como estimador informativo, visible solo al médico | Decisión del equipo | 9 |
+| Script de M2 `cv_evaluacion.py` y salida `cv_metrics.json` (versionada), en lugar de `validacion.py` | Decisión del usuario; design.md 1.4.2 actualizado antes del código | 10 |
+| Validación: `StratifiedKFold` k=5 sobre **pacientes** (etiqueta: algún registro positivo), 5 semillas de partición. Es una forma de "GroupKFold repetido" (ML-D3) estratificada en la unidad correcta | `StratifiedGroupKFold` k=5 dejó folds sin positivos en 13/20 semillas (estratifica por filas); decisión del usuario | 10 |
+| ML-D2 aplicada sobre M2: se mantiene la RL + SMOTE-NC (todos los IC del AUC se solapan; ninguno tiene el límite inferior > 0.5) | Regla de ML-D2; los resultados no muestran que otra variante sea mejor | 10 |
+| M2b: dos referencias sin entrenamiento (constante y regla por `medicacion_cod`) y lift (precisión / prevalencia) en `cv_metrics.json`, sección `referencias` aparte de `variantes`; no entran en ML-D2. Resultado: la regla por medicación (AUC 0.462) no supera a la línea base (0.631) ni al azar; el modelo sigue experimental y TASK-010b queda en espera | Petición del usuario (fase M2b); design.md 1.4.3 actualizado antes del código. Fuga leve de la mediana de HbA1c registrada como RD-05, sin corregir | 11 |
+| M5a: `backend/app/ml/` conservó `riesgo.py` y copias idénticas de `data_prep.py` y `predict.py` solo hasta TASK-011e (retiradas en la sesión 14); el Excel solo se movió | Decisión del usuario (respuesta a un conflicto entre "no mover riesgo.py" y "dejar el backend funcionando") | 12 |
+| M5a: scipy 1.15.3 y numpy 2.4.6 (con scikit-learn 1.5.2 y pandas 2.2.3), la combinación más reciente sin el aviso `iprint`; `baseline_metrics.json` se ignora en git (derivado del JSON versionado); `exportar_dataset.py` escribe en `ml_service/data/` | Petición del usuario ("la combinación compatible más reciente y justificada"); design.md 1.4.4 | 12 |
+| M5b: campos adicionales en la entrada → 422 (`extra=forbid`) y configuración inválida → 503 | Decisión de implementación (minimización: un nombre o id enviado por error no se procesa); design.md 1.4.5 | 13 |
+| **ML-D8:** solo el backend llama al servicio de ML (`backend/ml_service/`, destino) por red interna; ni público ni llamado por la app. La autenticación entre servicios es una Open Question | Decisión del equipo; opción "red interna + Open Question" elegida por el usuario | 8 |
 
 ---
 
@@ -71,7 +95,15 @@
 Things still to be resolved. Move to design.md once decided.
 
 - [ ] ¿Qué esquema de autenticación se usará (JWT, sesiones con Supabase Auth, OAuth)?
-- [ ] ¿El modelo de ML ya está entrenado o se entrena como parte de este proyecto?
+- [x] ¿El modelo de ML ya está entrenado o se entrena como parte de este proyecto? → Resuelta en design.md 1.4.0 (se entrena aquí; Regresión Logística con SMOTE-NC, ADR-0007)
+- [ ] Perfil clínico del ML sin lugar en Data Models (género, edad, BMI, duración, medicación, comorbilidades, HbA1c): ¿dónde se capturan? **Bloquea TASK-017, no el servicio de ML.** Opciones, sin resolver (detalle en design.md § Open Questions):
+  1. Ampliar T_Paciente.
+  2. Tabla nueva `T_Perfil_clinico` con vigencia.
+  3. Instantánea del perfil por predicción (complementaria).
+  4. No persistir: la app lo envía con cada lectura.
+- [ ] Despliegue del servicio de ML sin ingreso público, solo por red interna (TASK-002b); es la única protección del endpoint en v1
+- [ ] Autenticación backend → servicio de ML (identidad administrada, mTLS o token)
+- [ ] Regla de hiperglucemia ADA para el momento `otro`, y revisión clínica de etiquetas y cortes
 - [x] ¿El chatbot usa un LLM externo o un modelo NLP propio? → Resuelta en design.md (LLM externo + inyección estática; ADR-0005)
 - [ ] ¿Qué servicio de Azure se usará para notificaciones push?
 - [ ] ¿Cómo se valida la matrícula médica — contra un registro externo o solo formato?
@@ -93,6 +125,7 @@ a formal design.md update.
 
 | Session | Date | Summary |
 |---|---|---|
+| 8 | 2026-10-24 | Fase M1: documentación del ML corregida y especificación del servicio de ML (design.md 1.4.0, ADR-0007, REQ-004 v1.1.0) |
 | 7 | 2026-10-24 | Fase C: TASK-018 completada (endpoint del servicio NLP) |
 | 6 | 2026-10-24 | Fase B: servicio NLP sin endpoint público (013a, 013c, 013d, 013i y 013j completadas; 013b en [~]) |
 | 4 | 2026-10-24 | Fase A.2: chatbot como servicio independiente (design.md 1.3.0, ADR-0006, tasks 013a–013k) |

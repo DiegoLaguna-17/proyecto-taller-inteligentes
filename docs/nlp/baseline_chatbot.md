@@ -63,7 +63,7 @@ Resultado esperado: guardar en `nlp_baseline_metrics.json` con la estructura:
 
 - **No determinismo del LLM externo:** con `temperature > 0`, la misma pregunta puede generar respuestas distintas en corridas distintas. Se fija `temperature` baja (0.2) para reducir esta variabilidad, pero no se elimina — la Tasa de Adherencia de una sola corrida es una muestra, no una garantía permanente.
 - **Deriva silenciosa del proveedor:** si OpenAI/Gemini actualiza el modelo detrás del mismo nombre de API, el comportamiento puede cambiar sin aviso. Se documenta la versión exacta del modelo usado en cada corrida (`modelo_llm` en el JSON de métricas) para poder detectar esto en evaluaciones futuras.
-- **Dependencia de conectividad y costo:** a diferencia del motor de reglas ADA del backend (100% local, sin llamadas externas), este componente no funciona sin acceso a internet y tiene costo por token. Es una limitación de disponibilidad que debe comunicarse como tal, no ocultarse.
+- **Dependencia de conectividad y costo:** a diferencia de la clasificación ADA de la lógica de negocio del backend (especificada en `design.md` § Clasificación ADA, `backend/app/core/reglas_ada.py`, TASK-012a; aún no implementada), que será 100% local y sin llamadas externas, este componente no funciona sin acceso a internet y tiene costo por token. Es una limitación de disponibilidad que debe comunicarse como tal, no ocultarse.
 - **Manejo de credenciales:** la API key del proveedor LLM se gestiona por variable de entorno, nunca se commitea al repositorio — en línea con la regla del Team Charter de no ingresar secretos ni credenciales.
 
 ## 6. Qué significa un buen resultado (y qué no)

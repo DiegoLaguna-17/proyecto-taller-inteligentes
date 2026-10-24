@@ -11,16 +11,19 @@ sentido calcular una mediana de un solo paciente -- sino que se reutilizan
 las que quedaron guardadas en el `.pkl` desde el momento del entrenamiento.
 """
 
-import os
+import logging
 from functools import lru_cache
+from typing import Optional
 
 import joblib
 import pandas as pd
 
-from app.ml.data_prep import preparar_features
+from app.config import load_settings
+from app.data_prep import preparar_features
+from app.errors import ModeloNoDisponible
+from app.metadatos import ruta_modelo, verificar_artefacto
 
-ML_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELO_PATH = os.path.join(ML_DIR, "modelo_hipoglucemia.pkl")
+logger = logging.getLogger(__name__)
 
 # Traduce las claves "amigables" que recibe la API (ver PacienteRiesgoInput en
 # el endpoint) a los nombres de columna crudos que espera `preparar_features`
@@ -30,23 +33,54 @@ MAPEO_CAMPOS_ENTRADA = {
     "edad": "Age (years)",
     "bmi": "BMI (kg/m2)",
     "duracion_diabetes": "Duration of diabetes (years)",
-    "hba1c": "HbA1c (%)",
 }
+
+COLUMNA_HBA1C = "HbA1c (%)"
 
 
 @lru_cache(maxsize=1)
-def _cargar_bundle():
+def _cargar_bundle(artefactos_dir: str):
     """
-    Carga el pipeline entrenado + metadata una sola vez por proceso.
+    Verifica y carga el pipeline entrenado + metadata una sola vez por proceso.
     `lru_cache` evita releer el .pkl del disco en cada request -- FastAPI
     puede recibir muchas peticiones por segundo y joblib.load no es gratis.
+
+    Antes de deserializar se comprueba (metadatos.verificar_artefacto) que la
+    huella SHA-256 del .pkl y las versiones de las librerias coinciden con las
+    del JSON de metadatos del entrenamiento (RT-06). Una excepcion no se
+    cachea: si el artefacto aparece o se corrige, la siguiente llamada lo
+    vuelve a verificar. Los errores son ModeloNoDisponible, de mensaje
+    generico: sin rutas ni detalles internos (NFR-001).
     """
-    if not os.path.exists(MODELO_PATH):
-        raise FileNotFoundError(
-            f"No se encontro el modelo entrenado en {MODELO_PATH}. "
-            "Corre primero: python -m app.ml.train_baseline"
-        )
-    return joblib.load(MODELO_PATH)
+    try:
+        metadatos = verificar_artefacto(artefactos_dir)
+    except ModeloNoDisponible as exc:
+        logger.warning("Modelo no disponible (motivo: %s).", exc.motivo)
+        raise
+    try:
+        bundle = joblib.load(ruta_modelo(artefactos_dir))
+    except Exception:
+        logger.warning("Modelo no disponible (motivo: artefacto_ilegible).")
+        raise ModeloNoDisponible("artefacto_ilegible") from None
+    return {**bundle, "metadatos": metadatos}
+
+
+def _directorio(artefactos_dir: Optional[str]) -> str:
+    return artefactos_dir if artefactos_dir is not None else load_settings().artefactos_dir
+
+
+def modelo_cargado(artefactos_dir: Optional[str] = None) -> bool:
+    """True si el artefacto existe, esta verificado y se pudo cargar (para /health)."""
+    try:
+        _cargar_bundle(_directorio(artefactos_dir))
+    except ModeloNoDisponible:
+        return False
+    return True
+
+
+def version_modelo(artefactos_dir: Optional[str] = None) -> str:
+    """Version del modelo segun el JSON de metadatos verificado."""
+    return _cargar_bundle(_directorio(artefactos_dir))["metadatos"]["version_modelo"]
 
 
 def _construir_dataframe_paciente(datos_paciente: dict) -> pd.DataFrame:
@@ -57,6 +91,13 @@ def _construir_dataframe_paciente(datos_paciente: dict) -> pd.DataFrame:
     for campo_amigable, columna_cruda in MAPEO_CAMPOS_ENTRADA.items():
         if campo_amigable in datos_paciente:
             fila[columna_cruda] = datos_paciente[campo_amigable]
+
+    # HbA1c es opcional: si no viene, o viene en None, la columna se crea igual
+    # con NaN para que `preparar_features` la trate como faltante (bandera de
+    # faltante + mediana guardada). Sin la columna, `reindex(fill_value=0)` la
+    # rellenaria con 0 y sin bandera, como si fuera un valor real.
+    hba1c = datos_paciente.get("hba1c")
+    fila[COLUMNA_HBA1C] = float("nan") if hba1c is None else float(hba1c)
 
     # Genero: la API recibe "femenino"/"masculino"; el dataset original usa
     # la convencion Female=1, Male=2 -- se traduce aqui para no filtrar esa
@@ -75,13 +116,19 @@ def _construir_dataframe_paciente(datos_paciente: dict) -> pd.DataFrame:
     return pd.DataFrame([fila])
 
 
-def predecir_riesgo(datos_paciente: dict) -> float:
+def predecir_con_version(datos_paciente: dict, artefactos_dir: Optional[str] = None) -> tuple:
+    """(probabilidad, version_modelo): la version sale del JSON de metadatos verificado."""
+    riesgo = predecir_riesgo(datos_paciente, artefactos_dir)
+    return riesgo, version_modelo(artefactos_dir)
+
+
+def predecir_riesgo(datos_paciente: dict, artefactos_dir: Optional[str] = None) -> float:
     """
     Calcula la probabilidad de riesgo de hipoglucemia para UN paciente.
 
     Args:
         datos_paciente: dict con las claves amigables del contrato de la API
-            (ver `PacienteRiesgoInput` en app/api/endpoints/riesgo.py):
+            (contrato en design.md § Servicio de ML):
             glucosa, momento, genero, edad, bmi, duracion_diabetes,
             categoria_medicacion, com_hipertension, com_dislipidemia,
             com_renal, com_neuropatia, com_nefropatia, com_cardiovascular,
@@ -89,8 +136,14 @@ def predecir_riesgo(datos_paciente: dict) -> float:
 
     Returns:
         float en [0, 1]: probabilidad de la clase positiva (hipoglucemia).
+
+    Raises:
+        ModeloNoDisponible: el artefacto falta, esta alterado o no coincide
+            con las versiones del entrenamiento (mensaje generico).
+
+    Nada de `datos_paciente` se escribe en logs ni en excepciones propias.
     """
-    bundle = _cargar_bundle()
+    bundle = _cargar_bundle(_directorio(artefactos_dir))
     pipeline = bundle["pipeline"]
     columnas_features = bundle["columnas_features"]
     medianas_imputacion = bundle["medianas_imputacion"]

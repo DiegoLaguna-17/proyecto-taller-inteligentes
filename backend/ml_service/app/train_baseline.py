@@ -4,18 +4,24 @@ hipoglucemia para GlucoTracker.
 
 Adaptado de la Parte C del notebook `GlucoTracker_Consolidado_Hipoglucemia.ipynb`.
 A diferencia del notebook, este script no imprime nada mas de lo necesario para
-seguimiento en consola: el resultado real de correrlo son dos artefactos:
+seguimiento en consola: el resultado real de correrlo son tres artefactos en
+backend/ml_service/app/artefactos/:
 
-    backend/app/ml/modelo_hipoglucemia.pkl   -> el pipeline entrenado + metadata
-    backend/app/ml/baseline_metrics.json     -> metricas de evaluacion en test
+    modelo_hipoglucemia.pkl    -> el pipeline entrenado + metadata (fuera de git)
+    modelo_hipoglucemia.json   -> metadatos del modelo (en git, ML-D7): version,
+                                  fecha, SHA-256 del .pkl, versiones de
+                                  librerias, conteos y metricas
+    baseline_metrics.json      -> metricas de evaluacion en test
 
 Uso:
-    python -m app.ml.train_baseline
-    (correr desde backend/, con el entorno virtual activado)
+    python -m app.train_baseline
+    (correr desde backend/ml_service/, con el entorno virtual activado)
 """
 
 import json
 import os
+from datetime import datetime, timezone
+from typing import Optional
 
 import joblib
 import numpy as np
@@ -32,20 +38,31 @@ from sklearn.metrics import (
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from app.ml.data_prep import (
+from app.config import load_settings
+from app.data_prep import (
     COLUMNAS_BINARIAS_COMORBILIDAD,
     COLUMNAS_NUMERICAS_MODELO,
+    RAW_DATA_PATH,
     cargar_summary_crudo,
     limpiar_datos_clinicos,
     preparar_features,
 )
+from app.metadatos import (
+    NOMBRE_MODELO,
+    escribir_metadatos,
+    ruta_modelo,
+    sha256_archivo,
+    versiones_instaladas,
+)
 
-ML_DIR = os.path.dirname(os.path.abspath(__file__))
-MODELO_PATH = os.path.join(ML_DIR, "modelo_hipoglucemia.pkl")
-METRICAS_PATH = os.path.join(ML_DIR, "baseline_metrics.json")
+# Valores por defecto (sin variables de entorno); entrenar_y_evaluar() acepta otra carpeta.
+ARTEFACTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefactos")
+MODELO_PATH = os.path.join(ARTEFACTOS_DIR, NOMBRE_MODELO)
+METRICAS_PATH = os.path.join(ARTEFACTOS_DIR, "baseline_metrics.json")
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
+VERSION_MODELO = "1.0.0"
 
 
 def _construir_indices_categoricas(X: pd.DataFrame) -> list:
@@ -101,7 +118,54 @@ def construir_pipeline(X_train: pd.DataFrame, y_train: pd.Series) -> ImbPipeline
     return pipeline
 
 
-def entrenar_y_evaluar():
+def guardar_artefactos(
+    pipeline,
+    columnas_features,
+    medianas_imputacion,
+    metricas: dict,
+    conteos: dict,
+    artefactos_dir: str,
+    ruta_dataset: Optional[str] = None,
+) -> dict:
+    """
+    Escribe el .pkl y, junto a el, el JSON de metadatos con la huella SHA-256
+    del .pkl recien escrito (ML-D7). Devuelve los metadatos.
+
+    El .pkl guarda el pipeline Y todo lo que predict.py necesita para
+    reconstruir el mismo preprocesamiento con UN solo paciente (columnas
+    esperadas y medianas de imputacion). Guardar esto junto con el modelo evita
+    que entrenamiento y prediccion se desincronicen si alguno de los dos
+    cambia por separado.
+    """
+    os.makedirs(artefactos_dir, exist_ok=True)
+    bundle = {
+        "pipeline": pipeline,
+        "columnas_features": columnas_features,
+        "medianas_imputacion": medianas_imputacion,
+        "version": VERSION_MODELO,
+    }
+    modelo = ruta_modelo(artefactos_dir)
+    joblib.dump(bundle, modelo)
+
+    metadatos = {
+        "version_modelo": VERSION_MODELO,
+        "fecha_entrenamiento": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "sha256_pkl": sha256_archivo(modelo),
+        "versiones": versiones_instaladas(),
+        "metricas": metricas,
+        "random_state": RANDOM_STATE,
+        "dataset": {
+            "archivo": os.path.basename(ruta_dataset) if ruta_dataset else None,
+            "sha256": sha256_archivo(ruta_dataset) if ruta_dataset else None,
+        },
+        "conteos": conteos,
+    }
+    escribir_metadatos(metadatos, artefactos_dir)
+    return metadatos
+
+
+def entrenar_y_evaluar(artefactos_dir: Optional[str] = None):
+    artefactos_dir = artefactos_dir or load_settings().artefactos_dir
     # --- Parte A + B: dataset listo para entrenar ---
     df_crudo = cargar_summary_crudo()
     df_limpio = limpiar_datos_clinicos(df_crudo)
@@ -152,23 +216,26 @@ def entrenar_y_evaluar():
     print("\nMetricas en test_real:")
     print(json.dumps(metricas, indent=2, ensure_ascii=False))
 
-    # --- Persistencia: el .pkl guarda el pipeline Y todo lo que predict.py
-    #     necesita para reconstruir el mismo preprocesamiento con UN solo
-    #     paciente (columnas esperadas y medianas de imputacion). Guardar
-    #     esto junto con el modelo evita que entrenamiento y prediccion se
-    #     desincronicen si alguno de los dos cambia por separado. ---
-    bundle = {
-        "pipeline": pipeline,
-        "columnas_features": columnas_features,
-        "medianas_imputacion": medianas_imputacion,
-        "version": "1.0.0",
+    # --- Persistencia: .pkl + JSON de metadatos con su huella + metricas ---
+    conteos = {
+        "filas": int(X.shape[0]),
+        "filas_positivas": int(y.sum()),
+        "pacientes": int(grupos.nunique()),
+        "filas_train": int(X_train.shape[0]),
+        "filas_positivas_train": int(y_train.sum()),
+        "filas_test": int(X_test.shape[0]),
+        "filas_positivas_test": int(y_test.sum()),
     }
-    joblib.dump(bundle, MODELO_PATH)
-    print(f"\nModelo guardado en: {MODELO_PATH}")
+    metadatos = guardar_artefactos(
+        pipeline, columnas_features, medianas_imputacion, metricas, conteos, artefactos_dir, ruta_dataset=RAW_DATA_PATH
+    )
+    print(f"\nModelo guardado en: {ruta_modelo(artefactos_dir)}")
+    print(f"Metadatos guardados (sha256_pkl {metadatos['sha256_pkl'][:12]}...)")
 
-    with open(METRICAS_PATH, "w", encoding="utf-8") as f:
+    ruta_metricas = os.path.join(artefactos_dir, os.path.basename(METRICAS_PATH))
+    with open(ruta_metricas, "w", encoding="utf-8") as f:
         json.dump(metricas, f, indent=2, ensure_ascii=False)
-    print(f"Metricas guardadas en: {METRICAS_PATH}")
+    print(f"Metricas guardadas en: {ruta_metricas}")
 
     return pipeline, metricas
 

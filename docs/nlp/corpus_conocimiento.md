@@ -20,12 +20,12 @@ Las guías de la ADA tienen su propio copyright (a diferencia de ShanghaiT2DM, q
 
 ## 3. Consistencia con el resto del sistema
 
-Este corpus **no puede tener números distintos** a los que use el motor de reglas if/else del backend que clasificará cada lectura como Normal/Hipo/Hiper. Si en algún punto se actualiza un umbral, el corpus vigente debe actualizarse (con una versión nueva, §4) en el mismo commit — de lo contrario, el chatbot y el resto de la app terminarían dando información clínica contradictoria a un mismo usuario, lo cual es un defecto de producto grave en un contexto de salud, no solo un detalle de documentación.
+Este corpus **no puede tener números distintos** a los que use la clasificación ADA de la lógica de negocio del backend, que clasificará cada lectura como Normal/Hipo/Hiper y disparará las alertas. Está especificada en `design.md` § Clasificación ADA (`backend/app/core/reglas_ada.py`, TASK-012a), pero aún no está implementada. No forma parte del modelo de ML (ADR-0007, ADR-0008). Si en algún punto se actualiza un umbral, el corpus vigente debe actualizarse (con una versión nueva, §4) en el mismo commit — de lo contrario, el chatbot y el resto de la app terminarían dando información clínica contradictoria a un mismo usuario, lo cual es un defecto de producto grave en un contexto de salud, no solo un detalle de documentación.
 
-**Acción pendiente:** el motor de reglas ADA **todavía no existe en el código** (`app/ml/riesgo.py` es el endpoint del modelo de ML de riesgo de hipoglucemia, no el motor de reglas, y no contiene estos umbrales). Por eso la verificación no se hará contra ese motor. Como los servicios no comparten código (ADR-0006), cada uno tiene su propia copia de los umbrales:
+**Acción pendiente:** la clasificación ADA del backend **todavía no existe en el código**: está especificada para `backend/app/core/reglas_ada.py` (TASK-012a). El servicio de ML (`backend/ml_service/`) no es esa clasificación y no contiene estos umbrales. Por eso la verificación no se hace contra él. Como los servicios no comparten código (ADR-0006, ADR-0008), cada uno tiene su propia copia de los umbrales:
 - El servicio NLP define los suyos en `backend/nlp_service/app/clinical.py` (70, 130 y 180 mg/dL; 15 g; 15 min) junto con el descargo médico fijo con tildes.
 - Un **test de contrato** compara esas constantes con el archivo de referencia versionado `docs/nlp/umbrales_ada_v1.json` y con el corpus vigente (ver design.md § Servicio NLP (chatbot) Design y TASK-013j en tasks.md).
-- Cuando se implemente el motor de reglas del backend, su copia de los umbrales deberá compararse contra el mismo archivo de referencia.
+- La clasificación ADA del backend (`backend/app/core/reglas_ada.py`) tendrá su propia copia de los umbrales y su propio test de contrato contra el mismo archivo de referencia (criterio de verificación de TASK-012a).
 
 ## 4. Versionado
 

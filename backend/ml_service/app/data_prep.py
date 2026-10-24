@@ -19,8 +19,8 @@ import os
 import numpy as np
 import pandas as pd
 
-# backend/app/ml/data_prep.py -> backend/data/raw/ShanghaiT2DM_Summary.xlsx
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# backend/ml_service/app/data_prep.py -> backend/ml_service/data/raw/ShanghaiT2DM_Summary.xlsx
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "ShanghaiT2DM_Summary.xlsx")
 
 # Columnas de laboratorio/antropometria que deben forzarse a numerico
@@ -61,7 +61,7 @@ def cargar_summary_crudo(ruta: str = RAW_DATA_PATH) -> pd.DataFrame:
     if not os.path.exists(ruta):
         raise FileNotFoundError(
             f"No se encontro el summary en {ruta}. "
-            "Coloca 'ShanghaiT2DM_Summary.xlsx' en backend/data/raw/."
+            "Coloca 'ShanghaiT2DM_Summary.xlsx' en backend/ml_service/data/raw/."
         )
     df = pd.read_excel(ruta, sheet_name=0)
     df.columns = [str(c).strip() for c in df.columns]

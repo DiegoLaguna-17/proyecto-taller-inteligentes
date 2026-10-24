@@ -6,15 +6,16 @@ entrenamiento/prediccion -- train_baseline.py NO depende de este CSV, ni lo
 genera ni lo necesita.
 
 Uso:
-    python -m app.ml.exportar_dataset
+    python -m app.exportar_dataset
+    (correr desde backend/ml_service/, con el entorno virtual activado)
 """
 
 import os
 
-from app.ml.data_prep import cargar_summary_crudo, limpiar_datos_clinicos, preparar_features
+from app.data_prep import BASE_DIR, cargar_summary_crudo, limpiar_datos_clinicos, preparar_features
 
-ML_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH = os.path.join(ML_DIR, "dataset_inputs_hipoglucemia.csv")
+# backend/ml_service/data/dataset_inputs_hipoglucemia.csv
+CSV_PATH = os.path.join(BASE_DIR, "data", "dataset_inputs_hipoglucemia.csv")
 
 
 def main():
