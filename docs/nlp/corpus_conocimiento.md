@@ -19,9 +19,9 @@ Las guías de la ADA tienen su propio copyright (a diferencia de ShanghaiT2DM, q
 
 ## 3. Consistencia con el resto del sistema
 
-Este corpus **no puede tener números distintos** a los que usa el motor de reglas if/else del backend (el que clasifica Normal/Hipo/Hiper en `app/ml/riesgo.py` y el resto del sistema de clasificación instantánea). Si en algún punto se actualiza un umbral en el motor de reglas, `reglas_ada_v1.txt` debe actualizarse en el mismo commit — de lo contrario, el chatbot y el resto de la app terminarían dando información clínica contradictoria a un mismo usuario, lo cual es un defecto de producto grave en un contexto de salud, no solo un detalle de documentación.
+Este corpus **no puede tener números distintos** a los que use el motor de reglas if/else del backend que clasificará cada lectura como Normal/Hipo/Hiper. Si en algún punto se actualiza un umbral, `reglas_ada_v1.txt` debe actualizarse en el mismo commit — de lo contrario, el chatbot y el resto de la app terminarían dando información clínica contradictoria a un mismo usuario, lo cual es un defecto de producto grave en un contexto de salud, no solo un detalle de documentación.
 
-**Acción pendiente:** verificar contra el código del motor de reglas del backend que los rangos "70-130 mg/dL en ayunas" y "menor a 180 mg/dL postprandial" citados en el corpus son exactamente los mismos que usa ese motor.
+**Acción pendiente:** el motor de reglas ADA **todavía no existe en el código** (`app/ml/riesgo.py` es el endpoint del modelo de ML de riesgo de hipoglucemia, no el motor de reglas, y no contiene estos umbrales). Por eso la verificación no se hará contra ese motor: los umbrales se definen una sola vez en el módulo de constantes compartidas `backend/app/core/clinical.py` (70, 130 y 180 mg/dL; 15 g; 15 min), y un test automatizado compara el corpus contra esas constantes (ver design.md § Chatbot (Módulo NLP) Design y TASK-013c en tasks.md). Cuando se implemente el motor de reglas, deberá importar esas mismas constantes en vez de definir las suyas.
 
 ## 4. Versionado
 
