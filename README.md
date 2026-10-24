@@ -5,9 +5,9 @@
 GlucoTracker es una plataforma de monitoreo y análisis inteligente de glucosa dirigida a pacientes y médicos, construida bajo un enfoque de *Spec Driven Development* (ver `requirements.md`, `design.md` y `tasks.md` en la raíz del repositorio). El sistema registra y centraliza mediciones de glucosa, y ofrece dos componentes de Inteligencia Artificial complementarios (ver `docs/product_goal.md`):
 
 - **Modelo de riesgo de hipoglucemia (ML):** un modelo de Regresión Logística que estima, a partir de una lectura de glucosa y el perfil clínico del paciente, la probabilidad de un episodio de hipoglucemia, expuesto vía un endpoint REST del backend. Corre en paralelo (no reemplaza) al motor de reglas ADA que clasifica cada lectura puntual como Normal/Hipo/Hiper (ver `docs/model_baseline.md`).
-- **Chatbot educativo (NLP):** un asistente conversacional para consultas de pacientes sobre diabetes tipo 2, basado en inyección de contexto (system prompting) sobre un LLM externo, con alcance restringido a hipoglucemia y metas básicas de control glicémico (ver `docs/nlp/`).
+- **Chatbot educativo (NLP):** un asistente conversacional para consultas de pacientes sobre diabetes tipo 2, basado en inyección de contexto (system prompting) sobre un LLM externo (Gemini), con alcance restringido a hipoglucemia y metas básicas de control glicémico. Corre como **servicio independiente** en `backend/nlp_service/` (ver `docs/nlp/` y `docs/adr/0006-nlp-servicio-independiente.md`).
 
-El backend es un monolito modular en FastAPI/Python, con persistencia en Supabase/PostgreSQL y despliegue previsto en Azure; el cliente es una app móvil en React Native (`mobile/`). Ver las decisiones de arquitectura completas en `docs/adr/` y los diagramas C4 en `docs/architecture/`.
+El backend principal es un monolito modular en FastAPI/Python (auth, registros, ML, alertas, reportes), con persistencia en Supabase/PostgreSQL. El chatbot es un servicio FastAPI aparte, con dependencias y configuración propias y sin acceso a la base de datos. Ambos tienen despliegue previsto en Azure. El cliente es una app móvil en React Native (`mobile/`), que llama a cada servicio con su propia URL base. Ver las decisiones de arquitectura completas en `docs/adr/` y los diagramas C4 en `docs/architecture/`.
 
 ## 2. Tecnologías utilizadas
 
@@ -15,7 +15,7 @@ Tabla basada exclusivamente en lo que está configurado o implementado en el rep
 
 | Categoría | Tecnología | Uso en el proyecto |
 |---|---|---|
-| Lenguaje (backend) | Python | Implementación completa del backend, del módulo ML y (a futuro) del módulo NLP (`backend/app/`, `backend/requirements.txt`) |
+| Lenguaje (backend) | Python | Implementación del backend y del módulo ML (`backend/app/`, `backend/requirements.txt`) y, a futuro, del servicio NLP (`backend/nlp_service/`, con `requirements.txt` propio) |
 | Framework backend | FastAPI | Expone la API REST; define el router del endpoint de riesgo (`backend/app/main.py`, `backend/app/ml/riesgo.py`; ADR-0001) |
 | Servidor ASGI | Uvicorn | Ejecuta la aplicación FastAPI (`uvicorn app.main:app --reload`, `backend/requirements.txt`, `backend/app/test_ml.sh`) |
 | Validación de datos | Pydantic | Esquemas de entrada/salida del endpoint de riesgo de hipoglucemia (`backend/app/ml/riesgo.py`) |
@@ -28,7 +28,7 @@ Tabla basada exclusivamente en lo que está configurado o implementado en el rep
 | Lectura de datos fuente | openpyxl | Lectura de `ShanghaiT2DM_Summary.xlsx` (`backend/app/ml/exportar_dataset.py`, `backend/requirements.txt`) |
 | Persistencia del modelo | joblib | Serialización de `app/ml/modelo_hipoglucemia.pkl` (`backend/app/ml/train_baseline.py`) |
 | Generación de reportes | reportlab | Generación de reportes clínicos en PDF (REQ-008; `backend/requirements.txt`) |
-| NLP / LLM | LLM externo vía system prompting (proveedor específico **no confirmado**, referenciado como "OpenAI/Gemini") | Inyección del corpus `docs/nlp/reglas_ada_v1.txt` en el system prompt (`docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`); variable de entorno genérica `NLP_PROVIDER_API_KEY` en `backend/.env.example` |
+| NLP / LLM | LLM externo vía system prompting; proveedor Gemini (SDK `google-genai`) con interfaz intercambiable (ADR-0005) | Servicio independiente `backend/nlp_service/` (ADR-0006), **en implementación**: configuración, proveedores, prompt y servicio listos; el endpoint queda para TASK-018 (ver `backend/nlp_service/README.md`). Inyecta el corpus `backend/nlp_service/app/corpus/reglas_ada_v1.1.txt` en el system prompt (`docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`). Su clave va en `backend/nlp_service/.env` (`NLP_PROVIDER_API_KEY`), no en el backend |
 | Mobile — lenguaje | TypeScript | `mobile/App.tsx`, `mobile/src/services/api.ts` |
 | Mobile — framework | React Native 0.75.4 + React 18.3.1 | App cliente del sistema (`mobile/package.json`) |
 | Mobile — testing / linting | Jest, ESLint | Scripts `test` y `lint` de `mobile/package.json` |
@@ -48,7 +48,7 @@ Documentadas formalmente en `design.md` § Open Questions y reflejadas también 
 | Tecnología documentada | Decisión pendiente | Dónde está la Open Question | Impacto sobre la tabla de tecnologías |
 |---|---|---|---|
 | Esquema de autenticación | ¿JWT, sesiones de Supabase Auth, u OAuth? | `design.md` § Open Questions, `CONTEXT.md` § Open questions, `docs/risks.md` (RT-01) | Las librerías `python-jose` y `passlib[bcrypt]` están instaladas, pero no puede listarse "JWT" como el mecanismo de autenticación confirmado del sistema |
-| Proveedor de LLM del chatbot | ¿OpenAI o Gemini (u otro)? El ADR `docs/nlp/adr_system_prompting_vs_rag.md` ya fija el *enfoque* (system prompting sobre LLM externo), pero no el proveedor concreto | `docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`, `docs/nlp/baseline_chatbot.md` (campo `modelo_llm` sin valor fijo); listada también, de forma más general ("LLM externo vs. modelo propio"), en `design.md` § Open Questions y `CONTEXT.md` § Open questions | No puede confirmarse un proveedor específico de LLM en la tabla de tecnologías, solo que el enfoque es "LLM externo" |
+| Proveedor de LLM del chatbot | **Cerrada:** Gemini con interfaz intercambiable (FakeProvider para pruebas; OpenAI diferido), decidido en `docs/adr/0005-proveedor-llm-chatbot.md` | `docs/adr/0005-proveedor-llm-chatbot.md`; Open Question del chatbot marcada como resuelta en `design.md` y `CONTEXT.md` | La tabla de tecnologías ya lista Gemini (SDK `google-genai`) como proveedor |
 | Servicio de Azure para notificaciones push | ¿Azure Notification Hubs u otro servicio? | `design.md` § Open Questions, `CONTEXT.md` § Open questions | `backend/.env.example` ya nombra `AZURE_NOTIFICATION_HUB_CONNECTION_STRING`, pero esto no equivale a una confirmación formal de la decisión en `design.md` |
 | Algoritmo de ML baseline | ADR-0004 dice Árbol de Decisión/SVC; el código implementado usa Regresión Logística | `docs/adr/0004-modelo-clasificacion-baseline.md` vs. `docs/model_baseline.md` y `backend/app/ml/train_baseline.py` | No es una Open Question declarada como tal, pero es una discrepancia directamente relevante para no presentar el algoritmo de ML como una tecnología inequívocamente confirmada por todos los documentos (ver nota de evidencia arriba) |
 | Validación de matrícula médica | ¿Contra un registro externo o solo validación de formato? | `design.md` § Open Questions, `CONTEXT.md` § Open questions | No tiene impacto sobre tecnologías de la tabla (es una regla de negocio, no una elección de stack) |
@@ -69,6 +69,8 @@ Este README es un índice navegable y una guía de reproducción; el detalle com
 | ADR 0002 — Supabase/PostgreSQL | Justificación de la base de datos y BaaS | `docs/adr/0002-supabase-postgresql.md` |
 | ADR 0003 — Despliegue en Azure | Justificación del proveedor cloud | `docs/adr/0003-despliegue-azure.md` |
 | ADR 0004 — Modelo baseline de clasificación | Justificación del algoritmo elegido para el riesgo glucémico | `docs/adr/0004-modelo-clasificacion-baseline.md` |
+| ADR 0005 — Proveedor LLM del chatbot | Gemini con interfaz intercambiable; política de datos por tier | `docs/adr/0005-proveedor-llm-chatbot.md` |
+| ADR 0006 — Servicio NLP independiente | Por qué el chatbot sale del monolito a `backend/nlp_service/` | `docs/adr/0006-nlp-servicio-independiente.md` |
 | C4 — Contexto del sistema | Diagrama de actores y sistema (Nivel 1) | `docs/architecture/c4_context.md` |
 | C4 — Contenedores | Diagrama de contenedores de software (Nivel 2) | `docs/architecture/c4_container.md` |
 | Ecosistema de datos | Inventario de fuentes, privacidad/licenciamiento y resumen del EDA del componente ML | `docs/data_ecosystem.md` |
@@ -148,7 +150,7 @@ cd backend
 
 ### 4.6 Variables de entorno
 
-Copiar `backend/.env.example` a `backend/.env` y completar con valores reales (credenciales de Supabase, JWT, Azure Notification Hub, API key del proveedor de NLP). El archivo `.env` real nunca debe commitearse (ver `docs/team_charter.md`).
+Copiar `backend/.env.example` a `backend/.env` y completar con valores reales (credenciales de Supabase, JWT, Azure Notification Hub). La API key del proveedor de NLP pertenece al servicio NLP: va en `backend/nlp_service/.env`, a partir de `backend/nlp_service/.env.example`. Hasta TASK-013k, `backend/.env.example` todavía la lista. El archivo `.env` real nunca debe commitearse (ver `docs/team_charter.md`).
 
 ```bash
 cp backend/.env.example backend/.env
@@ -174,7 +176,8 @@ Justificación del modelo elegido, tratamiento del desbalance de clases y limita
 El componente de chatbot está actualmente en etapa de **especificación de diseño y metodología de evaluación**, no cuenta todavía con un script de ejecución ni resultados medidos en este repositorio. Lo que existe documentado es:
 
 - La decisión arquitectónica de usar inyección estática de contexto (system prompting) sobre un LLM externo en vez de RAG, con sus alternativas consideradas y condiciones de revisión futura (ver `docs/nlp/adr_system_prompting_vs_rag.md`).
-- El corpus de conocimiento que se inyectaría en el system prompt (`docs/nlp/reglas_ada_v1.txt`) y su política de versionado (ver `docs/nlp/corpus_conocimiento.md`).
+- La arquitectura del chatbot como servicio independiente `backend/nlp_service/`, al que la app llama directamente (ver `docs/adr/0006-nlp-servicio-independiente.md` y `design.md` § Servicio NLP (chatbot) Design).
+- El corpus de conocimiento que se inyecta en el system prompt (`backend/nlp_service/app/corpus/`, con `reglas_ada_v1.1.txt` como versión vigente) y su política de versionado (ver `docs/nlp/corpus_conocimiento.md`).
 - La metodología de evaluación propuesta: la métrica de Tasa de Adherencia Clínica, el diseño del Golden Dataset (`docs/nlp/golden_dataset.csv`, 20 preguntas en 4 categorías) y el formato esperado de `nlp_baseline_metrics.json` (ver `docs/nlp/baseline_chatbot.md`). El propio documento aclara explícitamente que "la implementación del script que ejecuta las llamadas al LLM y calcula estos valores es un paso de código separado, no cubierto aquí".
 
 No implementar TASK-010 ni TASK-013 (módulo de ML y chatbot respectivamente) sin antes consultar las Open Questions pendientes en `design.md` y en `CONTEXT.md` (ver también `CLAUDE.md`).
@@ -189,12 +192,12 @@ proyecto-taller-inteligentes/
 │   ├── app/
 │   │   ├── main.py                        # punto de entrada FastAPI
 │   │   ├── ml/                            # modelo de riesgo de hipoglucemia (datos, entrenamiento, predicción, endpoint)
-│   │   ├── nlp/                           # módulo del chatbot (en desarrollo)
 │   │   ├── api/, core/, models/           # capas del backend a completar según tasks.md
 │   │   └── test_ml.sh                     # script end-to-end de prueba del componente ML
 │   ├── data/raw/                          # dataset fuente (ShanghaiT2DM)
 │   ├── requirements.txt
-│   └── .env.example
+│   ├── .env.example
+│   └── nlp_service/                       # servicio NLP independiente del chatbot (venv, requirements y README propios)
 ├── mobile/                                # app cliente en React Native
 └── docs/
     ├── adr/                               # decisiones de arquitectura (ADR)
@@ -211,7 +214,7 @@ Recopilados tal como están documentados en los `.md` existentes, sin agregar pe
 - Conseguir datos que cubran el momento "antes de dormir", no representado en el dataset fuente actual (ver `docs/model_baseline.md` §5).
 - Reentrenar el modelo cuando existan datos reales propios de la app, dado que el dataset base (ShanghaiT2DM) no necesariamente representa a la población de usuarios de GlucoTracker (ver `docs/risks.md`, RD-01).
 - Evaluar `class_weight` o técnicas de remuestreo adicionales frente al desbalance de clases (ver `docs/risks.md`, RD-02).
-- Verificar contra el código del motor de reglas del backend que los umbrales citados en `reglas_ada_v1.txt` ("70-130 mg/dL en ayunas", "menor a 180 mg/dL postprandial") coinciden exactamente con los usados por dicho motor (ver `docs/nlp/corpus_conocimiento.md` §3).
+- Verificar con un test de contrato que los umbrales del corpus ("70-130 mg/dL en ayunas", "menor a 180 mg/dL postprandial") coinciden con las constantes del servicio NLP y con el archivo de referencia `docs/nlp/umbrales_ada_v1.json`, ya que el motor de reglas del backend aún no existe (ver `docs/nlp/corpus_conocimiento.md` §3 y TASK-013j).
 - Confirmar la edición/año exacto de la fuente ADA citada en el corpus del chatbot, asegurando que sea la misma ya citada en la propuesta técnica original del motor de reglas (ver `docs/nlp/corpus_conocimiento.md` §1).
 - Implementar el script que ejecuta las llamadas al LLM y calcula las métricas de adherencia del chatbot (`nlp_baseline_metrics.json`), descrito pero no cubierto por la metodología (ver `docs/nlp/baseline_chatbot.md` §4).
 - Considerar un filtro adicional de palabras clave sobre la salida del LLM como trabajo futuro si la adherencia en casos `adversarial` no resulta aceptable (ver `docs/nlp/baseline_chatbot.md` §6 y `docs/risks.md`, RIA-03).

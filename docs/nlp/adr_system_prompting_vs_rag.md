@@ -10,7 +10,7 @@ La opción "por defecto" para este tipo de problema suele ser RAG (Retrieval-Aug
 
 ## Decisión
 
-Se implementa **Inyección Estática de Contexto vía System Prompting**: un archivo de texto curado (`docs/nlp/reglas_ada_v1.txt`) se concatena completo en el system message de cada llamada a la API del LLM externo (OpenAI/Gemini), en vez de construir un pipeline de RAG con base de datos vectorial.
+Se implementa **Inyección Estática de Contexto vía System Prompting**: un archivo de texto curado (el corpus vigente `backend/nlp_service/app/corpus/reglas_ada_v1.1.txt`, ver `docs/nlp/corpus_conocimiento.md`) se concatena completo en el system message de cada llamada a la API del LLM externo (Gemini, ver ADR-0005; el servicio NLP es independiente, ver ADR-0006), en vez de construir un pipeline de RAG con base de datos vectorial.
 
 ## Por qué (justificación)
 

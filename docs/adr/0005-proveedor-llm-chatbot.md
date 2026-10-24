@@ -22,7 +22,7 @@ Estas dos situaciones tienen exigencias distintas de privacidad y costo, por lo 
 ## Alternativas Consideradas
 1. **Gemini (Google, SDK `google-genai`):**
    * Pros: tiene tier gratuito sin tarjeta, que alcanza para un baseline de 20 preguntas. Hay modelos livianos de baja latencia (`gemini-3.5-flash-lite`). El SDK oficial está mantenido. Cualquier integrante obtiene una clave con su cuenta de Google.
-   * Contras: según los términos de Google, en el tier gratuito el contenido enviado puede usarse para mejorar productos y pasar por revisión humana. Por eso no sirve para datos de pacientes reales. El tier de pago no tiene esa restricción, pero cuesta por token. El SDK exige `httpx>=0.28.1`, lo que chocaba con `supabase==2.7.4`; ya está resuelto (ver Consecuencias, D11).
+   * Contras: según los términos de Google, en el tier gratuito el contenido enviado puede usarse para mejorar productos y pasar por revisión humana. Por eso no sirve para datos de pacientes reales. El tier de pago no tiene esa restricción, pero cuesta por token. El SDK exige `httpx>=0.28.1`, lo que chocaba con `supabase==2.7.4`; el conflicto quedó superado al aislar el chatbot en su propio servicio (ver Consecuencias, D11, y ADR-0006).
 2. **OpenAI (SDK `openai`):**
    * Pros: según sus términos para la API, los datos no se usan para entrenar por defecto. El SDK es maduro y está mantenido. Tiene modelos livianos de baja latencia.
    * Contras: no hay tier gratuito utilizable, así que el baseline requiere crédito pagado. Obtener la clave requiere un medio de pago, lo que limita la disponibilidad para el equipo.
@@ -41,24 +41,31 @@ Estas dos situaciones tienen exigencias distintas de privacidad y costo, por lo 
 *Las políticas de datos se resumen según los términos publicados por cada proveedor al momento de la decisión y deben revisarse otra vez antes de procesar datos de pacientes reales.*
 
 ## Decisión Tomada
-**D1:** se usa **Gemini** como proveedor detrás de una interfaz intercambiable `LLMClient` (`backend/app/nlp/llm_client.py`) con tres implementaciones: Gemini, OpenAI y `FakeProvider`. El proveedor se selecciona por variable de entorno (`NLP_PROVIDER`).
+**D1:** se usa **Gemini** como proveedor detrás de una interfaz intercambiable `LLMClient` (`backend/nlp_service/app/llm_client.py`, servicio independiente según ADR-0006). Por ahora se implementan `GeminiProvider` (SDK `google-genai`) y `FakeProvider`; `OpenAIProvider` queda **diferido** y la interfaz ya lo admite. El proveedor se selecciona por variable de entorno (`NLP_PROVIDER`).
 * El **baseline** se corre con Gemini en **tier gratuito**, usando **solo las 20 preguntas sintéticas** del Golden Dataset. Ningún dato de paciente real pasa por el tier gratuito.
-* Para **pacientes reales** se cambia a Gemini de pago u OpenAI, sin cambiar código, solo configuración. Azure OpenAI queda como alternativa futura compatible con la misma interfaz.
+* Para **pacientes reales** se cambia a Gemini de pago (solo configuración) u OpenAI (requiere implementar antes `OpenAIProvider`). Azure OpenAI queda como alternativa futura compatible con la misma interfaz.
 * `FakeProvider` es determinístico y no usa red. Todas las pruebas automatizadas lo usan, sin llamar a ninguna API real.
 
-**D2:** el modelo se configura por `NLP_MODEL` (valor probado: `gemini-3.5-flash-lite`) con `temperature` 0.2. Cada corrida de evaluación guarda el **id exacto del modelo** devuelto por el proveedor (`modelo_llm` en `nlp_baseline_metrics.json`) para detectar deriva silenciosa del proveedor.
+**D2:** el modelo se configura por `NLP_MODEL` (valor probado: `gemini-3.5-flash-lite`) con `temperature` 0.2, **constante en código** (no variable de entorno). Cada corrida de evaluación guarda el **id exacto del modelo** devuelto por el proveedor (`modelo_llm` en `nlp_baseline_metrics.json`) para detectar deriva silenciosa del proveedor.
 
 ## Consecuencias
 * **Positivas:**
   * El baseline no cuesta nada y cualquier integrante puede reproducirlo.
-  * Cambiar de proveedor es un cambio de configuración, no de código. Esto mitiga parcialmente RIA-04 (dependencia de un proveedor).
+  * Cambiar entre proveedores ya implementados es un cambio de configuración, no de código. Esto mitiga parcialmente RIA-04 (dependencia de un proveedor).
   * Las pruebas son reproducibles y no consumen cuota, porque usan `FakeProvider`.
   * Guardar el id exacto del modelo permite comparar corridas en el tiempo.
 * **Negativas / Riesgos asumidos:**
   * **Tier gratuito restringido a datos sintéticos:** la regla depende de la disciplina del equipo y de la configuración. Antes de cualquier uso con pacientes reales, se debe cambiar de tier o de proveedor y revisar sus términos.
-  * **Autenticación diferida (D3):** el endpoint `POST /api/chatbot/consulta` usa una dependencia de autenticación reemplazable. `CHATBOT_REQUIRE_AUTH=false` se permite solo en desarrollo y se aplican límites de longitud (`CHATBOT_MAX_INPUT_CHARS`) y de tasa (`CHATBOT_RATE_LIMIT_PER_MINUTE`). Mientras RT-01 siga abierto y no exista TASK-014, el endpoint **no se despliega públicamente**. Queda registrado como divergencia en `CONTEXT.md`.
+  * **Autenticación diferida (D3):** el endpoint `POST /api/chatbot/consulta`, servido por el servicio NLP expuesto directamente a la app (ADR-0006), usa una dependencia de autenticación reemplazable. `CHATBOT_REQUIRE_AUTH=false` se permite solo en desarrollo y se aplican límites de longitud (`CHATBOT_MAX_INPUT_CHARS`) y de tasa (`CHATBOT_RATE_LIMIT_PER_MINUTE`). Mientras RT-01 siga abierto y no exista TASK-014, el endpoint **no se despliega públicamente**. Queda registrado como divergencia en `CONTEXT.md`.
   * **Descargo médico medido sobre la salida cruda (D6):** la Tasa de Adherencia del baseline se mide sobre la respuesta cruda del LLM. En producción, el endpoint agrega el descargo por código si falta (`NLP_ENFORCE_DISCLAIMER`). La adherencia con descargo forzado se reporta aparte, para no inflar la métrica del modelo con una corrección determinística del backend.
-  * **Conflicto de dependencias (D11) — Resuelto el 2026-10-24 (TASK-013e) con la opción 1: `supabase==2.16.0` + `httpx==0.28.1`.** `google-genai` exige `httpx>=0.28.1`, pero `supabase==2.7.4` declaraba `httpx<0.28 and >=0.24`. Evidencia, obtenida en venvs temporales fuera del repositorio con Python 3.13.3:
+  * **Conflicto de dependencias (D11) — SUPERADO para el chatbot por ADR-0006 (2026-10-24).** El servicio NLP tiene su propio `requirements.txt`, así que `google-genai` ya no comparte entorno con `supabase` y el conflicto deja de existir. Se propone **revertir** `backend/requirements.txt` a `supabase==2.7.4` y quitar el pin `httpx==0.28.1`; queda como tarea en tasks.md y no se aplica en Fase A.2. Efecto de revertir:
+    * El backend vuelve al pin original, el mismo con el que se escribió TASK-001, y `httpx` vuelve a resolverse transitivamente en `<0.28`.
+    * Se evita adoptar 9 versiones menores de cambios del cliente Supabase (2.7.4 → 2.16.0) por una necesidad que ya no es del backend.
+    * Ningún código importa `supabase` hoy, así que no rompe nada.
+    * Mantener 2.16.0 también funcionaría (el `pip check` de abajo sigue siendo válido). La reversión es por mínimo cambio, no por un fallo.
+    * La restricción "`google-genai` máximo 2.8.0 por `pydantic==2.9.2`" ya no aplica: el servicio fija sus propias versiones.
+
+    Registro histórico de la resolución anterior (TASK-013e, opción 1: `supabase==2.16.0` + `httpx==0.28.1`). `google-genai` exige `httpx>=0.28.1`, pero `supabase==2.7.4` declaraba `httpx<0.28 and >=0.24`. Evidencia, obtenida en venvs temporales fuera del repositorio con Python 3.13.3:
     * Las versiones disponibles se consultaron con `pip index versions` (supabase hasta 2.33.0, httpx hasta 0.28.1, google-genai hasta 2.33.0).
     * Conflicto reproducido: `pip install supabase==2.7.4 httpx==0.28.1` → `ResolutionImpossible: supabase 2.7.4 depends on httpx<0.28 and >=0.24`.
     * `supabase==2.33.0` (la última) se descartó: arrastra `realtime 2.33.0`, que exige `pydantic>=2.11.7`, y eso choca con `pydantic==2.9.2` fijado en `requirements.txt`.
@@ -66,7 +73,7 @@ Estas dos situaciones tienen exigencias distintas de privacidad y costo, por lo 
     * En un venv limpio, `pip install -r requirements.txt google-genai` → `pip check`: `No broken requirements found.`. `import supabase, google.genai` funciona, y `TestClient(app).get('/health')` → 200 (FastAPI 0.115.0 / Starlette 0.38.6 con httpx 0.28.1).
     * Hoy ningún módulo de `backend/` importa `supabase` (verificado con grep), así que el cambio de versión no rompe código existente.
 
-    **Consecuencia para TASK-013a:** las versiones recientes de `google-genai` (ej. 2.33.0) exigen `pydantic>=2.12.5`. Con `pydantic==2.9.2`, el resolutor cae a `google-genai 2.8.0`. Si se instala `google-genai` por separado, pip sube pydantic en silencio (a 2.14.1 en la prueba) y `pip check` no lo detecta. TASK-013a debe elegir entre fijar `google-genai==2.8.0` o subir `pydantic`/`fastapi` con su propia verificación.
+    **Consecuencia para TASK-013a (superada por ADR-0006):** las versiones recientes de `google-genai` (ej. 2.33.0) exigen `pydantic>=2.12.5`. Con `pydantic==2.9.2`, el resolutor cae a `google-genai 2.8.0`. Si se instala `google-genai` por separado, pip sube pydantic en silencio (a 2.14.1 en la prueba) y `pip check` no lo detecta. TASK-013a debe elegir entre fijar `google-genai==2.8.0` o subir `pydantic`/`fastapi` con su propia verificación.
 
     Opciones evaluadas originalmente:
     1. **Subir `supabase`** a una versión cuyas dependencias acepten `httpx>=0.28.1`. Antes hay que revisar los cambios de API del cliente, aunque hoy ningún código del backend usa `supabase`.
@@ -74,5 +81,5 @@ Estas dos situaciones tienen exigencias distintas de privacidad y costo, por lo 
     3. **Usar OpenAI como proveedor del baseline** (su SDK es compatible con el `httpx` actual). Contradice D1 (tier gratuito) y añade costo.
     4. **Aislar el cliente Gemini en un entorno o proceso separado.** Resuelve el conflicto, pero contradice el monolito de ADR-0001 y no se recomienda.
 
-    Se eligió la opción 1, porque mantiene D1 y el SDK oficial con el menor costo de cambio.
+    En TASK-013e se eligió la opción 1. Después, el equipo adoptó una variante de la opción 4 (el servicio NLP independiente de ADR-0006) por razones que van más allá de D11.
   * Se mantienen las limitaciones del ADR de system prompting: no determinismo, deriva del proveedor, dependencia de conectividad y costo por token en el tier de pago.

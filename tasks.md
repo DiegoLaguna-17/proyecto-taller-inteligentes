@@ -20,6 +20,10 @@
   - _Refs rationale_: NFR-002 (disponibilidad) y NFR-001 (tráfico cifrado) dependen de esta infraestructura base.
   - _Output_: Servicio en Azure accesible por HTTPS con certificado válido.
   - _Verify_: `curl -I https://<url>` retorna 200 y certificado válido (sin warnings de SSL).
+- [ ] **TASK-002a** [NFR-001, NFR-002]: Provisionar en Azure un recurso propio para el servicio NLP (`backend/nlp_service/`), separado del backend, con HTTPS/SSL y sus propias variables de entorno (ADR-0006). No bloquea las tareas TASK-013; el servicio no se expone públicamente hasta TASK-014.
+  - _Refs rationale_: ADR-0006 (segundo despliegue): NFR-001 exige tráfico cifrado y NFR-002 disponibilidad también para el servicio NLP.
+  - _Output_: Servicio NLP accesible por HTTPS con certificado válido; `NLP_PROVIDER_API_KEY` configurada como secreto del recurso, no en el repositorio.
+  - _Verify_: `curl -I https://<url-nlp>/health` retorna 200 y certificado válido (sin warnings de SSL). Si hay un proxy delante (Azure), uvicorn arranca con `--proxy-headers --forwarded-allow-ips=<IP del proxy>`, para que el límite de tasa vea la IP real del cliente (design.md § `app/rate_limit.py`).
 - [ ] **TASK-003** []: Scaffolding del proyecto FastAPI (`backend/app/`) con estructura de carpetas de design.md (api, ml, nlp, models, core).
   - _Refs rationale_: Estructura base descrita en design.md § File Structure.
   - _Output_: Proyecto FastAPI ejecutable localmente con endpoint `/health`.
@@ -68,44 +72,62 @@
   - _Refs rationale_: REQ-005 — toda clasificación riesgosa debe generar una alerta.
   - _Output_: Función que, dada una clasificación de riesgo, crea un registro en T_Alertas.
   - _Verify_: Test unitario: clasificación "Riesgo Hipo" produce exactamente una fila nueva en T_Alertas.
-- [ ] **TASK-013** [REQ-006]: Implementar el módulo `app/nlp/` del chatbot. Open Question resuelta (design.md § Chatbot (Módulo NLP) Design, ADR-0005). Se completa al cerrar TASK-013a a TASK-013g.
+- [ ] **TASK-013** [REQ-006]: Implementar el chatbot como **servicio NLP independiente** en `backend/nlp_service/` (ADR-0006; design.md § Servicio NLP (chatbot) Design). Se completa al cerrar TASK-013a, 013b, 013c, 013d, 013i, 013j, 013f y 013g. Todas las rutas de las subtareas son relativas a `backend/nlp_service/`, salvo que se indique otra cosa.
   - _Refs rationale_: REQ-006 requiere respuestas informativas sobre diabetes, nutrición y niveles de glucosa.
   - _Output_: Función `responder_consulta(texto)` que retorna una respuesta con aclaración de que no reemplaza consejo médico.
   - _Verify_: Consulta de prueba ("¿Qué debo comer si mi glucosa está en 70 mg/dL?") retorna una respuesta no vacía con el disclaimer incluido (con `FakeProvider` en pruebas automatizadas).
-  - Orden sugerido: 013e → 013d → 013a → 013b → 013c → 013f → 013g.
-- [ ] **TASK-013a** [REQ-006, NFR-001]: Config y proveedor — `app/core/config.py` y `app/nlp/llm_client.py` (interfaz `LLMClient` + Gemini, OpenAI y `FakeProvider`); `app/nlp/errors.py`; nombres de variables nuevas en `backend/.env.example` (solo nombres). Requiere TASK-013e (completada). Al agregar `google-genai` a `requirements.txt`: fijar `google-genai==2.8.0` (máxima compatible con `pydantic==2.9.2`) o subir `pydantic`/`fastapi` con verificación propia (ADR-0005, D11).
-  - _Refs rationale_: ADR-0005 (D1, D2): proveedor intercambiable por `NLP_PROVIDER`, modelo por `NLP_MODEL`, temperature 0.2, id exacto del modelo disponible para cada corrida. NFR-001: la clave solo por entorno.
-  - _Output_: `config.py` valida las variables de design.md § Chatbot; `get_llm_client()` retorna la implementación según `NLP_PROVIDER`; la falta de configuración levanta el error que el router mapea a 503.
-  - _Verify_: `pytest backend/tests/nlp` cubre: `NLP_PROVIDER=fake` retorna `FakeProvider`; configuración incompleta levanta el error de "no configurado"; ningún test hace llamadas de red.
-- [ ] **TASK-013b** [REQ-006, NFR-001]: Prompt y servicio — `app/nlp/prompt_builder.py` y `app/nlp/service.py` con `responder_consulta(texto)`, incluido el descargo por código con `NLP_ENFORCE_DISCLAIMER`. Requiere TASK-013a y TASK-013d.
-  - _Refs rationale_: ADR System Prompting vs. RAG (corpus completo en el system prompt); D6 (descargo por código, reportado aparte); D8 (sin estado).
-  - _Output_: El system prompt contiene íntegro `app/nlp/corpus/reglas_ada_v1.txt`; al proveedor solo se envían el system prompt y el texto del usuario; los timeouts y fallos del proveedor se traducen a los errores de `errors.py`.
-  - _Verify_: Test con `FakeProvider` que captura la llamada: el prompt contiene el corpus y no incluye ningún otro dato; con `NLP_ENFORCE_DISCLAIMER=true` una respuesta sin descargo sale con descargo y con `false` sale intacta; los mensajes de excepción no contienen el texto de la consulta.
-- [ ] **TASK-013c** [REQ-006, NFR-001]: Pruebas — `backend/tests/nlp/`, `backend/requirements-dev.txt`, `app/core/clinical.py` (constantes ADA: 70, 130, 180 mg/dL; 15 g; 15 min) y test de consistencia del corpus contra esas constantes (D4). Requiere TASK-013b.
-  - _Refs rationale_: D4: una sola fuente de verdad de los umbrales ADA en el backend; corpus_conocimiento.md §3.
-  - _Output_: Suite de pruebas unitarias del módulo NLP con `FakeProvider`; test que falla si `reglas_ada_v1.txt` cita un umbral distinto a `clinical.py`.
-  - _Verify_: `pytest backend/tests/nlp` pasa sin red y sin `NLP_PROVIDER_API_KEY`; cambiar un valor en `clinical.py` hace fallar el test de consistencia.
-- [ ] **TASK-013d** [REQ-006]: Mover el corpus a `backend/app/nlp/corpus/reglas_ada_v1.txt` (D9) y actualizar las referencias en `docs/` y `README.md`. El Golden Dataset permanece en `docs/nlp/`.
-  - _Refs rationale_: D9; design.md § File Structure.
-  - _Output_: Archivo movido con `git mv` (historial preservado); ninguna referencia a `docs/nlp/reglas_ada_v1.txt` queda en el repositorio.
-  - _Verify_: `git grep "docs/nlp/reglas_ada_v1.txt"` no retorna resultados; `git log --follow backend/app/nlp/corpus/reglas_ada_v1.txt` muestra el historial previo.
-- [x] **TASK-013e** []: Resolver el conflicto de dependencias D11 (`google-genai` exige `httpx>=0.28.1`; `supabase==2.7.4` exige `httpx<0.28`). Elegir una opción de ADR-0005 § Consecuencias con aprobación del equipo y actualizar `requirements.txt`.
-  - _Refs rationale_: ADR-0005 (D11). Bloquea la implementación Gemini de TASK-013a.
+  - Orden sugerido: 013a → 013b → 013c → 013j → 013d → 013i → TASK-018 → 013f → 013g. TASK-013k es independiente y conviene hacerla antes de TASK-001. TASK-013h es post-v1.
+- [x] **TASK-013a** [REQ-006]: Scaffolding del servicio — `backend/nlp_service/` con `app/main.py` (`GET /health`), `tests/`, `requirements.txt` (versiones exactas propias: fastapi, uvicorn, pydantic, google-genai), `requirements-dev.txt` (pytest y lo necesario para `TestClient`), `.env.example` (solo nombres de variables de design.md) y `README.md` (instalar, configurar, correr desde `backend/nlp_service/`, probar).
+  - _Refs rationale_: ADR-0006: servicio aislado, sin importar `backend/app/` ni compartir requirements. Las versiones no dependen de las de supabase del backend.
+  - _Output_: Servicio ejecutable con `uvicorn app.main:app` desde `backend/nlp_service/`. Las versiones de `requirements.txt` se verifican con `pip index versions` y no se suponen.
+  - _Verify_: En un venv limpio fuera del repo: `pip install -r requirements.txt -r requirements-dev.txt` y `pip check` → sin conflictos. `pytest` (desde `backend/nlp_service/`) cubre `GET /health` → 200. `git grep -nE "from app\.(core|ml)|import app\.(core|ml)|backend/app" backend/nlp_service` no retorna resultados.
+  - _Resultado (2026-10-24)_: versiones de `pip index versions` → fastapi 0.162.0, pydantic 2.14.1, uvicorn 0.54.0, google-genai 2.33.0, python-dotenv 1.2.4 (dev: pytest 9.1.1, httpx 0.28.1). `pip check` → "No broken requirements found." en un venv limpio del scratchpad y en `backend/nlp_service/.venv`. `tests/test_health.py` pasa; `uvicorn app.main:app --port 8001` + `curl /health` → 200. `git grep --untracked` de aislamiento sin resultados, más `tests/test_aislamiento.py`. Se agregaron `.venv/` y `.pytest_cache/` del servicio a `.gitignore`.
+- [~] **TASK-013b** [REQ-006]: Corpus — `git mv docs/nlp/reglas_ada_v1.txt backend/nlp_service/app/corpus/reglas_ada_v1.txt` (sin cambios de contenido); crear `app/corpus/reglas_ada_v1.1.txt` (mismo contenido con tildes, descargo literal «Consulta siempre a tu médico tratante para cambios en tu medicación.» en una sola línea (en v1 está partido por un salto de línea) y encabezado que ya no atribuya el motor de reglas a `app/ml/riesgo.py`); crear `docs/nlp/umbrales_ada_v1.json` con el formato de design.md; actualizar las referencias en `docs/` y `README.md`. Requiere TASK-013a.
+  - _Refs rationale_: ADR-0006 (corpus dentro del servicio, reemplaza el destino de D9); corpus_conocimiento.md §4 (un archivo nuevo por versión, nunca sobrescribir); el Golden Dataset permanece en `docs/nlp/`.
+  - _Output_: v1 movido con historial; v1.1 como corpus vigente; archivo de referencia JSON versionado; ninguna referencia a `docs/nlp/reglas_ada_v1.txt` en el repositorio.
+  - _Verify_: `git grep "docs/nlp/reglas_ada_v1.txt"` no retorna resultados; `git log --follow backend/nlp_service/app/corpus/reglas_ada_v1.txt` muestra el historial previo; `git diff --no-index` entre v1 y v1.1 muestra solo tildes y el encabezado; `python -m json.tool docs/nlp/umbrales_ada_v1.json` lo valida.
+  - _Resultado parcial (2026-10-24)_: `git mv` hecho (git status: `R docs/nlp/… -> backend/nlp_service/app/corpus/reglas_ada_v1.txt`); v1.1 y JSON creados; referencias actualizadas (solo quedan las de esta misma tarea en tasks.md). El diff v1 → v1.1 muestra tildes, el descargo en una línea, el encabezado y la nota "[PENDIENTE…]" movida del cuerpo al encabezado para que no llegue al LLM; las reglas no cambian. **Falta:** `git log --follow` solo se puede verificar después del commit.
+- [x] **TASK-013c** [REQ-006, NFR-001]: Config propia y constantes — `app/config.py` (variables del servicio de design.md; ninguna clave con valor por defecto) y `app/clinical.py` (70, 130, 180 mg/dL; 15 g; 15 min; `DESCARGO_MEDICO` con tildes). Requiere TASK-013a.
+  - _Refs rationale_: ADR-0006 (cada servicio tiene su copia de constantes; reemplaza `backend/app/core/clinical.py`); D3 (auth, longitud, tasa por entorno); NFR-001 (clave solo por entorno).
+  - _Output_: Settings validados. La configuración incompleta del proveedor levanta el error que el router mapea a 503. Temperature no es variable de entorno.
+  - _Verify_: `pytest` cubre: configuración completa con `NLP_PROVIDER=fake` carga sin clave; con `NLP_PROVIDER=gemini` sin `NLP_PROVIDER_API_KEY`, levanta "no configurado"; `NLP_TEMPERATURE` no es leída por `config.py`.
+  - _Resultado (2026-10-24)_: `tests/test_config.py` pasa (fake sin clave; gemini sin `NLP_MODEL` o sin `NLP_PROVIDER_API_KEY` nombra solo la variable; valores inválidos; `NLP_TEMPERATURE` ignorada; la clave no aparece en `repr`). Valores por defecto: timeout 30 s, descargo forzado `true`, auth `true`, 1000 caracteres, 10/min.
+- [x] **TASK-013d** [REQ-006, NFR-001]: Proveedores — `app/llm_client.py` (interfaz `LLMClient`, `GeminiProvider` con `google-genai`, `FakeProvider`; `OpenAIProvider` diferido) y `app/errors.py`. Requiere TASK-013c.
+  - _Refs rationale_: ADR-0005 (D1, D2): proveedor por `NLP_PROVIDER`, modelo por `NLP_MODEL`, id exacto del modelo disponible por corrida.
+  - _Output_: `get_llm_client()` retorna la implementación según `NLP_PROVIDER`; fallos y timeouts del SDK se traducen a los errores de `errors.py`, sin el texto de la consulta en el mensaje.
+  - _Verify_: `pytest` cubre `NLP_PROVIDER=fake` → `FakeProvider`, valor desconocido → error de configuración, y `GeminiProvider` con el cliente del SDK sustituido por un doble (sin red) que traduce excepción → fallo del proveedor y timeout → timeout. Ningún test hace llamadas de red.
+  - _Resultado (2026-10-24)_: `tests/test_llm_client.py` pasa. Los errores del SDK (`ServerError`, `ClientError`, `httpx.ReadTimeout`, otros) se traducen sin el texto de la consulta y sin excepción encadenada. El timeout se pasa en milisegundos (`HttpOptions`) y el SDK no reintenta (sin `retry_options`). No se probó contra la API real.
+- [x] **TASK-013e** []: Resolver el conflicto de dependencias D11 (`google-genai` exige `httpx>=0.28.1`; `supabase==2.7.4` exige `httpx<0.28`). Elegir una opción de ADR-0005 § Consecuencias con aprobación del equipo y actualizar `requirements.txt`. **Superada por ADR-0006** (el chatbot tiene su propio `requirements.txt`; ver TASK-013k).
+  - _Refs rationale_: ADR-0005 (D11).
   - _Output_: `backend/requirements.txt` instalable con el SDK del proveedor y el cliente de Supabase en el mismo entorno; decisión registrada en ADR-0005.
   - _Verify_: En un venv limpio, `pip install -r backend/requirements.txt` termina sin conflictos, `pip check` no reporta incompatibilidades y `python -c "import supabase, google.genai"` no falla.
-  - _Resultado (2026-10-24)_: opción 1 — `supabase==2.16.0` + `httpx==0.28.1`. Venv limpio con `-r requirements.txt google-genai`: `pip check` → "No broken requirements found."; imports OK; `GET /health` vía TestClient → 200. `google-genai` queda en 2.8.0 por `pydantic==2.9.2` (ver TASK-013a). Evidencia en ADR-0005.
-- [ ] **TASK-013f** [REQ-006]: Golden Dataset v1.1 en `docs/nlp/` — mismas 20 preguntas que v1, con todos los checks ejecutables por código, sin LLM como juez (D5), más `app/nlp/checks.py`.
+  - _Resultado (2026-10-24)_: opción 1 — `supabase==2.16.0` + `httpx==0.28.1`. Venv limpio con `-r requirements.txt google-genai`: `pip check` → "No broken requirements found."; imports OK; `GET /health` vía TestClient → 200. Evidencia en ADR-0005. Se revierte en TASK-013k.
+- [ ] **TASK-013f** [REQ-006]: Golden Dataset v1.1 en `docs/nlp/` — mismas 20 preguntas que v1, con todos los checks ejecutables por código, sin LLM como juez (D5), más `app/checks.py` en el servicio. Requiere TASK-013a.
   - _Refs rationale_: D5; docs/nlp/baseline_chatbot.md §3. Los checks semánticos de v1 (`descargo_medico`, `no_puedo_recomendar_dosis`, `no_tengo_informacion`, `consulta_profesional`, `aumentar_dosis`) no son evaluables literalmente.
-  - _Output_: `golden_dataset_v1.1.csv` (v1 se conserva sin cambios) con la regla de coincidencia documentada (mayúsculas, acentos, límites de palabra); `checks.py` evalúa `contiene:` / `NO_contiene:`.
+  - _Output_: `docs/nlp/golden_dataset_v1.1.csv` (v1 se conserva sin cambios) con la regla de coincidencia documentada (mayúsculas, acentos, límites de palabra), y `descargo_medico` definido como `clinical.DESCARGO_MEDICO`; `checks.py` evalúa `contiene:` / `NO_contiene:`.
   - _Verify_: Las preguntas y categorías de v1.1 son idénticas a v1 (test o diff); los tests de `checks.py` cubren un caso que pasa y uno que falla por cada pregunta.
-- [ ] **TASK-013g** [REQ-006]: Script de evaluación del baseline `app/nlp/evaluation.py`: corridas sin contexto y con contexto sobre Golden Dataset v1.1 → `app/nlp/nlp_baseline_metrics.json`. Requiere TASK-013c y TASK-013f.
+- [ ] **TASK-013g** [REQ-006]: Script de evaluación del baseline `app/evaluation.py`: corridas sin contexto y con contexto (corpus v1.1) sobre Golden Dataset v1.1 → `app/nlp_baseline_metrics.json`. Requiere TASK-013i y TASK-013f.
   - _Refs rationale_: docs/nlp/baseline_chatbot.md §4; D2 (id exacto del modelo, temperature 0.2); D6 (métrica sobre salida cruda; descargo forzado aparte). Gemini tier gratuito solo con las 20 preguntas sintéticas (D1).
   - _Output_: JSON con adherencia por categoría y global, `modelo_llm` exacto, `temperature`, versión del corpus y del Golden Dataset, y adherencia con descargo forzado reportada aparte; `baseline_chatbot.md` §4 actualizado con estos campos.
   - _Verify_: Corrida con `FakeProvider` produce un JSON válido con todos los campos (en pruebas automatizadas); una corrida manual con Gemini registra el id del modelo devuelto por el proveedor.
 - [ ] **TASK-013h** [REQ-006]: *(Post-v1, no bloquea TASK-013)* Corpus v2 con manejo de emergencias (síntomas severos, pérdida de conciencia, etc.), con revisión clínica (D7).
   - _Refs rationale_: D7: emergencias fuera de alcance de v1; corpus_conocimiento.md §4 exige un archivo nuevo por versión.
-  - _Output_: `reglas_ada_v2.txt` revisado por un profesional de la salud, con preguntas de emergencia agregadas a una nueva versión del Golden Dataset.
-  - _Verify_: Revisión clínica firmada/documentada; el test de consistencia de TASK-013c pasa también con v2.
+  - _Output_: `app/corpus/reglas_ada_v2.txt` revisado por un profesional de la salud, con preguntas de emergencia agregadas a una nueva versión del Golden Dataset.
+  - _Verify_: Revisión clínica firmada/documentada; el test de contrato de TASK-013j pasa también con v2.
+- [x] **TASK-013i** [REQ-006, NFR-001]: Prompt y servicio — `app/prompt_builder.py` y `app/service.py` con `responder_consulta(texto, *, con_contexto=True)`, `TEMPERATURE = 0.2` y el descargo por código con `NLP_ENFORCE_DISCLAIMER`; más la herramienta de prueba manual `app/dev_chat.py` (`python -m app.dev_chat [--sin-contexto]`, solo stdout, sin archivos ni logs, nombra solo la variable faltante). Requiere TASK-013b y TASK-013d.
+  - _Refs rationale_: ADR System Prompting vs. RAG (corpus completo en el system prompt); D6 (descargo por código, reportado aparte); D8 (sin estado).
+  - _Output_: El system prompt contiene íntegro el cuerpo de `app/corpus/reglas_ada_v1.1.txt` (sin el encabezado de metadatos); al proveedor solo se envían el system prompt y el texto del usuario.
+  - _Verify_: Test con `FakeProvider` que captura la llamada: el prompt contiene el cuerpo del corpus, no contiene el encabezado y no incluye ningún otro dato; `temperature` enviada = 0.2; con `NLP_ENFORCE_DISCLAIMER=true` una respuesta sin descargo sale con `DESCARGO_MEDICO` y con `false` sale intacta; los mensajes de excepción no contienen el texto de la consulta.
+  - _Resultado (2026-10-24)_: `tests/test_service.py`, `tests/test_prompt_builder.py` y `tests/test_dev_chat.py` pasan. Con FakeProvider, `responder_consulta('¿Qué debo comer si mi glucosa está en 70 mg/dL?')` → texto no vacío con descargo (también verificado fuera de pytest). El descargo no se duplica si el LLM ya lo escribió (comparación sin tildes, mayúsculas ni saltos de línea). `dev_chat` con proveedor real no se probó.
+- [x] **TASK-013j** [REQ-006]: Test de contrato clínico — `tests/test_contrato_clinico.py` compara `app/clinical.py` con `docs/nlp/umbrales_ada_v1.json` y con `app/corpus/reglas_ada_v1.1.txt`. Requiere TASK-013b y TASK-013c.
+  - _Refs rationale_: ADR-0006 (duplicación de constantes mitigada por contrato); corpus_conocimiento.md §3.
+  - _Output_: Test que falla ante cualquier diferencia de umbral o del texto del descargo entre las tres fuentes.
+  - _Verify_: `pytest tests/test_contrato_clinico.py` pasa sin red; alterar un valor en `clinical.py`, en el JSON o en el corpus (en una copia temporal) hace fallar el test.
+  - _Resultado (2026-10-24)_: pasa (11 casos). Mutaciones en copias temporales fuera del repo: `clinical.py` 130→131 → 3 fallan; JSON 180→190 → 1 falla; descargo sin tilde en el corpus → 1 falla; corpus "70 a 125" → 2 fallan.
+- [ ] **TASK-013k** []: Desacoplar el backend del chatbot — revertir en `backend/requirements.txt` `supabase==2.16.0` a `supabase==2.7.4` y quitar `httpx==0.28.1`; retirar `NLP_PROVIDER_API_KEY` de `backend/.env.example`; quitar "chatbot" del comentario de routers de `backend/app/main.py`.
+  - _Refs rationale_: ADR-0006 y ADR-0005 (D11 superado): el backend ya no necesita `httpx>=0.28.1` y vuelve a su pin original, sin adoptar cambios del cliente Supabase que no necesita (hoy ningún código importa `supabase`).
+  - _Output_: Backend sin dependencias ni variables del chatbot.
+  - _Verify_: En un venv limpio fuera del repo: `pip install -r backend/requirements.txt` y `pip check` → sin conflictos; `python -c "import supabase"` funciona; `TestClient(app).get('/health')` → 200; `git grep NLP_ backend/.env.example` no retorna resultados.
 
 ## Phase 4: Capa de API
 *Goal*: Exponer la lógica de negocio como endpoints REST autenticados, según design.md § API / Interface Design.
@@ -126,10 +148,14 @@
   - _Refs rationale_: REQ-004 y REQ-005 — el flujo completo descrito en la Especificación § 8.A.
   - _Output_: Al llamar TASK-016, el registro queda clasificado y, si aplica, se dispara una notificación push al médico asignado.
   - _Verify_: Test end-to-end: registro con nivel crítico genera alerta en T_Alertas y una notificación push simulada/mockeada.
-- [ ] **TASK-018** [REQ-006, NFR-001]: Implementar `POST /api/chatbot/consulta` en `app/api/chatbot.py`, según el contrato de design.md § API (sin estado, dependencia de auth reemplazable, límites de longitud y tasa), y `app/test_chatbot.sh`. Requiere TASK-013b.
-  - _Refs rationale_: REQ-006; D3, D8, D10. Sin despliegue público hasta TASK-014 (divergencia registrada en CONTEXT.md).
+- [x] **TASK-018** [REQ-006, NFR-001]: Implementar `POST /api/chatbot/consulta` **en el servicio NLP**: `backend/nlp_service/app/api/chatbot.py`, `app/auth.py` (dependencia reemplazable; 401 con `CHATBOT_REQUIRE_AUTH=true` hasta TASK-014), `app/rate_limit.py` (en memoria, por IP), montaje en `app/main.py` y `backend/nlp_service/test_chatbot.sh`, según el contrato de design.md § API (sin estado, límites de longitud y tasa). Requiere TASK-013i.
+  - _Refs rationale_: REQ-006; D3, D8, D10; ADR-0006 (servicio expuesto directamente a la app, seguridad propia). Sin despliegue público hasta TASK-014 (divergencia registrada en CONTEXT.md). Cuando exista TASK-014, `auth.py` se conecta a la validación local del token de sesión.
   - _Output_: Endpoint que recibe `{texto}` y retorna `{respuesta}`; errores 422 / 429 (`CHATBOT_RATE_LIMIT_PER_MINUTE`) / 503 / 502 / 504.
-  - _Verify_: `pytest backend/tests/api` con `FakeProvider` cubre 200 con respuesta no vacía, 422 (vacío y mayor a `CHATBOT_MAX_INPUT_CHARS`), 429, 503, 502 y 504, y comprueba que el texto de la consulta no aparece en logs capturados (`caplog`) ni en el `detail` de errores.
+  - _Verify_: `pytest` desde `backend/nlp_service/` con `FakeProvider` cubre 200 con respuesta no vacía, 422 (vacío y mayor a `CHATBOT_MAX_INPUT_CHARS`), 429, 503, 502 y 504; con `CHATBOT_REQUIRE_AUTH=true` y sin token, la dependencia rechaza la llamada; comprueba que el texto de la consulta no aparece en logs capturados (`caplog`) ni en el `detail` de errores.
+  - _Resultado (2026-10-24)_: `tests/test_api_chatbot.py` y `tests/test_rate_limit.py` pasan; la suite completa da 90 passed.
+    - Casos cubiertos: 200 con descargo; 422 (vacío, solo espacios, sin campo, no string, demasiado largo, JSON malformado, cuerpo no UTF-8); 429 con `Retry-After`; 503 (cinco configuraciones); 502; 504; 401 (también por defecto); orden auth → tasa → entrada → proveedor; el texto no aparece en `caplog` ni en las respuestas.
+    - Además, FastAPI respondía **400** en inglés ante un cuerpo no UTF-8; se mapea al 422 genérico del contrato.
+    - `./test_chatbot.sh` (PORT=8002) con `NLP_PROVIDER=fake` y `CHATBOT_REQUIRE_AUTH=false` → 200, respuesta no vacía y con descargo. No se probó contra Gemini real.
 - [ ] **TASK-019** [REQ-007]: Implementar `GET /pacientes/{id}/historial` con filtro por rango de fechas.
   - _Refs rationale_: REQ-007.
   - _Output_: Endpoint que retorna registros filtrados por fecha, accesible por Paciente y Médico.
@@ -156,8 +182,8 @@
   - _Verify_: Cambiar el filtro de período actualiza correctamente los datos mostrados.
 - [ ] **TASK-024** [REQ-006]: Pantalla de Chatbot.
   - _Refs rationale_: REQ-006.
-  - _Output_: Interfaz de chat conectada a `POST /api/chatbot/consulta`.
-  - _Verify_: Enviar una consulta manual muestra la respuesta del backend en pantalla.
+  - _Output_: Interfaz de chat conectada a `POST /api/chatbot/consulta` del servicio NLP, con una URL base propia `NLP_API_BASE_URL` en `mobile/src/services/` (separada de `API_BASE_URL` del backend, configurable por ambiente). Mensajes de error para 422, 429 y 502/503/504.
+  - _Verify_: Enviar una consulta manual muestra la respuesta del servicio NLP en pantalla; con `NLP_API_BASE_URL` apuntando a un servicio caído se muestra un error amigable sin el texto de la consulta.
 
 ## Phase 6: Tests y Validación
 *Goal*: Verificar que el sistema cumple los NFR y que el flujo completo funciona de punta a punta.
@@ -166,10 +192,18 @@
   - _Refs rationale_: NFR-001.
   - _Output_: Reporte de auditoría manual o automatizada.
   - _Verify_: Ningún endpoint acepta HTTP plano; intento de conexión HTTP es rechazado o redirigido.
+- [ ] **TASK-025a** [NFR-001]: Incluir el servicio NLP en la auditoría de seguridad: HTTPS forzado, límites de longitud y tasa, autenticación activa (`CHATBOT_REQUIRE_AUTH=true`) y ausencia del texto de las consultas en logs. No bloquea las tareas TASK-013.
+  - _Refs rationale_: NFR-001; ADR-0006 (superficie expuesta); design.md § Security Design — Servicio NLP; docs/risks.md RT-03.
+  - _Output_: Sección del reporte de auditoría dedicada al servicio NLP.
+  - _Verify_: Una petición HTTP plana a la URL del servicio NLP es rechazada o redirigida; una petición sin token se rechaza; superar `CHATBOT_RATE_LIMIT_PER_MINUTE` devuelve 429; los logs del despliegue muestran solo metadatos tras una consulta de prueba.
 - [ ] **TASK-026** [NFR-002]: Prueba de disponibilidad — monitoreo configurado en Azure con alertas de caída.
   - _Refs rationale_: NFR-002.
   - _Output_: Dashboard de monitoreo de uptime activo.
   - _Verify_: Simulación de caída del servicio dispara una alerta de monitoreo.
+- [ ] **TASK-026a** [NFR-002]: Monitoreo de uptime propio del servicio NLP en Azure, sobre `GET /health`, con alertas de caída independientes de las del backend. No bloquea las tareas TASK-013.
+  - _Refs rationale_: NFR-002; ADR-0006 (despliegue y observabilidad separados); docs/risks.md RT-04.
+  - _Output_: Monitor de uptime del servicio NLP activo en el mismo dashboard que el backend.
+  - _Verify_: Detener el servicio NLP dispara una alerta de monitoreo sin afectar la del backend.
 - [ ] **TASK-027** [NFR-003]: Prueba de carga sobre el endpoint de clasificación ML.
   - _Refs rationale_: NFR-003.
   - _Output_: Reporte de latencia bajo carga simulada (ej. con Locust o k6).

@@ -1,8 +1,10 @@
 # 1. Uso de backend Monolítio Modular con FastAPI
 
-* **Estado:** Aceptado
+* **Estado:** Reemplazado parcialmente por [ADR-0006](0006-nlp-servicio-independiente.md)
 * **Fecha de decisión:** 16-09-2026
 * **Autores:** Equipo Glucotracker
+
+> **Nota (2026-10-24):** el alcance cambia solo para NLP. El chatbot sale del monolito y pasa a un servicio independiente en `backend/nlp_service/` (ADR-0006). Para el resto del backend (API, ML, reglas de negocio) esta decisión sigue vigente, incluida la carpeta `/nlp` que se menciona abajo como parte del monolito.
 
 ## Contexto y Problema
 Para el desarrollo del backend de GlucoTracker se requiere una arquitectura que permita manejar lógica de negocio, endpoints REST e integrar lógica de Machine Learning y NLP de forma ágil, eficiente y simple para la primera etapa del proyecto.

@@ -12,9 +12,13 @@ graph TD
     %% Sistema Principal
     GlucoTracker("<b>GlucoTracker</b><br>[Sistema Principal]<br>Plataforma de monitoreo y análisis inteligente de glucosa")
 
+    %% Sistemas externos
+    LLM("<b>Proveedor LLM externo</b><br>[Sistema externo: Gemini]<br>Genera las respuestas del chatbot educativo (ADR-0005)")
+
     %% Relaciones
     Patient -->|Registra glucosa, consulta alertas y recibe recomendaciones| GlucoTracker
     Doctor -->|Monitorea pacientes, revisa alertas críticas y valida reportes| GlucoTracker
     Admin -->|Gestiona usuarios, roles y parámetros del sistema| GlucoTracker
+    GlucoTracker -->|Envía consultas del chatbot sobre HTTPS, sin datos personales| LLM
 
     style GlucoTracker fill:#f9f,stroke:#333,stroke-width:2px
