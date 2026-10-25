@@ -42,7 +42,7 @@ DIVERGENCE PROTOCOL:
 
 ## Notas específicas de Claude Code para GlucoTracker
 
-- Stack: React Native (`mobile/`) + FastAPI/Python (`backend/app/`, monolito con ML) + servicio NLP independiente FastAPI/Python (`backend/nlp_service/`, ADR-0006) + Supabase/PostgreSQL, desplegado en Azure.
+- Stack: React Native (`mobile/`) + FastAPI/Python (`backend/app/`, backend de negocio: login con OTP, médicos, pacientes, administradores, registros, PDF; sin ML ni chatbot) + servicio de ML independiente (`backend/ml_service/`, ADR-0008) + servicio NLP independiente FastAPI/Python (`backend/nlp_service/`, ADR-0006) + Supabase/PostgreSQL, desplegado en Azure.
 - Datos médicos son sensibles (NFR-001) — nunca loguear niveles de glucosa ni datos personales en texto plano en consola; en el servicio NLP tampoco el texto de las consultas.
 - El modelo de ML vive en el servicio independiente `backend/ml_service/` (ADR-0008; no importa nada de `backend/app/` ni de `nlp_service/`; se ejecuta y prueba desde su propia carpeta). Es experimental y solo informativo. Tiene Open Questions sin resolver en design.md (perfil clínico, autenticación entre servicios, despliegue sin ingreso público) — consultarlas antes de tocar TASK-010b o TASK-017. El chatbot vive en `backend/nlp_service/` (no importa nada de `backend/app/`; se ejecuta y prueba desde su propia carpeta); ver design.md § Servicio NLP (chatbot) Design antes de implementar TASK-013.
 - Cualquier cambio al esquema de T_Registro_glucosa, T_Alertas o T_Usuario requiere actualizar design.md § Data Models primero.

@@ -1,5 +1,5 @@
 # design.md
-> GlucoTracker — Version 1.5.3 — 2026-10-25
+> GlucoTracker — Version 1.6.0 — 2026-10-25
 
 ## Architecture Overview
 El backend principal es un monolito modular en FastAPI (ver ADR-0001). Centraliza la lógica de negocio: auth, registros, la **clasificación ADA** Normal/Hipo/Hiper de cada lectura y las alertas al médico. Hay dos servicios independientes:
@@ -62,6 +62,9 @@ Las decisiones técnicas críticas del proyecto han sido formalizadas y justific
 10. **ADR-0009:** [Modelo de demo con datos sintéticos](docs/adr/0009-modelo-demo-datos-sinteticos.md) (segundo modelo separado, entrenado con datos generados por reglas clínicas; no cambia el contrato de ADR-0008)
 
 ## Data Models
+
+> **Estado real en Supabase (2026-10-25):** el backend de negocio usa tablas con otros nombres que las `T_*` de abajo, que siguen siendo el modelo objetivo: `usuario`, `paciente`, `medico`, `administrador`, `registro_glucosa`, `alertas`, `auditoria_endpoints`. Usa además tablas que este diseño aún no define: `seguimiento_embarazo`, `perfiles_pacientes`, `enfermedades_base`, `paciente_enfermedad`, `tratamientos`, `tratamiento_enfermedad`, `nivel_actividad_fisica`, `momento_dia`, `especialidad`, `retroalimentacion`, `Carnets_IMG` y `Matriculas_PDF`. El esquema se creó en Supabase fuera de este repositorio (no hay migraciones versionadas), así que TASK-005 a TASK-009 no se pueden verificar aquí. Este documento no se altera hasta reconciliar el esquema (TASK-029 y Open Question), porque CLAUDE.md exige actualizar design.md antes de cambiar el modelo de datos.
+
 
 ### T_Usuario
 | Field | Type | Constraints | Notes |
@@ -163,6 +166,21 @@ Las decisiones técnicas críticas del proyecto han sido formalizadas y justific
 | POST | /api/chatbot/consulta | Paciente (pendiente RT-01; ver contrato abajo) | REQ-006 | Envía consulta de texto libre al chatbot. **Servido por el servicio NLP** (`NLP_API_BASE_URL`), no por el backend |
 | GET | /pacientes/{id}/historial | Paciente, Médico | REQ-007 | Historial de glucosa filtrable por rango de fechas |
 | GET | /pacientes/{id}/reporte-pdf | Médico | REQ-008 | Genera y descarga reporte clínico en PDF |
+
+### Estado real del backend de negocio (fusión con `adriang-backend`, 2026-10-25)
+El backend de negocio (`backend/app/`) ya tiene implementados los routers de la tabla siguiente (código de Adrian; 74 pruebas con Supabase simulado). **Sus rutas no son las de la tabla de arriba**, que sigue siendo el contrato objetivo, y hoy **no exigen autenticación**: `POST /api/login` verifica la contraseña y envía un OTP por correo (`POST /api/verify-otp`), pero no emite ningún token y ningún endpoint lo comprueba (los ajustes `JWT_*` de `core/config.py` no se usan). La convergencia con el contrato objetivo (TASK-014 a TASK-016, 019, 020 y TASK-029) está pendiente.
+
+| Router | Prefijo | Qué expone (resumen) |
+|---|---|---|
+| auth | (sin prefijo) | `POST /api/login`, `POST /api/verify-otp`, `PUT /usuario/{id_usuario}/password` |
+| medicos | `/api/medicos` | registrar (con matrícula y carnet), ver, perfil, misPacientes, alertasActivas, alertasResueltas, responder/alerta, registrar/glucosa, actualizar |
+| pacientes | `/api/pacientes` | registrarPaciente, perfil, registros, registrarGlucosa, actualizarPaciente, obtenerDatosEmbarazo |
+| administradores | `/api/administradores` | médicos y pacientes activos y solicitantes, activar médico y paciente, perfilAdmin, agregar, obtenerAdmins |
+| registro | `/api/registro` | datosGlucosa, registrarAlerta |
+| general | `/api/general` | momentos, niveles, enfermedades, tratamientos, especialidades, auditoria |
+| pdf | `/api` | `POST /paciente/pdf` |
+
+El backend **no** expone `POST /api/riesgo/hipoglucemia` (vive solo en el servicio de ML), **no** contiene la clasificación ADA (TASK-012a) y **todavía no llama** al servicio de ML (TASK-017).
 
 ### Contrato: POST /api/chatbot/consulta (REQ-006)
 
@@ -399,12 +417,15 @@ glucotracker/
 │   │   └── services/        # Clientes de la API REST (API_BASE_URL backend, NLP_API_BASE_URL servicio NLP)
 │   └── app.json
 ├── backend/
-│   ├── app/                 # Backend API FastAPI (monolito, ADR-0001)
-│   │   ├── api/              # Routers (auth, pacientes, alertas)
-│   │   ├── models/             # Esquemas / ORM
-│   │   └── core/                # Config, seguridad, conexión a Supabase
-│   │       └── reglas_ada.py   # Clasificación ADA Normal/Hipo/Hiper (lógica de negocio, no ML) + constantes propias
-│   ├── tests/               # Pruebas del backend (incluirá el contrato de reglas_ada.py vs docs/nlp/umbrales_ada_v1.json); las de ML pasaron a ml_service/tests/
+│   ├── app/                 # Backend de negocio FastAPI (monolito modular, ADR-0001; el ML y el chatbot son servicios aparte: ADR-0006 y ADR-0008)
+│   │   ├── api/              # Routers: auth, medicos, pacientes, administradores, registro, general, pdf
+│   │   ├── schemas/            # Modelos pydantic de entrada
+│   │   ├── services/           # Correo (OTP), caché de OTP y generación de PDF
+│   │   ├── models/             # (vacío, sin uso)
+│   │   ├── nlp/                # (vacío, sin uso: el chatbot vive en nlp_service/)
+│   │   └── core/                # Config (carga backend/.env), seguridad (bcrypt), conexión a Supabase, auditoría
+│   │       └── reglas_ada.py   # (pendiente, TASK-012a) Clasificación ADA Normal/Hipo/Hiper (lógica de negocio, no ML) + constantes propias
+│   ├── tests/               # Pruebas del backend con Supabase simulado (conftest.py y test_*.py) y test_aislamiento.py (el backend no incluye ni importa el ML ni el chatbot; incluirá el contrato de reglas_ada.py vs docs/nlp/umbrales_ada_v1.json); las de ML pasaron a ml_service/tests/
 │   ├── requirements-dev.txt # Dependencias de pruebas del backend (pytest)
 │   ├── requirements.txt     # Solo del backend
 │   ├── ml_service/          # Servicio de ML independiente (ADR-0008): no importa nada de backend/app/ ni de nlp_service/; sin ingreso público; puerto de desarrollo 8002
@@ -469,7 +490,7 @@ glucotracker/
 ## Security Design
 - Contraseñas hasheadas (ej. bcrypt) antes de persistir en T_Usuario (NFR-001).
 - Todo el tráfico entre la app móvil y el backend en Azure viaja sobre HTTPS/SSL.
-- Autenticación basada en tokens (tipo a definir — ver Open Questions) para todos los endpoints salvo `/auth/login`.
+- Autenticación basada en tokens (tipo a definir — ver Open Questions) para todos los endpoints salvo `/auth/login`. **Estado actual:** el backend implementado no emite ni comprueba tokens; el login envía un OTP por correo y los endpoints no exigen autenticación (RT-01, TASK-014).
 - T_Auditoria_Endpoints registra cada llamada relevante para trazabilidad y detección de accesos indebidos.
 - Los endpoints de administración (alta de usuarios, aprobación) están restringidos por rol.
 
@@ -498,7 +519,9 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 - **Mismas garantías que el modelo real:** huella SHA-256 y versiones verificadas al cargar, errores genéricos y nada de valores de entrada en logs (NFR-001).
 
 ## Open Questions
-- [ ] ¿Qué esquema de autenticación se usará (JWT, sesiones con Supabase Auth, OAuth)? El documento original no lo especifica.
+- [ ] ¿Qué esquema de autenticación se usará (JWT, sesiones con Supabase Auth, OAuth)? El documento original no lo especifica. **Estado tras la fusión:** hoy hay login con OTP por correo, sin token y sin ningún endpoint autenticado.
+- [ ] **Alcance de `seguimiento_embarazo`:** el backend fusionado implementa seguimiento de embarazo (tabla `seguimiento_embarazo`, `GET /api/pacientes/obtenerDatosEmbarazo/{id}`), que no figura en requirements.md, design.md ni tasks.md. ¿Entra en el alcance (y entonces se añade un requisito y se define su modelo de datos) o se retira?
+- [ ] **Reconciliar el contrato y el esquema del backend de negocio con este diseño** (rutas reales vs. la tabla de API, tablas reales de Supabase vs. las `T_*`): ver TASK-029.
 - [x] ¿El modelo de ML (SVC vs Árbol de Decisión) ya está entrenado y con qué dataset, o se entrena como parte de este proyecto? — **Resuelta (2026-10-24):** se entrena en el proyecto con ShanghaiT2DM (`docs/data_ecosystem.md`). Es una Regresión Logística con SMOTE-NC (ADR-0007, reemplaza a ADR-0004), reproducible con `train_baseline.py`, y estima la probabilidad de hipoglucemia observada en el registro (REQ-004 v1.1.0).
 - [ ] **Perfil clínico para el ML (sin lugar en Data Models):** el contrato del servicio de ML necesita género, edad, BMI, años de diabetes, categoría de medicación, seis comorbilidades y HbA1c (opcional). § Data Models no tiene esos campos: T_Paciente solo tiene `actividad_fisica` y `enfermedades_base`. ¿Dónde y cómo se capturan?
   - **Bloquea TASK-017** (el backend no tiene de dónde armar la llamada al servicio de ML). **No bloquea el servicio de ML** (TASK-010a/b, TASK-011a–e): su contrato recibe el perfil en cada petición y no depende de cómo lo persista el backend.
@@ -537,4 +560,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.5.1 | 2026-10-25 | Fase S2 (TASK-011f): el generador se implementa en `app/sintetico/` (`reglas.py`, `generador.py`, `generar.py`); CLI `python -m app.sintetico.generar` (nombre elegido por el usuario). Detalles de implementación documentados (una corriente de aleatoriedad, pacientes de 1 a 3 registros, redondeo previo a las reglas, calibración del intercepto sobre la prevalencia realizada, metadatos). Ventana de AUC de las reglas fijada en 0,70 a 0,80. Se aprueba ADR-0009 (equipo): S4 desbloqueada. Sin cambios en Data Models ni en el contrato real hasta S4. |
 | 1.5.2 | 2026-10-25 | Fase S3 (TASK-011g): el modelo de demo se entrena reutilizando la tubería con el origen de datos como parámetro (`entrenar_y_evaluar(origen=...)`, `construir_pipeline(usar_smote=...)`, adaptador `app/sintetico/adaptador.py`). Decisiones medidas con el dataset canónico: **sin SMOTE-NC** (AUC 0,722 con SMOTE-NC frente a 0,783 sin él, y probabilidades infladas: media 0,340 frente a 0,150) y **sin términos de interacción** (decisión del usuario: no mejoran el AUC de forma medible). Artefactos propios en `artefactos/demo/` y validación sintética en `cv_metrics_demo.json`. La carga selectiva `ML_MODELO=real\|demo` pasa de S4 a S3; S4 queda reducida a la marca `modo` en `/health` y en la respuesta (cambio de contrato de ADR-0009). Sin cambios en Data Models ni en el contrato público. |
 | 1.5.3 | 2026-10-25 | Fase S4 reducida (TASK-011h): decisión del equipo de **no cambiar el contrato público**. Se retira la propuesta del campo `modo` en la respuesta y en `/health` (y el aviso asociado); ADR-0009 y ADR-0008 lo declaran. La consecuencia aceptada es que la API no distingue entre el modelo real y el entrenado con datos sintéticos; la trazabilidad queda en los metadatos, en `ML_MODELO` (por defecto `real`), en la verificación de huella y de modo, y en la documentación. S4 queda en pruebas de contrato y en la variante `demo` de `test_ml.sh`. La Open Question del rótulo se cierra; queda abierta solo la de qué modelo usar en producción. Sin cambios en Data Models ni en el contrato. |
+| 1.6.0 | 2026-10-25 | Fusión del backend de negocio de Adrian (`adriang-backend`) con los servicios independientes. Se documenta el **estado real** sin alterar el contrato objetivo: rutas implementadas (§ Estado real del backend de negocio), tablas reales de Supabase (nota en § Data Models), estructura de `backend/app/` (`schemas/`, `services/`; `models/` y `nlp/` vacíos; sin `ml/`) y que el backend no emite ni comprueba tokens (login con OTP). Nuevas Open Questions: alcance de `seguimiento_embarazo` y reconciliación del contrato y el esquema (TASK-029). Se retira el resto de ML de `app/main.py`; las dependencias y `.env.example` del backend se alinean con su código. Sin cambios en los servicios de ML y NLP. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |

@@ -28,10 +28,11 @@
   - _Refs rationale_: ADR-0008: el servicio no tiene autenticación propia en v1, así que su protección es la red; riesgo de exposición accidental.
   - _Output_: Recurso del servicio de ML en la red interna del despliegue, sin endpoint público; `ML_SERVICE_URL` configurada en el backend como variable de entorno (no en el repositorio).
   - _Verify_: Desde Internet, la URL o IP del servicio no responde (timeout o conexión rechazada). Desde el backend, `GET /health` → 200 por la red interna.
-- [ ] **TASK-003** []: Scaffolding del proyecto FastAPI (`backend/app/`) con estructura de carpetas de design.md (api, ml, nlp, models, core).
+- [x] **TASK-003** []: Scaffolding del proyecto FastAPI (`backend/app/`) con estructura de carpetas de design.md (api, schemas, services, core; el ML y el chatbot son servicios aparte, ADR-0006 y ADR-0008).
   - _Refs rationale_: Estructura base descrita en design.md § File Structure.
   - _Output_: Proyecto FastAPI ejecutable localmente con endpoint `/health`.
   - _Verify_: `GET /health` retorna 200 en entorno local.
+  - _Hecho (2026-10-25, tras la fusión con `adriang-backend`)_: `app.main:app` importa y `GET /health` → 200 con `TestClient` (y `backend/tests/test_aislamiento.py` lo fija); estructura actualizada en design.md 1.6.0.
 - [ ] **TASK-004** []: Scaffolding del proyecto React Native (`mobile/`) con navegación base y estructura de screens/components/services.
   - _Refs rationale_: Estructura base descrita en design.md § File Structure.
   - _Output_: App React Native que compila y muestra una pantalla de login vacía.
@@ -44,22 +45,27 @@
   - _Refs rationale_: Base de autenticación para REQ-001 y alta de usuarios para REQ-002.
   - _Output_: Migración SQL para T_Usuario según el esquema de design.md.
   - _Verify_: Insertar un usuario de prueba y confirmar que `contrasena_hash` nunca almacena texto plano.
+  - _Estado tras la fusión (2026-10-25)_: existe la tabla `usuario` en Supabase (nombre distinto de `T_Usuario`); no hay migraciones en este repositorio, así que el criterio no se puede verificar aquí. Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-006** [REQ-002]: Crear tablas T_Paciente, T_Medico y T_Administrador con sus relaciones a T_Usuario.
   - _Refs rationale_: Extensiones de usuario descritas en design.md.
   - _Output_: Migraciones SQL para las tres tablas con FKs correctas.
   - _Verify_: Insertar un paciente y un médico de prueba, confirmar integridad referencial.
+  - _Estado tras la fusión (2026-10-25)_: existen `paciente`, `medico` y `administrador` en Supabase (nombres distintos de `T_*`); sin migraciones en el repositorio. Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-007** [REQ-003, REQ-004, REQ-005]: Crear tabla T_Registro_glucosa con `clasificacion_ada` (lógica de negocio) y los campos de riesgo del ML (`riesgo_hipoglucemia`, `riesgo_modelo_version`, `riesgo_calculado_en`), según design.md 1.4.0.
   - _Refs rationale_: Soporta el registro de glucosa (REQ-003), la clasificación ADA que dispara alertas (REQ-005) y la probabilidad informativa del ML (REQ-004).
   - _Output_: Migración SQL para T_Registro_glucosa.
   - _Verify_: Insertar un registro de prueba sin `clasificacion_ada` ni `riesgo_hipoglucemia` y confirmar que ambos aceptan NULL; insertar `riesgo_hipoglucemia = 1.5` y confirmar que el CHECK lo rechaza.
+  - _Estado tras la fusión (2026-10-25)_: existe `registro_glucosa` en Supabase; no se verificó que tenga `clasificacion_ada` ni los campos de riesgo del ML (TASK-012a y TASK-017 pendientes). Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-008** [REQ-005]: Crear tablas T_Tipo_alerta y T_Alertas.
   - _Refs rationale_: Necesarias para notificaciones automáticas al médico (REQ-005).
   - _Output_: Migraciones SQL con FK de T_Alertas a T_Registro_glucosa y T_Tipo_alerta.
   - _Verify_: Insertar un tipo de alerta y una alerta asociada a un registro de prueba.
+  - _Estado tras la fusión (2026-10-25)_: existe `alertas` en Supabase; no se encontró una tabla `T_Tipo_alerta` equivalente en el código. Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-009** [NFR-001]: Crear tabla T_Auditoria_Endpoints.
   - _Refs rationale_: Trazabilidad de seguridad exigida en NFR-001.
   - _Output_: Migración SQL para T_Auditoria_Endpoints.
   - _Verify_: Insertar un registro de auditoría de prueba manualmente.
+  - _Estado tras la fusión (2026-10-25)_: existe `auditoria_endpoints` y `core/audit.py` escribe en ella (id, rol, endpoint, operación, código HTTP, IP; no guarda el cuerpo). Criterio no verificado contra la base real. Se deja `[ ]` (ver TASK-029).
 
 ## Phase 3: Lógica de Negocio
 *Goal*: Implementar el modelo de ML, el chatbot y las reglas de negocio centrales.
@@ -245,6 +251,7 @@
   - _Refs rationale_: REQ-005 — toda clasificación riesgosa debe generar una alerta; la decide la lógica de negocio, no el modelo.
   - _Output_: Función que, dada una `clasificacion_ada` de riesgo, crea un registro en T_Alertas.
   - _Verify_: Test unitario: clasificación "Riesgo Hipo" produce exactamente una fila nueva en T_Alertas. Un registro con `riesgo_hipoglucemia` alto y clasificación "Normal" no produce ninguna.
+  - _Estado tras la fusión (2026-10-25)_: el backend crea alertas con `POST /api/registro/registrarAlerta` y el médico las responde con `POST /api/medicos/responder/alerta`; **no** se derivan de la clasificación ADA (no existe, TASK-012a). Se deja `[ ]`.
 - [ ] **TASK-013** [REQ-006]: Implementar el chatbot como **servicio NLP independiente** en `backend/nlp_service/` (ADR-0006; design.md § Servicio NLP (chatbot) Design). Se completa al cerrar TASK-013a, 013b, 013c, 013d, 013i, 013j, 013f y 013g. Todas las rutas de las subtareas son relativas a `backend/nlp_service/`, salvo que se indique otra cosa.
   - _Refs rationale_: REQ-006 requiere respuestas informativas sobre diabetes, nutrición y niveles de glucosa.
   - _Output_: Función `responder_consulta(texto)` que retorna una respuesta con aclaración de que no reemplaza consejo médico.
@@ -298,26 +305,30 @@
   - _Output_: Test que falla ante cualquier diferencia de umbral o del texto del descargo entre las tres fuentes.
   - _Verify_: `pytest tests/test_contrato_clinico.py` pasa sin red; alterar un valor en `clinical.py`, en el JSON o en el corpus (en una copia temporal) hace fallar el test.
   - _Resultado (2026-10-24)_: pasa (11 casos). Mutaciones en copias temporales fuera del repo: `clinical.py` 130→131 → 3 fallan; JSON 180→190 → 1 falla; descargo sin tilde en el corpus → 1 falla; corpus "70 a 125" → 2 fallan.
-- [ ] **TASK-013k** []: Desacoplar el backend del chatbot — revertir en `backend/requirements.txt` `supabase==2.16.0` a `supabase==2.7.4` y quitar `httpx==0.28.1`; retirar `NLP_PROVIDER_API_KEY` de `backend/.env.example`; quitar "chatbot" del comentario de routers de `backend/app/main.py`.
+- [x] **TASK-013k** []: Desacoplar el backend del chatbot — revertir en `backend/requirements.txt` `supabase==2.16.0` a `supabase==2.7.4` y quitar `httpx==0.28.1`; retirar `NLP_PROVIDER_API_KEY` de `backend/.env.example`; quitar "chatbot" del comentario de routers de `backend/app/main.py`.
   - _Refs rationale_: ADR-0006 y ADR-0005 (D11 superado): el backend ya no necesita `httpx>=0.28.1` y vuelve a su pin original, sin adoptar cambios del cliente Supabase que no necesita (hoy ningún código importa `supabase`).
   - _Output_: Backend sin dependencias ni variables del chatbot.
   - _Verify_: En un venv limpio fuera del repo: `pip install -r backend/requirements.txt` y `pip check` → sin conflictos; `python -c "import supabase"` funciona; `TestClient(app).get('/health')` → 200; `git grep NLP_ backend/.env.example` no retorna resultados.
+  - _Hecho (2026-10-25, tras la fusión con `adriang-backend`)_: `NLP_PROVIDER_API_KEY` y el resto de `NLP_*` ya no están en `backend/.env.example` (ni Azure ni `DATABASE_URL`, que el backend no lee); el comentario del chatbot en `main.py` ya no existe. **La parte de revertir `supabase` a 2.7.4 y quitar `httpx` queda superada:** el backend ahora sí importa `supabase` (`app/core/supabase.py`) y su `TestClient` necesita `httpx`, así que se mantienen `supabase==2.16.0` y `httpx==0.28.1`. Verificado en un venv limpio fuera del repo con `pip install -r requirements-dev.txt`: `pip check` sin conflictos, `import supabase` funciona, `GET /health` → 200 y `git grep NLP_ backend/.env.example` sin resultados. `backend/.env` (local, ignorado por git) todavía contiene `NLP_PROVIDER_API_KEY`: conviene quitarla a mano de ahí.
 
 ## Phase 4: Capa de API
 *Goal*: Exponer la lógica de negocio como endpoints REST autenticados, según design.md § API / Interface Design.
 
-- [ ] **TASK-014** [REQ-001]: Implementar `POST /auth/login` con verificación de hash y emisión de token.
+- [~] **TASK-014** [REQ-001]: Implementar `POST /auth/login` con verificación de hash y emisión de token.
   - _Refs rationale_: REQ-001.
   - _Output_: Endpoint funcional que retorna token válido para credenciales correctas y 401 para incorrectas.
   - _Verify_: Test de integración cubre login exitoso y fallido.
-- [ ] **TASK-015** [REQ-002]: Implementar `POST /auth/registro` restringido a Administrador, con validación de matrícula para médicos.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/login` verifica el hash bcrypt y envía un OTP por correo; `POST /api/verify-otp` lo confirma (8 pruebas en `tests/test_auth.py`, Supabase simulado). **Falta** la emisión y comprobación de un token y la ruta `/auth/login` del contrato; hoy ningún endpoint exige autenticación (RT-01).
+- [~] **TASK-015** [REQ-002]: Implementar `POST /auth/registro` restringido a Administrador, con validación de matrícula para médicos.
   - _Refs rationale_: REQ-002.
   - _Output_: Endpoint que rechaza alta de médico sin matrícula válida.
   - _Verify_: Test de integración: alta de médico sin matrícula retorna error de validación.
-- [ ] **TASK-016** [REQ-003]: Implementar `POST /pacientes/{id}/registros-glucosa`.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/medicos/registrar` (con matrícula y carnet) y `POST /api/pacientes/registrarPaciente`, y la activación por el administrador (`PUT /api/administradores/medico/activar/{id}`), con pruebas. **Falta** restringir el alta a Administrador con autenticación y la ruta `/auth/registro` del contrato.
+- [~] **TASK-016** [REQ-003]: Implementar `POST /pacientes/{id}/registros-glucosa`.
   - _Refs rationale_: REQ-003.
   - _Output_: Endpoint que persiste un nuevo registro de glucosa.
   - _Verify_: Test de integración crea un registro y lo recupera vía GET.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/pacientes/registrarGlucosa` (con pruebas) y `POST /api/medicos/registrar/glucosa` (sin prueba). **Falta** la ruta `/pacientes/{id}/registros-glucosa` del contrato; la clasificación ADA y el riesgo del ML se conectan en TASK-017.
 - [ ] **TASK-017** [REQ-004, REQ-005]: Conectar el guardado de un registro de glucosa con la clasificación ADA (TASK-012a) y, si es de riesgo, con la alerta y la notificación push (TASK-012). Además, pedir la probabilidad informativa al servicio de ML (`ML_SERVICE_URL`, red interna) y guardarla. Requiere resolver la Open Question del perfil clínico en Data Models.
   - _Refs rationale_: REQ-004 v1.1.0 y REQ-005; ML-D5 (las alertas las decide la lógica de negocio) y ML-D8 (solo el backend llama al servicio de ML).
   - _Output_: Al llamar TASK-016, el registro queda con `clasificacion_ada` y, si aplica, se dispara una notificación push al médico asignado. `riesgo_hipoglucemia` y `riesgo_modelo_version` se guardan si el servicio responde. Si el servicio de ML falla, el registro se guarda igual con NULL, sin bloquear ni alterar la alerta.
@@ -330,18 +341,24 @@
     - Casos cubiertos: 200 con descargo; 422 (vacío, solo espacios, sin campo, no string, demasiado largo, JSON malformado, cuerpo no UTF-8); 429 con `Retry-After`; 503 (cinco configuraciones); 502; 504; 401 (también por defecto); orden auth → tasa → entrada → proveedor; el texto no aparece en `caplog` ni en las respuestas.
     - Además, FastAPI respondía **400** en inglés ante un cuerpo no UTF-8; se mapea al 422 genérico del contrato.
     - `./test_chatbot.sh` (PORT=8002) con `NLP_PROVIDER=fake` y `CHATBOT_REQUIRE_AUTH=false` → 200, respuesta no vacía y con descargo. No se probó contra Gemini real.
-- [ ] **TASK-019** [REQ-007]: Implementar `GET /pacientes/{id}/historial` con filtro por rango de fechas.
+- [~] **TASK-019** [REQ-007]: Implementar `GET /pacientes/{id}/historial` con filtro por rango de fechas.
   - _Refs rationale_: REQ-007.
   - _Output_: Endpoint que retorna registros filtrados por fecha, accesible por Paciente y Médico.
   - _Verify_: Test de integración filtra correctamente por rango diario/semanal/mensual.
-- [ ] **TASK-020** [REQ-008]: Implementar `GET /pacientes/{id}/reporte-pdf`.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `GET /api/pacientes/registros/{idPaciente}` y `GET /api/registro/datosGlucosa/{idUsuario}` (con pruebas). **Falta** el filtro por rango de fechas y la ruta `/pacientes/{id}/historial` del contrato.
+- [~] **TASK-020** [REQ-008]: Implementar `GET /pacientes/{id}/reporte-pdf`.
   - _Refs rationale_: REQ-008.
   - _Output_: Endpoint que genera y retorna un PDF con la evolución clínica del paciente.
   - _Verify_: Test de integración descarga un PDF válido (content-type `application/pdf`, tamaño > 0).
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/paciente/pdf` genera el PDF con `reportlab` (con pruebas). **Falta** que sea `GET /pacientes/{id}/reporte-pdf`, restringido a Médico.
 
 ## Phase 5: Frontend Móvil
 *Goal*: Construir las pantallas de React Native que consumen la API de la Fase 4.
 
+- [ ] **TASK-029** [REQ-001 a REQ-008, NFR-001]: Reconciliar el contrato y el esquema del backend de negocio fusionado con design.md.
+  - _Refs rationale_: tras la fusión con `adriang-backend` las rutas reales (`/api/login`, `/api/pacientes/registrarGlucosa`, …) y las tablas reales de Supabase (`usuario`, `registro_glucosa`, `seguimiento_embarazo`, …) difieren de la tabla de API y de los Data Models de design.md; el equipo debe decidir cuál es la fuente de verdad. Ver design.md § Estado real del backend de negocio y las Open Questions de `seguimiento_embarazo` y autenticación.
+  - _Output_: decisión registrada (ADR o design.md) sobre rutas y esquema; design.md y tasks.md alineados con ella; si se mantiene el esquema real, migraciones versionadas en el repositorio.
+  - _Verify_: design.md § API y § Data Models describen exactamente lo implementado (o el código se ajusta al diseño); TASK-005 a TASK-009 verificables contra migraciones versionadas.
 - [ ] **TASK-021** [REQ-001]: Pantalla de login conectada a `POST /auth/login`.
   - _Refs rationale_: REQ-001.
   - _Output_: Pantalla funcional que almacena el token de sesión.

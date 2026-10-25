@@ -1,6 +1,7 @@
 """
-GlucoTracker — Backend API (FastAPI)
-Arquitectura Monolítica Modular (ADR-0001)
+GlucoTracker — Backend de negocio (FastAPI)
+Monolito modular (ADR-0001). El modelo de ML (ADR-0008) y el chatbot (ADR-0006) son servicios
+independientes: este backend no los incluye ni los importa.
 
 Punto de entrada de la aplicación. Ver /requirements.md, /design.md y
 /tasks.md en la raíz del proyecto antes de agregar cualquier lógica:
@@ -12,13 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Routers portados del backend
 from app.api import auth, medicos, pacientes, administradores, registro, general, pdf
-
-# Módulos ML existentes (sin alteraciones ni avances)
-try:
-    from app.ml import riesgo
-    has_ml_riesgo = True
-except Exception:
-    has_ml_riesgo = False
 
 app = FastAPI(
     title="GlucoTracker API",
@@ -50,7 +44,3 @@ app.include_router(administradores.router)
 app.include_router(registro.router)
 app.include_router(general.router)
 app.include_router(pdf.router)
-
-# Si el router ML previo está disponible, incluirlo sin cambios
-if has_ml_riesgo:
-    app.include_router(riesgo.router)
