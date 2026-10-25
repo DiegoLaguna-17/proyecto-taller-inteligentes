@@ -176,41 +176,67 @@
     - `uvicorn app.main:app` del backend con ese venv: `GET /health` → 200. `pytest` en `backend/ml_service` → 116 passed y en `backend/nlp_service` → 90 passed. El backend no tiene pruebas propias todavía.
     - `backend/ml_service/app/artefactos/cv_metrics.json` regenerado con numpy 2.4.6 y scipy 1.15.3: solo cambian la fecha, las versiones y `generado_por`; todas las cifras son idénticas.
     - Documentación sin referencias al endpoint antiguo ni al campo `alerta` como estado actual (README, design.md 1.4.6, ADR-0004/0006/0007/0008, `docs/`, CLAUDE.md, CONTEXT.md).
-- [ ] **TASK-011f** [REQ-004, NFR-001]: Fase S2 — generador de datos sintéticos para el modelo de demo (design.md § Modelo de demo con datos sintéticos; reglas y distribuciones en `docs/ml/generador_sintetico.md`).
+- [x] **TASK-011f** [REQ-004, NFR-001]: Fase S2 — generador de datos sintéticos para el modelo de demo (design.md § Modelo de demo con datos sintéticos; reglas y distribuciones en `docs/ml/generador_sintetico.md`).
   - _Refs rationale_: no hay pacientes reales para una demo del flujo integrado; el modelo real no supera el azar (TASK-010a) y no se toca.
   - _Output_:
-    - `backend/ml_service/app/sintetico/reglas.py` (reglas clínicas con su `version_reglas`) y `generador.py` (`python -m app.sintetico.generador --n 2000 --semilla <int>` desde `backend/ml_service/`).
+    - `backend/ml_service/app/sintetico/reglas.py` (reglas clínicas con su `version_reglas`), `generador.py` y `generar.py` (CLI) (`python -m app.sintetico.generar --n 2000 --semilla <int> --salida <ruta.csv>` desde `backend/ml_service/`).
     - CSV en `backend/ml_service/data/sintetico/` (ignorado por git) y JSON de metadatos del dataset (versionado) con semilla, versión de las reglas, fecha, `n`, prevalencia objetivo y obtenida, AUC de las reglas, huella del CSV y `origen: "sintetico"`.
     - Pruebas en `backend/ml_service/tests/sintetico/`, sin red y sin el Excel real.
   - _Verify_:
     - Con la misma semilla el CSV y el JSON (salvo la fecha) son idénticos; con otra semilla cambian.
-    - Prevalencia obtenida dentro de 15 % ± 1,5 puntos con n = 2.000; AUC de las reglas (con las probabilidades verdaderas) entre 0,75 y 0,82, ajustando solo `escala_senal` (0,8 de partida) si hace falta.
+    - Prevalencia obtenida dentro de 15 % ± 1,5 puntos con n = 2.000; AUC de las reglas (con las probabilidades verdaderas) entre 0,70 y 0,80 (ventana fijada en la Fase S2), ajustando solo `escala_senal` (0,8 de partida) o el intercepto si hace falta.
     - Todas las columnas cumplen los rangos y valores permitidos del contrato del servicio; `origen == "sintetico"` en todas las filas; ids con prefijo `sint-`.
     - Una prueba por cada regla de la tabla comprueba el sentido del efecto (la probabilidad cambia en el sentido esperado al variar solo esa variable); género, hipertensión, dislipidemia, neuropatía y cardiovascular no la alteran.
     - Ninguna fila ni id coincide con los 109 registros reales; el generador no importa ni lee `data/raw/`.
     - Las reglas figuran como "pendiente de revisión por el equipo" hasta que se resuelva la Open Question de su validación.
-- [ ] **TASK-011g** [REQ-004]: Fase S3 — entrenar el modelo de demo con el dataset sintético. Requiere TASK-011f.
-  - _Refs rationale_: design.md § Modelo de demo con datos sintéticos (reglas de separación).
+  - _Hecho (2026-10-25, fase S2)_:
+    - `backend/ml_service/app/sintetico/` (`reglas.py`, `generador.py`, `generar.py`) y `tests/sintetico/test_generador.py` (58 pruebas). CLI `python -m app.sintetico.generar --n 2000 --semilla <n> --salida <ruta.csv>`. CSV ignorado por git (`.gitignore`); JSON de metadatos junto al CSV, versionable (`backend/ml_service/data/sintetico/dataset_sintetico.json`).
+    - Medido con n = 2.000 y semilla 20261024: prevalencia 15,0 %; **AUC de las probabilidades verdaderas 0,794** (n = 60.000: 0,779); probabilidad mediana 0,097 y p95 0,469; tasa de positivos por medicación: insulina 23,7 %, sulfonilurea 19,9 %, metformina u otros 7,6 %, ninguno 6,5 %. No se ajustó ningún parámetro.
+    - Misma semilla → CSV idéntico byte a byte (comprobado también por CLI en dos rutas); semillas distintas → datasets distintos.
+    - Cada fila se valida con el modelo pydantic real del endpoint; `origen == "sintetico"` en todas; ids `sint-`; pacientes con 1 a 3 registros.
+    - Una prueba por regla: términos exactos de R1 a R13, las dos interacciones, y una regresión logística que recupera los coeficientes (× 0,8) con los controles (género, hipertensión, dislipidemia, neuropatía y cardiovascular) en |coef| < 0,15.
+    - El generador no importa `backend/app`, `nlp_service`, `data_prep` ni `sklearn`, no lee archivos de datos (prueba con `read_excel`/`read_csv` bloqueados) y rechaza escribir en `data/raw/`. Un script desechable no halló coincidencias exactas de (edad, IMC, duración, HbA1c, glucosa) con las lecturas reales.
+    - Criterio ajustado respecto de S1: ventana de AUC de las reglas 0,70 a 0,80 (S1 decía 0,75 a 0,82), por indicación del usuario en S2.
+- [x] **TASK-011g** [REQ-004, NFR-001]: Fase S3 — entrenar el modelo de demo con el dataset sintético y cargarlo de forma selectiva con `ML_MODELO`. Requiere TASK-011f.
+  - _Refs rationale_: ADR-0009; design.md § Modelo de demo con datos sintéticos (reglas de separación). El modelo de demo aprende las reglas del equipo, no la realidad; sus métricas no son desempeño clínico.
   - _Output_:
-    - `backend/ml_service/app/train_demo.py` (`python -m app.train_demo`), que escribe `app/artefactos/demo/modelo_hipoglucemia_demo.pkl` (ignorado por git) y su JSON de metadatos (versionado) con `version_modelo: "1.0.0-demo"`, `entrenado_con: "sintetico"`, `version_reglas`, huella del dataset, huella del `.pkl`, versiones de librerías y métricas rotuladas "validación sintética, no clínica".
-    - Validación cruzada agrupada por paciente sintético con IC (mismo esquema que `cv_evaluacion.py`).
+    - `train_baseline.entrenar_y_evaluar(origen="real"|"sintetico")` y `construir_pipeline(usar_smote=...)`; `app/sintetico/adaptador.py`; `app/train_demo.py` (`python -m app.train_demo` desde `backend/ml_service/`). Sin SMOTE-NC y sin interacciones (decisiones medidas, ver design.md 1.5.2).
+    - `app/artefactos/demo/modelo_hipoglucemia_demo.pkl` (ignorado por git), `modelo_hipoglucemia_demo.json` (versionado; `version_modelo: "1.0.0-demo"`, `entrenado_con: "sintetico"`, `sha256_pkl`, versiones, semilla, advertencia) y `cv_metrics_demo.json` (versionado; rotulado "no es desempeño clínico"; AUC del modelo y de las reglas verdaderas con intervalo, y coeficientes aprendidos con intervalo).
+    - `ML_MODELO` (`real` por defecto | `demo`) en `config.py` y `.env.example`; `predict.py` carga del directorio del modo y verifica huella, versiones y `entrenado_con`.
   - _Verify_:
-    - La validación sintética da un AUC entre 0,70 y 0,80 con el límite inferior del IC por encima de 0,5.
-    - El `.pkl`, el JSON y las métricas del modelo real no cambian (huellas MD5 antes y después; `git status` limpio en `app/artefactos/` salvo `demo/`).
-    - `train_demo.py` rechaza escribir fuera de `artefactos/demo/` y rechaza datasets cuyo `origen` no sea `sintetico`.
-    - Las pruebas comprueban que los metadatos de demo no pasan la verificación del modelo real (y viceversa).
-- [ ] **TASK-011h** [REQ-004, NFR-001]: Fase S4 — variable `ML_MODELO` y marca `modo`. Requiere TASK-011g y la aprobación de una ADR nueva por el cambio de contrato (propuesta: ADR-0009).
-  - _Refs rationale_: design.md § Modelo de demo con datos sintéticos; ADR-0008 describe el contrato como "solo la probabilidad y `version_modelo`".
+    - La validación cruzada agrupada por paciente da un AUC entre 0,70 y 0,80 con el límite inferior del IC por encima de 0,5; se reporta junto al AUC de las reglas verdaderas (0,794).
+    - El `.pkl`, el JSON, `baseline_metrics.json` y `cv_metrics.json` del modelo real no cambian (huellas antes y después).
+    - Con `ML_MODELO=real` nunca se carga el modelo de demo y con `demo` nunca el real; valor inválido → `ConfiguracionInvalida` → 503; artefacto de demo ausente o con huella alterada → `ModeloNoDisponible` → 503.
+    - El entrenamiento de demo es reproducible con la misma semilla, separa por paciente y no lee los 109 registros reales.
+    - Los 174 tests anteriores siguen pasando.
+  - _Hecho (2026-10-25, fase S3)_:
+    - `train_baseline.entrenar_y_evaluar(origen="real"|"sintetico")` y `construir_pipeline(usar_smote=...)` reutilizan la tubería (el camino `real` no cambió: mismo `.pkl` reproducible, huella `21ac5340…`); `app/sintetico/adaptador.py`; `app/train_demo.py` (`python -m app.train_demo`). `ML_MODELO` (`real` por defecto | `demo`) en `config.py` y `.env.example`; `metadatos.py` y `predict.py` cargan del directorio del modo y exigen `entrenado_con == "sintetico"` y versión `-demo` para el demo (y lo contrario para el real).
+    - Artefactos en `backend/ml_service/app/artefactos/demo/`: `modelo_hipoglucemia_demo.pkl` (ignorado por git), `modelo_hipoglucemia_demo.json` (versión `1.0.0-demo`, `entrenado_con: "sintetico"`, `sha256_pkl` `4e3873af…`, versiones, semilla del dataset 20261024, advertencia) y `cv_metrics_demo.json` (rotulado "NO ES DESEMPENO CLINICO").
+    - **Validación sintética (agrupada por paciente, 5 × 5, bootstrap de 1.000 pacientes):** AUC del modelo de demo **0,783 [0,758, 0,814]** frente a **0,794 [0,769, 0,823]** de las reglas verdaderas: recupera el 96,5 % de la señal (diferencia 0,010). AUC por fold de 0,705 a 0,825. Split 80/20 por paciente del modelo guardado: AUC 0,786.
+    - **Sin SMOTE-NC** (decisión medida): con SMOTE-NC el AUC baja a 0,722 y la probabilidad media predicha sube de 0,150 (la prevalencia) a 0,340. **Sin interacciones** (decisión del usuario): 0,782 con las 2 interacciones frente a 0,783 sin ellas.
+    - **Controles** (sin efecto en las reglas), coeficiente [IC 95 % por bootstrap de pacientes]: género +0,08 [−0,19, +0,37]; hipertensión +0,21 [−0,09, +0,51]; dislipidemia +0,15 [−0,24, +0,53]; neuropatía −0,44 [−0,88, −0,02]; cardiovascular +0,03 [−0,20, +0,33]. **Hipertensión, dislipidemia y neuropatía superan |0,15|** con el dataset canónico; no es sesgo del generador (en 30 datasets independientes de n = 2.000 la media de cada control es ≈ 0 y su desviación 0,13 a 0,18; con n = 20.000 baja a 0,04 a 0,08), pero la neuropatía excluye el 0 por poco en esta muestra. Decisión del usuario: se deja el dataset canónico y se reporta.
+    - Pruebas: `python -m pytest` desde `backend/ml_service/` → **226 passed** (174 previas, 1 por el módulo nuevo en la prueba parametrizada de aislamiento, 51 nuevas): selección real/demo, valor inválido, el real nunca carga el demo y viceversa (también con archivos copiados a la carpeta equivocada), artefacto ausente, huella alterada, versiones, metadatos del demo, reproducibilidad del entrenamiento, separación por paciente, que no lee los datos reales, rechazo de datasets no sintéticos y que solo escribe en `artefactos/demo/`. Una mutación (quitar la comprobación de modo) hace fallar 4 pruebas.
+    - Verificado con `uvicorn` en el 8002 (pacientes simulados): `ML_MODELO=demo` → riesgo alto (insulina, glucosa 62, 78 años, HbA1c 6,4) **0,8014** y riesgo bajo (sin medicación, glucosa 118, 46 años) **0,0515**, `version_modelo` `1.0.0-demo`; `ML_MODELO=real` → 0,0170 y 0,0064 (`1.0.0`) y el payload de M5b sigue dando **0,3171**. Huellas del modelo real sin cambios; `ML_MODELO` inválido → 503 genérico y el servicio arranca.
+    - Hallazgos: (1) el `.pkl` del modelo real faltaba en disco (archivo ignorado por git); se regeneró en una carpeta temporal fuera del repo, se comprobó que su SHA-256 es idéntico al del JSON versionado y solo entonces se copió a `artefactos/`. (2) Con `ML_MODELO` inválido el servicio no arrancaba; ahora arranca y responde 503.
+    - Sin cambio de contrato público (y el equipo decidió después, en S4, que tampoco se añadirá `modo`).
+- [x] **TASK-011h** [REQ-004, NFR-001]: Fase S4 (reducida) — el contrato público **no cambia**. Requiere TASK-011g.
+  - _Refs rationale_: ADR-0009 (decisión del equipo de no exponer el modelo en la API); ADR-0008 (el contrato es `{riesgo_hipoglucemia, version_modelo}`).
   - _Output_:
-    - `ML_MODELO` (`real` por defecto | `demo`) en `config.py` y `.env.example`; un valor inválido → `ConfiguracionInvalida` → 503 genérico.
-    - `predict.py` carga del directorio del modo y verifica `entrenado_con`; `GET /health` añade `"modo"`; la respuesta 200 de `POST /api/riesgo/hipoglucemia` añade `"modo"`.
-    - `design.md` § Contrato, README del servicio y `test_ml.sh` actualizados.
+    - ADR-0009, ADR-0008, `design.md`, `CONTEXT.md` y README del servicio con la decisión: no se añade `modo` ni aviso a la respuesta ni a `/health`; consecuencia aceptada (la respuesta no distingue entre el modelo real y el entrenado con datos sintéticos) y riesgo declarado (si llegara a usuarios reales habría que reponer la marca).
+    - `backend/ml_service/tests/test_contrato_publico.py`: fija las claves exactas de la respuesta 200 en ambos modos, que `/health` es idéntico en ambos modos y no revela el modo, y que ninguna respuesta contiene "demo" ni "sintetico" salvo el sufijo de `version_modelo`.
+    - `backend/ml_service/test_ml.sh` con variante `demo` (`./test_ml.sh demo`): forma correcta de la respuesta y 422 ante entrada inválida.
+    - README del servicio: sección "modelo real y modelo entrenado con datos sintéticos".
   - _Verify_:
-    - Sin `ML_MODELO` (o con `real`) la respuesta lleva `"modo": "real"` y las pruebas actuales (116) siguen pasando.
-    - Con `ML_MODELO=demo`, `/health` y la respuesta llevan `"modo": "demo"` y `version_modelo` termina en `-demo`.
-    - Con `ML_MODELO=demo` y sin artefactos de demo → 503 genérico; con un valor inválido → 503 sin eco del valor; con un `.pkl` de demo alterado → 503.
-    - Un modelo de demo no se carga con `ML_MODELO=real` y uno real no se carga con `ML_MODELO=demo`.
-    - Ningún log ni respuesta contiene valores de entrada (NFR-001).
+    - Las pruebas de contrato pasan y los 226 tests anteriores siguen pasando.
+    - Con `ML_MODELO=real` y con `ML_MODELO=demo`, el `curl` a `POST /api/riesgo/hipoglucemia` y a `/health` devuelve solo las claves del contrato; ningún cuerpo contiene "demo" ni "sintético" salvo el sufijo de `version_modelo`.
+    - `./test_ml.sh` y `./test_ml.sh demo` pasan.
+  - _Hecho (2026-10-25, fase S4 reducida)_:
+    - Decisión del equipo registrada: ADR-0009 (reescrita: la decisión de no exponer el modelo, la consecuencia aceptada y el riesgo de que habría que reponer la marca), ADR-0008 (nota: sin cambio de contrato), `design.md` 1.5.3, `CONTEXT.md` y README del servicio (sección "Modelo real y modelo entrenado con datos sintéticos"). La Open Question del rótulo/`modo` se cierra; queda abierta solo la de qué modelo usar en producción.
+    - Revisión previa: el código que arma las respuestas (`api/riesgo.py`, `main.py`, `errors.py`) no contiene "demo" ni "sintetico"; lo único es el sufijo `-demo` de `version_modelo`, que sale de los metadatos. No hizo falta cambiar código de la API.
+    - `tests/test_contrato_publico.py` (11 pruebas): claves exactas de la respuesta 200 en ambos modos, `/health` idéntico en ambos modos y sin modo, versión con sufijo solo en `demo`, ninguna respuesta (200, 422 de varios tipos, 500, 503, `/health`, 404, OpenAPI y `/docs`) contiene "demo", "sintético" ni `"modo"`, y el esquema OpenAPI solo expone las dos claves. Una mutación (añadir `modo` a `/health`) hace fallar 4.
+    - `test_ml.sh` con variante `demo` (`./test_ml.sh demo`): ambas variantes pasan (200, forma exacta, rango 0-1, sufijo de versión según el modelo, 422 sin repetir lo enviado).
+    - `pytest` en `backend/ml_service` → **237 passed** (los 226 anteriores + 11); `pip check` limpio.
+    - Con `uvicorn` en el 8002 (paciente simulado de riesgo alto): `ML_MODELO=real` → `{"riesgo_hipoglucemia":0.017,"version_modelo":"1.0.0"}` y `/health` → `{"status":"ok","service":"glucotracker-ml","modelo_cargado":true}`; `ML_MODELO=demo` → `{"riesgo_hipoglucemia":0.8014,"version_modelo":"1.0.0-demo"}` y el mismo `/health`. Huellas del modelo real sin cambios.
 - [ ] **TASK-012a** [REQ-005]: Clasificación ADA en la lógica de negocio del backend: `backend/app/core/reglas_ada.py` (design.md § Clasificación ADA), con constantes propias y test de contrato contra `docs/nlp/umbrales_ada_v1.json`.
   - _Refs rationale_: ML-D5 (el ML no clasifica); decisión del usuario (M1): el backend clasifica Normal/Hipo/Hiper con umbrales ADA.
   - _Output_: `clasificar_lectura(nivel, momento)` → `Normal` \| `Riesgo Hipo` \| `Riesgo Hiper`. La regla para el momento `otro` queda según lo que resuelva la Open Question de design.md.

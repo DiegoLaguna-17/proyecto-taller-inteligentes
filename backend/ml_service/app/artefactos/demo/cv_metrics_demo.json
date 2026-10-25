@@ -1,0 +1,380 @@
+{
+  "rotulo": "NO ES DESEMPENO CLINICO: validacion sintetica del modelo de DEMO, entrenado con datos generados por reglas clinicas del equipo (pendientes de revision). Aprende esas reglas, no la realidad.",
+  "generado_por": "app.train_demo",
+  "fecha": "2026-10-25T20:29:47+00:00",
+  "entrenado_con": "sintetico",
+  "dataset": {
+    "archivo": "dataset_sintetico.csv",
+    "sha256": "6d90d85d45130b2ddee0939e2e732d8941801be3b63b98b1fa61e8795556988c",
+    "n_registros": 2000,
+    "n_pacientes": 1773,
+    "prevalencia": 0.15,
+    "version_reglas": "1.0.0-reglas",
+    "semilla": 20261024,
+    "escala_senal": 0.8,
+    "auc_oraculo_en_metadatos": 0.7936
+  },
+  "validacion": {
+    "esquema": "StratifiedKFold sobre pacientes sinteticos, filas agrupadas por paciente (mismo esquema que cv_evaluacion.py)",
+    "n_splits": 5,
+    "semillas_particion": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "semilla_modelos": 42,
+    "bootstrap": {
+      "n": 1000,
+      "semilla": 42,
+      "unidad": "paciente",
+      "nivel": 0.95,
+      "metodo": "percentil"
+    }
+  },
+  "versiones": {
+    "python": "3.13.3",
+    "scikit-learn": "1.5.2",
+    "imbalanced-learn": "0.14.2",
+    "numpy": "2.4.6",
+    "scipy": "1.15.3",
+    "pandas": "2.2.3",
+    "joblib": "1.6.0",
+    "openpyxl": "3.1.5"
+  },
+  "modelo_demo": {
+    "descripcion": "Modelo de demo: Regresion Logistica sin SMOTE-NC (el que se guarda)",
+    "agregado": {
+      "auc_roc": {
+        "media": 0.7834305882352941,
+        "ic95": [
+          0.7577391820575622,
+          0.8141946550054597
+        ],
+        "bootstrap_validos": 1000
+      },
+      "prevalencia": {
+        "media": 0.15,
+        "ic95": [
+          0.13336712110348045,
+          0.16691431401684
+        ],
+        "bootstrap_validos": 1000
+      },
+      "recall@0.25": {
+        "media": 0.5166666666666667,
+        "ic95": [
+          0.4607043650793651,
+          0.5762887488849242
+        ],
+        "bootstrap_validos": 1000
+      },
+      "precision@0.25": {
+        "media": 0.3979240083286447,
+        "ic95": [
+          0.35141013026666074,
+          0.45094016007075083
+        ],
+        "bootstrap_validos": 1000
+      },
+      "f1@0.25": {
+        "media": 0.4495473891076521,
+        "ic95": [
+          0.4049542539324952,
+          0.49727974844057127
+        ],
+        "bootstrap_validos": 1000
+      },
+      "lift@0.25": {
+        "media": 2.652826722190965,
+        "ic95": [
+          2.4223830622932723,
+          2.9481516906251755
+        ],
+        "bootstrap_validos": 1000
+      },
+      "recall@0.5": {
+        "media": 0.1706666666666667,
+        "ic95": [
+          0.1306622950819672,
+          0.21367039586919104
+        ],
+        "bootstrap_validos": 1000
+      },
+      "precision@0.5": {
+        "media": 0.6446066632439974,
+        "ic95": [
+          0.5533155392462774,
+          0.7405667378748739
+        ],
+        "bootstrap_validos": 1000
+      },
+      "f1@0.5": {
+        "media": 0.2698170202208586,
+        "ic95": [
+          0.21215750573620779,
+          0.32577556929025675
+        ],
+        "bootstrap_validos": 1000
+      },
+      "lift@0.5": {
+        "media": 4.297377754959983,
+        "ic95": [
+          3.700013571509122,
+          4.983939810028689
+        ],
+        "bootstrap_validos": 1000
+      }
+    },
+    "auc_por_fold": {
+      "min": 0.705,
+      "max": 0.8248,
+      "n": 25
+    }
+  },
+  "reglas_verdaderas": {
+    "descripcion": "AUC de las probabilidades verdaderas de las reglas (el techo que un modelo podria alcanzar), recalculadas desde el CSV",
+    "auc_roc": {
+      "media": 0.7936450980392158,
+      "ic95": [
+        0.7690303001233687,
+        0.8229891352365848
+      ],
+      "bootstrap_validos": 1000
+    }
+  },
+  "comparacion": {
+    "auc_modelo": 0.7834,
+    "auc_reglas_verdaderas": 0.7936,
+    "diferencia": 0.0102,
+    "fraccion_de_la_senal_recuperada": 0.9652
+  },
+  "decisiones_medidas": {
+    "smote_nc": {
+      "usado": false,
+      "auc_sin_smote_nc": {
+        "media": 0.7834305882352941,
+        "ic95": [
+          0.7577391820575622,
+          0.8141946550054597
+        ]
+      },
+      "auc_con_smote_nc": {
+        "media": 0.7219545098039217,
+        "ic95": [
+          0.6962335572810557,
+          0.7509296548260084
+        ]
+      },
+      "probabilidad_media_predicha_sin_smote_nc": 0.1502,
+      "probabilidad_media_predicha_con_smote_nc": 0.3399,
+      "prevalencia": 0.15,
+      "motivo": "con SMOTE-NC el AUC baja y las probabilidades se inflan por encima de la prevalencia; con ~15 % de prevalencia no hace falta"
+    },
+    "interacciones": {
+      "usadas": false,
+      "auc_sin_interacciones": {
+        "media": 0.7834305882352941,
+        "ic95": [
+          0.7577391820575622,
+          0.8141946550054597
+        ]
+      },
+      "auc_con_2_interacciones": {
+        "media": 0.782341568627451,
+        "ic95": [
+          0.7569937538274275,
+          0.8137353972193135
+        ]
+      },
+      "motivo": "decision del usuario (S3): no mejoran el AUC de forma medible"
+    }
+  },
+  "coeficientes": {
+    "glucosa": {
+      "coef": -0.549,
+      "ic95": [
+        -0.8504,
+        -0.2665
+      ]
+    },
+    "Age (years)": {
+      "coef": 0.2982,
+      "ic95": [
+        0.1653,
+        0.4665
+      ]
+    },
+    "BMI (kg/m2)": {
+      "coef": -0.0876,
+      "ic95": [
+        -0.2329,
+        0.0519
+      ]
+    },
+    "Duration of diabetes (years)": {
+      "coef": 0.245,
+      "ic95": [
+        0.1186,
+        0.4001
+      ]
+    },
+    "HbA1c (%)": {
+      "coef": -0.4115,
+      "ic95": [
+        -0.6444,
+        -0.2189
+      ]
+    },
+    "momento_cod_0": {
+      "coef": 0.1835,
+      "ic95": [
+        0.0023,
+        0.3857
+      ]
+    },
+    "momento_cod_1": {
+      "coef": -0.1886,
+      "ic95": [
+        -0.3871,
+        -0.0098
+      ]
+    },
+    "medicacion_cod_0": {
+      "coef": -0.4553,
+      "ic95": [
+        -0.9926,
+        -0.0802
+      ]
+    },
+    "medicacion_cod_1": {
+      "coef": -0.6202,
+      "ic95": [
+        -0.9092,
+        -0.3453
+      ]
+    },
+    "medicacion_cod_2": {
+      "coef": 0.4144,
+      "ic95": [
+        0.1457,
+        0.7814
+      ]
+    },
+    "medicacion_cod_3": {
+      "coef": 0.6561,
+      "ic95": [
+        0.4666,
+        0.9446
+      ]
+    },
+    "genero_masculino": {
+      "coef": 0.0818,
+      "ic95": [
+        -0.1868,
+        0.3682
+      ]
+    },
+    "com_hipertension": {
+      "coef": 0.2083,
+      "ic95": [
+        -0.0928,
+        0.5117
+      ]
+    },
+    "com_dislipidemia": {
+      "coef": 0.1522,
+      "ic95": [
+        -0.2354,
+        0.5247
+      ]
+    },
+    "com_renal": {
+      "coef": 0.6309,
+      "ic95": [
+        0.1775,
+        1.0347
+      ]
+    },
+    "com_neuropatia": {
+      "coef": -0.4364,
+      "ic95": [
+        -0.8758,
+        -0.0237
+      ]
+    },
+    "com_nefropatia": {
+      "coef": 0.4259,
+      "ic95": [
+        -0.0337,
+        0.8893
+      ]
+    },
+    "com_cardiovascular": {
+      "coef": 0.0301,
+      "ic95": [
+        -0.2002,
+        0.3321
+      ]
+    },
+    "hba1c_faltante": {
+      "coef": 0.4534,
+      "ic95": [
+        0.0721,
+        0.7746
+      ]
+    }
+  },
+  "controles": {
+    "nota": "Genero, hipertension, dislipidemia, neuropatia y cardiovascular NO influyen en la etiqueta del generador. Con n = 2.000 su coeficiente tiene una desviacion de 0,13 a 0,18 (media ~0 en datasets independientes), asi que en una muestra concreta puede superar |0,15|. Es ruido de muestreo, no sesgo del generador.",
+    "criterio_abs_menor_que": 0.15,
+    "resultados": {
+      "genero_masculino": {
+        "coef": 0.0818,
+        "ic95": [
+          -0.1868,
+          0.3682
+        ],
+        "ic_incluye_cero": true,
+        "abs_menor_que_0_15": true
+      },
+      "com_hipertension": {
+        "coef": 0.2083,
+        "ic95": [
+          -0.0928,
+          0.5117
+        ],
+        "ic_incluye_cero": true,
+        "abs_menor_que_0_15": false
+      },
+      "com_dislipidemia": {
+        "coef": 0.1522,
+        "ic95": [
+          -0.2354,
+          0.5247
+        ],
+        "ic_incluye_cero": true,
+        "abs_menor_que_0_15": false
+      },
+      "com_neuropatia": {
+        "coef": -0.4364,
+        "ic95": [
+          -0.8758,
+          -0.0237
+        ],
+        "ic_incluye_cero": false,
+        "abs_menor_que_0_15": false
+      },
+      "com_cardiovascular": {
+        "coef": 0.0301,
+        "ic95": [
+          -0.2002,
+          0.3321
+        ],
+        "ic_incluye_cero": true,
+        "abs_menor_que_0_15": true
+      }
+    }
+  }
+}

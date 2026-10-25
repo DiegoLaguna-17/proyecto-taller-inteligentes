@@ -1,23 +1,34 @@
 #!/usr/bin/env bash
 # GlucoTracker - script de prueba end-to-end del servicio de ML (riesgo de hipoglucemia).
 #
+# Dos variantes:
+#   ./test_ml.sh         modelo REAL   (ML_MODELO=real, por defecto)
+#   ./test_ml.sh demo    modelo entrenado con datos SINTETICOS (ML_MODELO=demo, ADR-0009).
+#                        Aprende las reglas del equipo, no la realidad: no es una
+#                        estimacion clinica.
+# (tambien: MODELO=demo ./test_ml.sh)
+#
 # Que hace:
-#   1. Entrena el modelo (python -m app.train_baseline) SOLO si no existe ya
-#      app/artefactos/modelo_hipoglucemia.pkl.
-#   2. Levanta el servicio con uvicorn en el puerto 8002 (sin --env-file: no
-#      lee el .env) y espera a que /health responda.
-#   3. Prueba GET /health y POST /api/riesgo/hipoglucemia con un paciente
-#      SIMULADO (valores inventados) y comprueba 200, el rango de la
-#      probabilidad, la version del modelo y que no haya campo 'alerta'.
-#   4. Se apaga solo al terminar (tambien si algo falla).
+#   1. Entrena el modelo de la variante SOLO si falta su .pkl:
+#        real -> python -m app.train_baseline
+#        demo -> python -m app.sintetico.generar (si falta el CSV) y python -m app.train_demo
+#   2. Levanta el servicio con uvicorn en el puerto 8002 (sin --env-file: no lee el .env)
+#      y espera a que /health responda.
+#   3. Prueba GET /health y POST /api/riesgo/hipoglucemia con un paciente SIMULADO
+#      (valores inventados): 200, solo las claves del contrato {riesgo_hipoglucemia,
+#      version_modelo}, probabilidad entre 0 y 1, y que el cuerpo no diga "demo" ni
+#      "sintetico" (el contrato publico no revela el modelo; solo el sufijo "-demo"
+#      de version_modelo).
+#   4. Prueba una entrada invalida: 422 generico que no repite lo enviado.
+#   5. Se apaga solo al terminar (tambien si algo falla).
 #
 # Uso:
 #   cd backend/ml_service
-#   ./test_ml.sh              # puerto 8002 por defecto
-#   PORT=8012 ./test_ml.sh
+#   ./test_ml.sh [real|demo]            # puerto 8002 por defecto
+#   PORT=8012 ./test_ml.sh demo
 #
 # Requisitos: venv del servicio con requirements-dev.txt instalado (.venv/),
-# curl disponible y, si el modelo no esta entrenado, el Excel en
+# curl disponible y, si el modelo real no esta entrenado, el Excel en
 # data/raw/ShanghaiT2DM_Summary.xlsx.
 
 set -euo pipefail
@@ -25,6 +36,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PORT="${PORT:-8002}"
 BASE_URL="http://127.0.0.1:${PORT}"
+MODELO="${1:-${MODELO:-real}}"
+
+if [ "$MODELO" != "real" ] && [ "$MODELO" != "demo" ]; then
+    echo "Uso: ./test_ml.sh [real|demo]"
+    exit 2
+fi
 
 if [ -x .venv/Scripts/python.exe ]; then
     PYTHON=.venv/Scripts/python.exe   # Windows (Git Bash)
@@ -35,12 +52,25 @@ else
     exit 1
 fi
 
-echo "== 1. Modelo =="
-if [ -f app/artefactos/modelo_hipoglucemia.pkl ]; then
-    echo "Ya existe app/artefactos/modelo_hipoglucemia.pkl: no se vuelve a entrenar."
+echo "== 1. Modelo (${MODELO}) =="
+if [ "$MODELO" = "real" ]; then
+    if [ -f app/artefactos/modelo_hipoglucemia.pkl ]; then
+        echo "Ya existe app/artefactos/modelo_hipoglucemia.pkl: no se vuelve a entrenar."
+    else
+        echo "No existe el .pkl: entrenando el modelo baseline."
+        "$PYTHON" -m app.train_baseline
+    fi
 else
-    echo "No existe el .pkl: entrenando el modelo baseline."
-    "$PYTHON" -m app.train_baseline
+    if [ -f app/artefactos/demo/modelo_hipoglucemia_demo.pkl ]; then
+        echo "Ya existe app/artefactos/demo/modelo_hipoglucemia_demo.pkl: no se vuelve a entrenar."
+    else
+        if [ ! -f data/sintetico/dataset_sintetico.csv ]; then
+            echo "No existe el dataset sintetico: generandolo (semilla 20261024)."
+            "$PYTHON" -m app.sintetico.generar --n 2000 --semilla 20261024 --salida data/sintetico/dataset_sintetico.csv
+        fi
+        echo "No existe el .pkl del modelo entrenado con datos sinteticos: entrenando."
+        "$PYTHON" -m app.train_demo
+    fi
 fi
 
 if curl -s -o /dev/null "${BASE_URL}/health"; then
@@ -59,8 +89,8 @@ detener_servidor() {
 }
 
 echo ""
-echo "== 2. Levantando el servicio de ML en ${BASE_URL} =="
-"$PYTHON" -m uvicorn app.main:app --port "$PORT" --log-level warning &
+echo "== 2. Levantando el servicio de ML (ML_MODELO=${MODELO}) en ${BASE_URL} =="
+ML_MODELO="$MODELO" "$PYTHON" -m uvicorn app.main:app --port "$PORT" --log-level warning &
 SERVER_PID=$!
 trap detener_servidor EXIT
 
@@ -81,6 +111,10 @@ HEALTH=$(curl -s -w "\n%{http_code}" "${BASE_URL}/health")
 echo "$HEALTH"
 if [ "$(echo "$HEALTH" | tail -n 1)" != "200" ]; then
     echo "FALLO: /health no respondio 200."
+    exit 1
+fi
+if ! echo "$HEALTH" | head -n 1 | "$PYTHON" -c "import json, sys; r = json.load(sys.stdin); sys.exit(0 if set(r) == {'status', 'service', 'modelo_cargado'} and r['modelo_cargado'] is True else 1)"; then
+    echo "FALLO: /health debe tener solo {status, service, modelo_cargado} y el modelo cargado."
     exit 1
 fi
 
@@ -114,20 +148,34 @@ if [ "$STATUS" != "200" ]; then
     echo "FALLO: se esperaba HTTP 200."
     exit 1
 fi
-if ! echo "$BODY" | "$PYTHON" -c "import json, sys; r = json.load(sys.stdin); ok = set(r) == {'riesgo_hipoglucemia', 'version_modelo'} and 0 <= r['riesgo_hipoglucemia'] <= 1 and r['version_modelo']; sys.exit(0 if ok else 1)"; then
-    echo "FALLO: la respuesta no tiene la forma {riesgo_hipoglucemia (0-1), version_modelo} o incluye campos de mas."
+# Forma exacta del contrato; el cuerpo (sin version_modelo) no dice demo ni sintetico.
+if ! echo "$BODY" | MODELO="$MODELO" "$PYTHON" -c "
+import json, os, re, sys
+r = json.load(sys.stdin)
+version = r.pop('version_modelo', None)
+claves_ok = set(r) == {'riesgo_hipoglucemia'} and version
+rango_ok = claves_ok and isinstance(r['riesgo_hipoglucemia'], float) and 0 <= r['riesgo_hipoglucemia'] <= 1
+sin_palabras = not re.search(r'demo|sint[eé]tic', json.dumps(r), re.I)
+sufijo_ok = str(version).endswith('-demo') == (os.environ['MODELO'] == 'demo')
+sys.exit(0 if rango_ok and sin_palabras and sufijo_ok else 1)
+"; then
+    echo "FALLO: la respuesta no tiene la forma {riesgo_hipoglucemia (0-1), version_modelo}, trae campos de mas, o la version no corresponde al modelo (${MODELO})."
     exit 1
 fi
 
 echo ""
 echo "== 5. Entrada invalida: 422 generico =="
-STATUS_422=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE_URL}/api/riesgo/hipoglucemia" \
+RESP_422=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}/api/riesgo/hipoglucemia" \
   -H "Content-Type: application/json" -d '{"glucosa": 68, "momento": "madrugada"}')
-echo "HTTP ${STATUS_422}"
-if [ "$STATUS_422" != "422" ]; then
+echo "$RESP_422"
+if [ "$(echo "$RESP_422" | tail -n 1)" != "422" ]; then
     echo "FALLO: se esperaba HTTP 422."
+    exit 1
+fi
+if echo "$RESP_422" | head -n 1 | grep -qiE "madrugada|demo|sint[eé]tic"; then
+    echo "FALLO: el 422 repite lo enviado o nombra el modelo."
     exit 1
 fi
 
 echo ""
-echo "OK: /health 200, riesgo 200 con la forma correcta (sin alerta) y 422 ante entrada invalida."
+echo "OK (${MODELO}): /health 200, riesgo 200 con la forma del contrato y 422 generico ante entrada invalida."

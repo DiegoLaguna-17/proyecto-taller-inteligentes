@@ -18,6 +18,9 @@ DEFAULT_LOG_LEVEL = "INFO"
 NIVELES_DE_LOG = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 # La documentacion interactiva esta apagada salvo que se pida (el servicio no es publico).
 DEFAULT_ENABLE_DOCS = False
+# Modelo que sirve el servicio: el real (por defecto) o el de DEMO entrenado con datos sinteticos (ADR-0009).
+MODELOS_VALIDOS = ("real", "demo")
+DEFAULT_MODELO = "real"
 
 _VERDADERO = {"true", "1", "si", "sí", "yes"}
 _FALSO = {"false", "0", "no"}
@@ -28,6 +31,7 @@ class Settings:
     artefactos_dir: str
     log_level: str
     habilitar_docs: bool = DEFAULT_ENABLE_DOCS
+    modelo: str = DEFAULT_MODELO
 
 
 def _leer(entorno: Mapping[str, str], variable: str) -> Optional[str]:
@@ -56,8 +60,12 @@ def load_settings(entorno: Optional[Mapping[str, str]] = None) -> Settings:
     nivel = (_leer(entorno, "ML_LOG_LEVEL") or DEFAULT_LOG_LEVEL).upper()
     if nivel not in NIVELES_DE_LOG:
         raise ConfiguracionInvalida("ML_LOG_LEVEL")
+    modelo = (_leer(entorno, "ML_MODELO") or DEFAULT_MODELO).lower()
+    if modelo not in MODELOS_VALIDOS:
+        raise ConfiguracionInvalida("ML_MODELO")
     return Settings(
         artefactos_dir=_leer(entorno, "ML_ARTEFACTOS_DIR") or DEFAULT_ARTEFACTOS_DIR,
         log_level=nivel,
         habilitar_docs=_leer_bool(entorno, "ML_ENABLE_DOCS", DEFAULT_ENABLE_DOCS),
+        modelo=modelo,
     )

@@ -35,6 +35,7 @@ class ModeloNoDisponible(ErrorML):
         "huella_distinta",
         "versiones_distintas",
         "artefacto_ilegible",
+        "modo_incompatible",
     )
 
     def __init__(self, motivo: str):

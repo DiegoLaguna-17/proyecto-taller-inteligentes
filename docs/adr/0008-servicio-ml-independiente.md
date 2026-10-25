@@ -25,6 +25,8 @@ Al decidirlo, el código vivía en `backend/app/ml/` y el router `riesgo.py` est
    * Contras: rompe la fuente de verdad SDD única y obliga a sincronizar entre repositorios el dataset, las métricas, `docs/model_baseline.md` y los ADR. Es demasiado overhead para el tamaño del equipo, igual que se concluyó en ADR-0006.
 
 ## Decisión Tomada
+> **Nota (2026-10-25):** [ADR-0009](0009-modelo-demo-datos-sinteticos.md) añade un segundo modelo seleccionable con `ML_MODELO` (entrenado con datos sintéticos), pero **no cambia este contrato**: la respuesta sigue siendo `{riesgo_hipoglucemia, version_modelo}` y `GET /health` no revela qué modelo se sirve (decisión del equipo, Fase S4). El resto de esta decisión sigue vigente.
+
 Se elige la **alternativa 2: servicio independiente en `backend/ml_service/`**, que reemplaza a ADR-0001 para el modelo de ML.
 * Expone `GET /health` y `POST /api/riesgo/hipoglucemia`, con el contrato de `design.md` § Servicio de ML: solo la probabilidad y `version_modelo`, sin nivel de alerta (el modelo es experimental y ningún umbral tiene validez clínica).
 * No importa nada de `backend/app/`. El código y el dataset se trasladaron con `git mv` (TASK-011d) y `backend/app/ml/` se retiró (TASK-011e, fase M6).

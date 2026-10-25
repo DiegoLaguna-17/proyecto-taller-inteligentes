@@ -38,8 +38,8 @@ MAPEO_CAMPOS_ENTRADA = {
 COLUMNA_HBA1C = "HbA1c (%)"
 
 
-@lru_cache(maxsize=1)
-def _cargar_bundle(artefactos_dir: str):
+@lru_cache(maxsize=4)
+def _cargar_bundle(artefactos_dir: str, modo: str = "real"):
     """
     Verifica y carga el pipeline entrenado + metadata una sola vez por proceso.
     `lru_cache` evita releer el .pkl del disco en cada request -- FastAPI
@@ -51,14 +51,18 @@ def _cargar_bundle(artefactos_dir: str):
     cachea: si el artefacto aparece o se corrige, la siguiente llamada lo
     vuelve a verificar. Los errores son ModeloNoDisponible, de mensaje
     generico: sin rutas ni detalles internos (NFR-001).
+
+    `modo` ("real" | "demo", ADR-0009) decide de que carpeta se carga y que
+    metadatos se exigen: con "real" nunca se carga el modelo de demo y con
+    "demo" nunca se carga el real.
     """
     try:
-        metadatos = verificar_artefacto(artefactos_dir)
+        metadatos = verificar_artefacto(artefactos_dir, modo)
     except ModeloNoDisponible as exc:
         logger.warning("Modelo no disponible (motivo: %s).", exc.motivo)
         raise
     try:
-        bundle = joblib.load(ruta_modelo(artefactos_dir))
+        bundle = joblib.load(ruta_modelo(artefactos_dir, modo))
     except Exception:
         logger.warning("Modelo no disponible (motivo: artefacto_ilegible).")
         raise ModeloNoDisponible("artefacto_ilegible") from None
@@ -69,18 +73,23 @@ def _directorio(artefactos_dir: Optional[str]) -> str:
     return artefactos_dir if artefactos_dir is not None else load_settings().artefactos_dir
 
 
-def modelo_cargado(artefactos_dir: Optional[str] = None) -> bool:
+def _modo(modo: Optional[str]) -> str:
+    """Modelo a servir: el pedido o, si no, ML_MODELO (por defecto real). Un valor invalido es ConfiguracionInvalida."""
+    return modo if modo is not None else load_settings().modelo
+
+
+def modelo_cargado(artefactos_dir: Optional[str] = None, modo: Optional[str] = None) -> bool:
     """True si el artefacto existe, esta verificado y se pudo cargar (para /health)."""
     try:
-        _cargar_bundle(_directorio(artefactos_dir))
+        _cargar_bundle(_directorio(artefactos_dir), _modo(modo))
     except ModeloNoDisponible:
         return False
     return True
 
 
-def version_modelo(artefactos_dir: Optional[str] = None) -> str:
+def version_modelo(artefactos_dir: Optional[str] = None, modo: Optional[str] = None) -> str:
     """Version del modelo segun el JSON de metadatos verificado."""
-    return _cargar_bundle(_directorio(artefactos_dir))["metadatos"]["version_modelo"]
+    return _cargar_bundle(_directorio(artefactos_dir), _modo(modo))["metadatos"]["version_modelo"]
 
 
 def _construir_dataframe_paciente(datos_paciente: dict) -> pd.DataFrame:
@@ -116,13 +125,13 @@ def _construir_dataframe_paciente(datos_paciente: dict) -> pd.DataFrame:
     return pd.DataFrame([fila])
 
 
-def predecir_con_version(datos_paciente: dict, artefactos_dir: Optional[str] = None) -> tuple:
+def predecir_con_version(datos_paciente: dict, artefactos_dir: Optional[str] = None, modo: Optional[str] = None) -> tuple:
     """(probabilidad, version_modelo): la version sale del JSON de metadatos verificado."""
-    riesgo = predecir_riesgo(datos_paciente, artefactos_dir)
-    return riesgo, version_modelo(artefactos_dir)
+    riesgo = predecir_riesgo(datos_paciente, artefactos_dir, modo)
+    return riesgo, version_modelo(artefactos_dir, modo)
 
 
-def predecir_riesgo(datos_paciente: dict, artefactos_dir: Optional[str] = None) -> float:
+def predecir_riesgo(datos_paciente: dict, artefactos_dir: Optional[str] = None, modo: Optional[str] = None) -> float:
     """
     Calcula la probabilidad de riesgo de hipoglucemia para UN paciente.
 
@@ -143,7 +152,7 @@ def predecir_riesgo(datos_paciente: dict, artefactos_dir: Optional[str] = None) 
 
     Nada de `datos_paciente` se escribe en logs ni en excepciones propias.
     """
-    bundle = _cargar_bundle(_directorio(artefactos_dir))
+    bundle = _cargar_bundle(_directorio(artefactos_dir), _modo(modo))
     pipeline = bundle["pipeline"]
     columnas_features = bundle["columnas_features"]
     medianas_imputacion = bundle["medianas_imputacion"]

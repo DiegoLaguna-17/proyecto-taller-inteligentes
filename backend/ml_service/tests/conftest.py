@@ -9,7 +9,7 @@ from datos_sinteticos import entrenar_modelo_sintetico
 
 from app import predict
 
-VARIABLES_DEL_SERVICIO = ("ML_ARTEFACTOS_DIR", "ML_LOG_LEVEL", "ML_ENABLE_DOCS")
+VARIABLES_DEL_SERVICIO = ("ML_ARTEFACTOS_DIR", "ML_LOG_LEVEL", "ML_ENABLE_DOCS", "ML_MODELO")
 
 
 @pytest.fixture(autouse=True)
@@ -42,3 +42,28 @@ def artefactos(tmp_path, _artefactos_sinteticos):
 @pytest.fixture(scope="session")
 def metadatos_sinteticos(_artefactos_sinteticos):
     return _artefactos_sinteticos[1]
+
+
+@pytest.fixture(scope="session")
+def _demo_sintetico(tmp_path_factory):
+    """Dataset SINTETICO pequeno + modelo de DEMO entrenado con el, en una carpeta base propia."""
+    from app.sintetico.generador import escribir_dataset, generar_dataset
+    from app.train_baseline import entrenar_y_evaluar
+
+    carpeta = tmp_path_factory.mktemp("demo_sintetico")
+    csv = str(carpeta / "dataset_sintetico.csv")
+    escribir_dataset(generar_dataset(800, 3), csv)
+    base = carpeta / "artefactos"
+    entrenar_y_evaluar(str(base), origen="sintetico", ruta_dataset=csv)
+    return {"csv": csv, "base": base}
+
+
+@pytest.fixture
+def ambos(tmp_path, _artefactos_sinteticos, _demo_sintetico):
+    """Carpeta de artefactos con el modelo real (raiz) y el de demo (demo/), copias modificables."""
+    import shutil
+
+    destino = tmp_path / "artefactos"
+    shutil.copytree(_artefactos_sinteticos[0], destino)
+    shutil.copytree(_demo_sintetico["base"] / "demo", destino / "demo")
+    return destino

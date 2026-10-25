@@ -69,6 +69,8 @@ Este README es un índice navegable y una guía de reproducción; el detalle com
 | ADR 0002 — Supabase/PostgreSQL | Justificación de la base de datos y BaaS | `docs/adr/0002-supabase-postgresql.md` |
 | ADR 0003 — Despliegue en Azure | Justificación del proveedor cloud | `docs/adr/0003-despliegue-azure.md` |
 | ADR 0004 — Modelo baseline de clasificación (**reemplazado por el ADR 0007**) | Registro histórico del Árbol de Decisión/SVC descartado | `docs/adr/0004-modelo-clasificacion-baseline.md` |
+| ADR 0009 — Modelo de demo con datos sintéticos | Segundo modelo separado, entrenado con datos generados por reglas clínicas; sin cambio de contrato (la API no distingue el modelo) | `docs/adr/0009-modelo-demo-datos-sinteticos.md` |
+| Generador de datos sintéticos (modelo de demo) | Reglas clínicas, distribuciones y esquemas del dataset sintético. Modelo de demo: aprende reglas del equipo, no la realidad | `docs/ml/generador_sintetico.md` |
 | ADR 0007 — Regresión Logística + SMOTE-NC | Decisión vigente del algoritmo del modelo de riesgo | `docs/adr/0007-regresion-logistica-baseline.md` |
 | ADR 0005 — Proveedor LLM del chatbot | Gemini con interfaz intercambiable; política de datos por tier | `docs/adr/0005-proveedor-llm-chatbot.md` |
 | ADR 0006 — Servicio NLP independiente | Por qué el chatbot sale del monolito a `backend/nlp_service/` | `docs/adr/0006-nlp-servicio-independiente.md` |

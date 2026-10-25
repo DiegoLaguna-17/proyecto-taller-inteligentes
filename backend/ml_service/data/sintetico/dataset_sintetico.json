@@ -1,0 +1,49 @@
+{
+  "origen": "sintetico",
+  "advertencia": "Dataset sintetico generado a partir de reglas clinicas del equipo (pendientes de revision). No contiene pacientes reales. No es evidencia clinica.",
+  "version_esquema": "1.0",
+  "version_reglas": "1.0.0-reglas",
+  "semilla": 20261024,
+  "fecha": "2026-10-25T19:47:48+00:00",
+  "n_registros": 2000,
+  "n_pacientes": 1773,
+  "prevalencia_objetivo": 0.15,
+  "prevalencia_obtenida": 0.15,
+  "escala_senal": 0.8,
+  "intercepto": -2.3363,
+  "auc_oraculo": 0.7936,
+  "percentiles_probabilidad": {
+    "p5": 0.0208,
+    "p25": 0.0507,
+    "p50": 0.0967,
+    "p75": 0.1914,
+    "p95": 0.4689,
+    "p99": 0.6683
+  },
+  "tasa_positivos_por_medicacion": {
+    "insulina": {
+      "n": 772,
+      "tasa_positivos": 0.237
+    },
+    "metformina_u_otros": {
+      "n": 853,
+      "tasa_positivos": 0.0762
+    },
+    "ninguno": {
+      "n": 169,
+      "tasa_positivos": 0.0651
+    },
+    "sulfonilurea": {
+      "n": 206,
+      "tasa_positivos": 0.199
+    }
+  },
+  "hba1c_ausente": 0.1105,
+  "sha256_csv": "6d90d85d45130b2ddee0939e2e732d8941801be3b63b98b1fa61e8795556988c",
+  "versiones": {
+    "python": "3.13.3",
+    "numpy": "2.4.6",
+    "pandas": "2.2.3",
+    "scipy": "1.15.3"
+  }
+}

@@ -14,8 +14,12 @@ backend/.pytest_cache/
 backend/*.egg-info/
 # Servicio de ML (ADR-0008): el .pkl no se versiona; su JSON de metadatos sí
 backend/ml_service/app/artefactos/*.pkl
+# Modelo de DEMO (datos sinteticos, ADR-0009): el .pkl no se versiona; su JSON de metadatos y cv_metrics_demo.json si
+backend/ml_service/app/artefactos/demo/*.pkl
 # Derivado: las mismas metricas ya van en modelo_hipoglucemia.json (versionado)
 backend/ml_service/app/artefactos/baseline_metrics.json
+# Dataset SINTETICO del modelo de demo (regenerable con la semilla; su JSON de metadatos si se versiona)
+backend/ml_service/data/sintetico/*.csv
 
 backend/ml_service/.venv/
 backend/ml_service/.pytest_cache/

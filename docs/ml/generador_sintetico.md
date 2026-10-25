@@ -1,6 +1,6 @@
 # Generador de datos sintéticos para el modelo de demo — Especificación (Fase S1)
 
-> **Estado:** especificación. Solo documentación: todavía no existe código (Fases S2 a S4, TASK-011f, 011g y 011h). Todas las reglas clínicas y sus magnitudes están **pendientes de revisión por el equipo**.
+> **Estado:** especificación (S1) e implementación del generador (S2, TASK-011f). El modelo de demo está entrenado (S3, TASK-011g, sección 13); el contrato público no cambia (S4 reducida, TASK-011h). Todas las reglas clínicas y sus magnitudes están **pendientes de revisión por el equipo**.
 
 ## 1. Propósito y advertencia de honestidad
 
@@ -19,6 +19,7 @@ El equipo no tiene pacientes reales y necesita **mostrar el flujo integrado** (l
 4. El modelo de demo y sus metadatos llevan **versión propia** (`1.0.0-demo`) y `entrenado_con: "sintetico"`. El dataset lleva la columna `origen = "sintetico"` en cada fila.
 5. Los artefactos de demo viven aparte (`backend/ml_service/app/artefactos/demo/`); nunca se escribe en `app/artefactos/` del modelo real, ni en `baseline_metrics.json` ni en `cv_metrics.json`.
 6. El dataset sintético no contiene identificadores ni valores copiados de los registros reales; sus ids tienen el prefijo `sint-`.
+7. La API **no** declara qué modelo sirve (decisión del equipo, S4): ni la respuesta ni `/health` incluyen el modo, y ningún mensaje contiene "demo" ni "sintético" (solo el sufijo `-demo` de `version_modelo`). La trazabilidad está en los metadatos, en `ML_MODELO` (por defecto `real`) y en la documentación.
 
 ## 3. Decisiones cerradas (Fase S1, con el equipo)
 
@@ -124,7 +125,7 @@ Una prueba de S2 debe comprobar que variar solo una de estas variables no altera
 
 Una simulación desechable de 400.000 registros, hecha solo para comprobar que la especificación es coherente (no es el generador y no entra al repositorio), dio con `escala_señal = 0,8`: intercepto ≈ −2,35, prevalencia 15,0 %, **AUC de las probabilidades verdaderas ≈ 0,78**, probabilidad mediana ≈ 0,10, percentil 95 ≈ 0,47, percentil 99 ≈ 0,69, y ~4 % de los registros con P > 0,5. Riesgo medio por medicación: ninguno 0,06; metformina 0,08; sulfonilurea 0,17; insulina 0,23. Con `escala_señal = 1,0` el AUC subía a ≈ 0,83 (fuera de lo pedido), por eso la escala 0,8. Estos números son **esperados, no garantizados**: S2 mide los reales y los registra en los metadatos. Solo ~1,7 % de las lecturas en ayunas quedan bajo 70 mg/dL: la etiqueta es "hipoglucemia en el registro", no "esta lectura es < 70".
 
-Si el AUC de las probabilidades verdaderas queda fuera de **0,75 a 0,82**, se ajusta solo `escala_señal` (no las reglas) y se registra el valor usado.
+Si el AUC de las probabilidades verdaderas queda fuera de **0,70 a 0,80** (ventana fijada en la Fase S2; la S1 decía 0,75 a 0,82), se ajusta solo `escala_señal` o el intercepto (no las reglas) y se registra el valor usado.
 
 ## 8. Esquema de columnas del dataset
 
@@ -186,6 +187,51 @@ Al cargar, `predict.py` exige `entrenado_con == "sintetico"` en modo `demo` y re
 
 - **Reglas pendientes de revisión por el equipo.** Quién las valida (un profesional de la salud) es una Open Question de `design.md` y `CONTEXT.md`.
 - **Qué se muestra en producción** y si se permite `ML_MODELO=demo` fuera de desarrollo es otra Open Question.
-- **Cambio de contrato (campo `modo`):** requiere una ADR nueva antes de implementar S4 (propuesta: ADR-0009, "Modelo de demo con datos sintéticos"); ADR-0008 describe el contrato como "solo la probabilidad y `version_modelo`".
+- **Sin cambio de contrato** (decisión del equipo, S4; [ADR-0009](../adr/0009-modelo-demo-datos-sinteticos.md)): la respuesta sigue siendo `{riesgo_hipoglucemia, version_modelo}` y `/health` no revela el modelo. Consecuencia aceptada: la API no distingue el modelo real del entrenado con datos sintéticos; si el servicio llegara a usuarios reales habría que reponer la marca.
 - Las distribuciones son plausibles y de orden de magnitud parecido al dataset real, pero **no están validadas** contra ninguna población.
 - La etiqueta sintética depende de la glucosa de la lectura; la real, no (es una etiqueta del registro). El modelo de demo puede por eso parecer mejor de lo que cualquier modelo real podría ser.
+
+## 12. Implementación y resultados medidos (Fase S2, TASK-011f)
+
+Código: `backend/ml_service/app/sintetico/` (`reglas.py`, `generador.py`, `generar.py`); pruebas en `backend/ml_service/tests/sintetico/`. Las reglas, coeficientes (escala 0,8), distribuciones y correlaciones se implementaron tal como están en las secciones 5 a 7.
+
+Decisiones de implementación (detalle en `design.md` § Modelo de demo): una sola corriente de aleatoriedad; valores redondeados a la precisión del contrato antes de aplicar las reglas; calibración del intercepto sobre la prevalencia realizada con uniformes fijos (la prevalencia cae en 15 % con a lo sumo un registro de diferencia); ventana de AUC de las reglas de 0,70 a 0,80.
+
+Medición con `--n 2000 --semilla 20261024`:
+
+| Medida | Resultado |
+|---|---|
+| Registros / pacientes | 2.000 / 1.773 |
+| Prevalencia obtenida | 15,0 % (objetivo 15 %) |
+| AUC de las probabilidades verdaderas | **0,794** (n = 60.000 con otra semilla: 0,779) |
+| Intercepto calibrado (escala 0,8) | −2,336 |
+| Probabilidad: mediana / p95 / p99 | 0,097 / 0,469 / 0,668 |
+| HbA1c ausente | 11,1 % (objetivo 10 %) |
+| Tasa de positivos por medicación | insulina 23,7 %; sulfonilurea 19,9 %; metformina u otros 7,6 %; ninguno 6,5 % |
+
+No hizo falta ajustar la escala de señal ni el intercepto fuera de la calibración. La correlación de Pearson edad-duración sale ≈ 0,37 (la gaussiana latente es 0,4; la real es 0,42). Una comprobación puntual con un script desechable no encontró ninguna coincidencia exacta de (edad, IMC, duración, HbA1c, glucosa) entre las 1.779 filas sintéticas comparables y las 178 lecturas reales comparables.
+
+Las reglas siguen **pendientes de revisión por el equipo**: estas cifras describen lo que producen las reglas, no el mundo real.
+
+## 13. Modelo de demo entrenado (Fase S3, TASK-011g)
+
+> **Advertencia:** el modelo de demo aprende las reglas del equipo, no la realidad. Todas las cifras de esta sección son una **validación sintética, no clínica**.
+
+Entrenamiento: `python -m app.train_demo` (reutiliza la tubería del modelo real con el origen de datos como parámetro). Regresión logística **sin SMOTE-NC** y **sin términos de interacción**. Artefactos en `backend/ml_service/app/artefactos/demo/`.
+
+| Medida (dataset canónico: 2.000 registros, semilla 20261024) | Resultado |
+|---|---|
+| AUC del modelo de demo (validación cruzada agrupada por paciente, 5 × 5) | **0,783** [0,758, 0,814] |
+| AUC de las reglas verdaderas (techo) | **0,794** [0,769, 0,823] |
+| Señal recuperada | 96,5 % (diferencia 0,010) |
+| Con SMOTE-NC (no se usa) | AUC 0,722; probabilidad media predicha 0,340 (la prevalencia es 0,150) |
+| Con las 2 interacciones (no se usan) | AUC 0,782 |
+| Probabilidad predicha, paciente de riesgo alto (insulina, glucosa 62, 78 años, HbA1c 6,4) | 0,801 |
+| Probabilidad predicha, paciente de riesgo bajo (sin medicación, glucosa 118, 46 años) | 0,052 |
+
+**Interacciones.** La regresión logística no aprende las 2 interacciones, pero añadirlas no mejora el AUC de forma medible, así que el modelo de demo no las incluye (decisión del equipo). La diferencia de 0,010 con las reglas verdaderas es sobre todo ruido de estimación: incluso agregando todos los términos que faltan (interacciones y la forma no lineal de las reglas) solo se recupera ~0,003.
+
+**Controles.** Género, hipertensión, dislipidemia, neuropatía y cardiovascular no influyen en la etiqueta, y su coeficiente aprendido debería rondar 0. Con n = 2.000 su desviación es 0,13 a 0,18, así que en esta muestra salieron: género +0,08, hipertensión +0,21, dislipidemia +0,15, neuropatía −0,44 (IC 95 % [−0,88, −0,02]), cardiovascular +0,03. No es sesgo (la media de 30 datasets independientes es ≈ 0), es ruido de muestreo; se dejó el dataset canónico tal cual y se reporta el intervalo en `cv_metrics_demo.json`. Si se mostrara el coeficiente de neuropatía como "factor protector", sería un artefacto de esta muestra.
+
+**Con `ML_MODELO=demo`** el servicio sirve este modelo; con `real` (por defecto) nunca se carga. La API no marca el modelo: el contrato público no cambia (decisión del equipo, ADR-0009).
+
