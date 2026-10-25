@@ -18,7 +18,7 @@ export const RoleQuickSelect: React.FC<RoleQuickSelectProps> = ({ onSelectRole }
           onPress={() => onSelectRole('paciente')}
           activeOpacity={0.7}
         >
-          <Text style={styles.pillText}>👤 Paciente (Carlos)</Text>
+          <Text style={styles.pillText}>Paciente (Carlos)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -26,7 +26,7 @@ export const RoleQuickSelect: React.FC<RoleQuickSelectProps> = ({ onSelectRole }
           onPress={() => onSelectRole('medico')}
           activeOpacity={0.7}
         >
-          <Text style={styles.pillText}>🩺 Médico (Dra. Carmen)</Text>
+          <Text style={styles.pillText}>Médico (Dra. Carmen)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -34,7 +34,7 @@ export const RoleQuickSelect: React.FC<RoleQuickSelectProps> = ({ onSelectRole }
           onPress={() => onSelectRole('admin')}
           activeOpacity={0.7}
         >
-          <Text style={styles.pillText}>⚙️ Admin (Mariana)</Text>
+          <Text style={styles.pillText}>Admin (Mariana)</Text>
         </TouchableOpacity>
       </View>
     </View>
