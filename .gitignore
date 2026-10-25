@@ -22,9 +22,9 @@ mobile/ios/Pods/
 mobile/.expo/
 mobile/*.log
 mobile/coverage/
+mobile/stitch/
 
 # --- Editor ---
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-mobile/stitch/
