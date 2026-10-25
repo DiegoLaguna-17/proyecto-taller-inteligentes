@@ -1,0 +1,101 @@
+import React from 'react';
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
+import { Icon } from '../../../shared/Icon';
+import { COLORS } from '../../../utils/colors';
+import { FONTS } from '../../../utils/typography';
+
+interface ChatInputBarProps {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+  onMicPress?: () => void;
+}
+
+export const ChatInputBar: React.FC<ChatInputBarProps> = ({
+  value,
+  onChangeText,
+  onSend,
+  onMicPress,
+}) => {
+  return (
+    <View style={styles.container}>
+      <View style={styles.inputBox}>
+        <TextInput
+          style={styles.textInput}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder="Escribe tu consulta aquí..."
+          placeholderTextColor={COLORS.textMuted}
+          multiline
+        />
+        <TouchableOpacity
+          style={styles.micBtn}
+          onPress={onMicPress}
+          activeOpacity={0.7}
+        >
+          <Icon name="mic" size={18} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.sendBtn,
+          { opacity: value.trim().length > 0 ? 1 : 0.7 },
+        ]}
+        onPress={onSend}
+        activeOpacity={0.8}
+        disabled={value.trim().length === 0}
+      >
+        <Icon name="send" size={18} color="#FFFFFF" />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: COLORS.backgroundWhite,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    gap: 10,
+  },
+  inputBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceInput,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    minHeight: 46,
+  },
+  textInput: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    maxHeight: 90,
+  },
+  micBtn: {
+    padding: 6,
+    marginLeft: 6,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
