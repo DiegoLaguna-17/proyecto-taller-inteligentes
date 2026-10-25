@@ -1,0 +1,17 @@
+# Contexto de build del SERVICIO NLP (backend/nlp_service/). No incluir secretos ni entornos virtuales.
+# OJO: NO excluir app/corpus (el servicio lo lee en cada consulta) ni tests/ (la etapa 'test' los necesita;
+# la etapa 'runtime' no los copia).
+.env
+.env.*
+!.env.example
+.venv
+venv
+venv_*
+**/__pycache__
+**/*.pyc
+.pytest_cache
+**/.pytest_cache
+*.md
+test_chatbot.sh
+Dockerfile
+.dockerignore

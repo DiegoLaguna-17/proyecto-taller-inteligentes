@@ -61,6 +61,15 @@ Solo nombres; los valores van en `.env` (nunca en el repositorio). Una variable 
 | `ML_MODELO` | Modelo que se sirve: `real` o `demo` (modelo de DEMO con datos sintéticos, no clínico) | `real` |
 | `ML_ENABLE_DOCS` | Enciende `/docs`, `/redoc` y `/openapi.json` (`true`/`false`). Con `false` responden 404 | `false` |
 
+## Docker
+
+La imagen se construye con `backend/ml_service/Dockerfile` (`python:3.13-slim`, solo `requirements.txt` de producción, usuario no root) y se levanta con el `docker-compose.yml` de la raíz. Ver el README raíz, § "Levantar todo con Docker", y ADR-0010.
+
+- **Sin ingreso público (ADR-0008):** el servicio **no publica ningún puerto** en el host. Está solo en la red interna `red_ml` (sin salida a Internet) y solo el backend lo alcanza, por `http://ml_service:8002`.
+- **El modelo entra por volumen:** el volumen `ml_artefactos` se monta en `/artefactos` (`ML_ARTEFACTOS_DIR=/artefactos`, de solo lectura en el servicio). El `.pkl` no está en git ni en la imagen. Primera vez: `docker compose run --rm ml_entrenar_real` (modelo real; monta `backend/ml_service/data` de solo lectura para leer el Excel) y `docker compose run --rm ml_entrenar_demo` (modelo entrenado con datos sintéticos, para `ML_MODELO=demo`). Sin modelo, el servicio sigue vivo: `/health` informa `modelo_cargado: false` y el `POST` responde 503 genérico.
+- **Qué modelo se sirve:** `ML_MODELO` (`real` por defecto o `demo`) en el `.env` de la raíz.
+- **Pruebas en un contenedor:** `docker compose --profile pruebas run --rm ml_test`.
+
 ## Endpoint: `POST /api/riesgo/hipoglucemia`
 
 Devuelve la probabilidad **informativa** de hipoglucemia observada en el registro. No devuelve nivel de alerta: la clasificación Normal/Hipo/Hiper es del backend (ML-D5).

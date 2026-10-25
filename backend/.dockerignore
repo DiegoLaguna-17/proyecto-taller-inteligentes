@@ -1,0 +1,28 @@
+# Contexto de build del BACKEND DE NEGOCIO (backend/). Solo debe entrar lo del backend:
+# los otros servicios tienen su propio contexto y su propia imagen (ADR-0010, aislamiento de ADR-0006/0008).
+ml_service
+nlp_service
+
+# Secretos: nunca dentro de una imagen (el .env.example si, lo lee una prueba de la etapa 'test')
+.env
+.env.*
+!.env.example
+
+# Entornos virtuales y cache
+venv
+venv_*
+.venv
+**/venv*
+**/__pycache__
+**/*.pyc
+.pytest_cache
+**/.pytest_cache
+
+# Artefactos de ML y datos: no pertenecen al backend
+**/*.pkl
+data
+.git
+.gitignore
+*.md
+Dockerfile
+.dockerignore

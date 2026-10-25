@@ -359,6 +359,32 @@
   - _Refs rationale_: tras la fusión con `adriang-backend` las rutas reales (`/api/login`, `/api/pacientes/registrarGlucosa`, …) y las tablas reales de Supabase (`usuario`, `registro_glucosa`, `seguimiento_embarazo`, …) difieren de la tabla de API y de los Data Models de design.md; el equipo debe decidir cuál es la fuente de verdad. Ver design.md § Estado real del backend de negocio y las Open Questions de `seguimiento_embarazo` y autenticación.
   - _Output_: decisión registrada (ADR o design.md) sobre rutas y esquema; design.md y tasks.md alineados con ella; si se mantiene el esquema real, migraciones versionadas en el repositorio.
   - _Verify_: design.md § API y § Data Models describen exactamente lo implementado (o el código se ajusta al diseño); TASK-005 a TASK-009 verificables contra migraciones versionadas.
+- [x] **TASK-030** [NFR-001, NFR-002]: Contenerizar los tres servicios del backend con Docker Compose (design.md § Contenedores, [ADR-0010](docs/adr/0010-contenerizacion-docker-compose.md)).
+  - _Refs rationale_: las versiones de los servicios chocan entre sí (cada uno lleva su imagen y su `requirements.txt`); el `.pkl` no entra en git ni en la imagen; el servicio de ML no tiene ingreso público (ADR-0008); las imágenes se reutilizan en Azure (ADR-0003, TASK-002).
+  - _Output_:
+    - `backend/Dockerfile`, `backend/nlp_service/Dockerfile` y `backend/ml_service/Dockerfile` (`python:3.13-slim`, solo `requirements.txt` de producción, usuario no root, etapas `deps`/`test`/`runtime`) y un `.dockerignore` por contexto.
+    - `docker-compose.yml` en la raíz: `backend` (8000) y `nlp_service` (8001) publicados; `ml_service` sin puertos publicados, en una red interna; volumen `ml_artefactos` en `/artefactos`; `healthcheck` por servicio; `restart: unless-stopped`; sin secretos en el YAML. Perfiles `entrenamiento` (genera el modelo real y el de demo en el volumen) y `pruebas` (pytest dentro de contenedores). `docker-compose.prueba.yml` y `.env.example` raíz.
+    - README raíz (sección "Levantar todo con Docker"), README de los servicios y CONTEXT.md.
+  - _Verify_:
+    - `docker compose build` sin errores; tamaños de imagen registrados.
+    - `docker compose up -d`: los tres servicios `healthy`; `GET :8000/health` y `GET :8001/health` → 200.
+    - `:8002` **no** responde desde el host y **sí** desde otro contenedor de la red interna (`http://ml_service:8002/health`).
+    - `POST /api/riesgo/hipoglucemia` dentro de la red → 200 con solo `{riesgo_hipoglucemia, version_modelo}`, con `ML_MODELO=real` y con `demo`; sin modelo → 503 genérico y el contenedor sigue vivo.
+    - `POST /api/chatbot/consulta` con `NLP_PROVIDER=fake` → 200 con el aviso obligatorio.
+    - Ningún `.env`, `.pkl` ni clave dentro de las imágenes (`docker history` e inspección del sistema de archivos); los tres contenedores no corren como root.
+    - `docker compose down` y `up` conservan el modelo del volumen.
+    - Las tres suites siguen en verde, también dentro de contenedores (perfil `pruebas`): backend 87, `ml_service` 237, `nlp_service` 90.
+  - _Pendiente (fuera de esta tarea)_: registro de imágenes, ingreso interno del ML y secretos en Azure (TASK-002 y TASK-002b).
+  - _Hecho (2026-10-26, verificado en Docker Desktop 29.2.1 / Compose v5.1.0 sobre Windows)_:
+    - `docker compose build`: backend **318 MB**, nlp_service **258 MB**, ml_service **682 MB** (`python:3.13-slim`). El primer `build` del ML se cortó por un error transitorio de BuildKit (`EOF`) y se repitió sin cambios.
+    - `docker compose up -d`: los tres `healthy`. `GET :8000/health` y `GET :18001/health` (el 8001 del host estaba ocupado por un proceso ajeno; se usó `NLP_PORT=18001`) → 200.
+    - `ml_service`: 0 puertos publicados; desde el host no responde (`curl` exit 7); desde el contenedor del backend (`http://ml_service:8002`) sí. El NLP no puede alcanzarlo y el ML no tiene salida a Internet (red `internal`); el backend sí.
+    - Sin modelo: `/health` 200 con `modelo_cargado:false`, `POST` 503 genérico, el contenedor sigue `healthy`. Tras `docker compose run --rm ml_entrenar_real` (AUC 0,6404 y recall 0,4286, igual que en Windows) el ML sirve el modelo sin reiniciarse: `ALTO` 0,017 y `BAJO` 0,0064 (`version_modelo` `1.0.0`), idéntico a Windows. Con `ml_entrenar_demo` y `ML_MODELO=demo`: 0,8014 y 0,0515 (`1.0.0-demo`), idéntico a Windows (AUC sintético 0,7834).
+    - NLP: con `docker-compose.prueba.yml` (proveedor `fake`) → 200 con el aviso obligatorio; con la configuración real de su `.env` (Gemini) → 200 con el aviso.
+    - Imágenes: ningún `.env`, `.pkl`, Excel, pruebas ni venv; los valores reales de los secretos de los tres `.env` no aparecen en la configuración, el historial ni el sistema de archivos de ninguna imagen. Los tres contenedores corren como `app` (uid 10001).
+    - `docker compose down` y `up -d` conservan el modelo del volumen (misma predicción).
+    - Pruebas dentro de contenedores (perfil `pruebas`): backend **87**, nlp_service **90**, ml_service **237** passed.
+    - Hallazgos: (1) el `.pkl` entrenado en Linux tiene otra huella SHA-256 que el del JSON versionado (entrenado en Windows) aunque las métricas y predicciones coinciden; cada entorno usa su propio JSON, así que no hay conflicto, pero el JSON versionado no sirve de huella para el modelo entrenado en el contenedor. (2) El límite de tasa del NLP verá la IP de la puerta de enlace de Docker hasta configurar `FORWARDED_ALLOW_IPS`.
 - [ ] **TASK-021** [REQ-001]: Pantalla de login conectada a `POST /auth/login`.
   - _Refs rationale_: REQ-001.
   - _Output_: Pantalla funcional que almacena el token de sesión.

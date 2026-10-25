@@ -69,6 +69,7 @@ Este README es un índice navegable y una guía de reproducción; el detalle com
 | ADR 0002 — Supabase/PostgreSQL | Justificación de la base de datos y BaaS | `docs/adr/0002-supabase-postgresql.md` |
 | ADR 0003 — Despliegue en Azure | Justificación del proveedor cloud | `docs/adr/0003-despliegue-azure.md` |
 | ADR 0004 — Modelo baseline de clasificación (**reemplazado por el ADR 0007**) | Registro histórico del Árbol de Decisión/SVC descartado | `docs/adr/0004-modelo-clasificacion-baseline.md` |
+| ADR 0010 — Contenerización con Docker Compose | Una imagen por servicio, el modelo de ML por volumen y el ML solo en una red interna | `docs/adr/0010-contenerizacion-docker-compose.md` |
 | ADR 0009 — Modelo de demo con datos sintéticos | Segundo modelo separado, entrenado con datos generados por reglas clínicas; sin cambio de contrato (la API no distingue el modelo) | `docs/adr/0009-modelo-demo-datos-sinteticos.md` |
 | Generador de datos sintéticos (modelo de demo) | Reglas clínicas, distribuciones y esquemas del dataset sintético. Modelo de demo: aprende reglas del equipo, no la realidad | `docs/ml/generador_sintetico.md` |
 | ADR 0007 — Regresión Logística + SMOTE-NC | Decisión vigente del algoritmo del modelo de riesgo | `docs/adr/0007-regresion-logistica-baseline.md` |
@@ -182,6 +183,67 @@ Métricas generadas automáticamente al entrenar (`random_state=42`), documentad
 Es un único split con muy pocos positivos: sirve como punto de comparación, no como estimación estable (validación cruzada agrupada pendiente, TASK-010a). Conteos del dataset: 100 pacientes, 109 registros, 10 registros positivos, 193 filas y 17 filas positivas (`docs/data_ecosystem.md` §3).
 
 Justificación del modelo elegido, tratamiento del desbalance de clases y limitaciones conocidas: ver `docs/model_baseline.md` §2, §3 y §5; inventario de datos y análisis exploratorio: ver `docs/data_ecosystem.md`.
+
+## Levantar todo con Docker
+
+Los tres servicios del backend (backend de negocio, chatbot NLP y servicio de ML) se levantan con un solo comando usando Docker Compose (decisión del equipo, `docs/adr/0010-contenerizacion-docker-compose.md`; diseño en `design.md` § Contenedores). La app móvil **no** va en Docker. Cada servicio tiene **su** imagen y **su** `requirements.txt`, porque sus versiones chocan entre sí.
+
+### Requisitos
+- Docker Desktop o Docker Engine con Compose v2.24 o superior (verificado con Docker 29.2.1 y Compose v5.1.0; se necesita `env_file` con `required: false`).
+- Para generar el modelo real la primera vez: el dataset en `backend/ml_service/data/raw/ShanghaiT2DM_Summary.xlsx` (ya está en el repositorio).
+
+### Pasos
+```bash
+# 1. Archivos de configuración (opcionales para arrancar; sin claves el chatbot y la base de datos no funcionan,
+#    pero los servicios levantan). Cada servicio lee SOLO su propio .env; nunca se copian a las imágenes.
+cp backend/.env.example backend/.env
+cp backend/nlp_service/.env.example backend/nlp_service/.env
+cp backend/ml_service/.env.example backend/ml_service/.env
+cp .env.example .env            # solo variables NO secretas de Compose (ML_MODELO, FORWARDED_ALLOW_IPS)
+
+# 2. Construir y levantar (backend 8000, nlp_service 8001; ml_service solo en la red interna)
+docker compose up -d --build
+docker compose ps               # los tres deben quedar en estado "healthy"
+
+# 3. Primera vez: generar el modelo de ML en el volumen (el .pkl no está en git ni en las imágenes)
+docker compose run --rm ml_entrenar_real      # modelo real (AUC 0.640 / recall 0.429 en su split de prueba)
+docker compose run --rm ml_entrenar_demo      # modelo de DEMO con datos sintéticos (para ML_MODELO=demo)
+```
+Sin modelo el servicio de ML sigue vivo: `GET /health` informa `modelo_cargado: false` y `POST /api/riesgo/hipoglucemia` responde 503 genérico. Al generar el modelo no hace falta reiniciar el servicio.
+
+### Comandos habituales
+| Qué | Comando |
+|---|---|
+| Ver estado y salud | `docker compose ps` |
+| Ver logs | `docker compose logs -f backend` (o `nlp_service`, `ml_service`) |
+| Parar (conserva el modelo) | `docker compose down` |
+| Parar **y borrar el modelo** | `docker compose down -v` |
+| Servir el modelo de demo | poner `ML_MODELO=demo` en el `.env` de la raíz y `docker compose up -d ml_service` |
+| Probar el chatbot sin gastar la clave | `docker compose -f docker-compose.yml -f docker-compose.prueba.yml up -d` (proveedor `fake`, sin autenticación; solo desarrollo) |
+| Pruebas dentro de contenedores | `docker compose --profile pruebas run --rm backend_test` (también `nlp_test` y `ml_test`) |
+
+### Puertos y red
+| Servicio | Puerto por defecto | Desde el host |
+|---|---|---|
+| backend de negocio | 8000 | `http://localhost:8000/health` |
+| nlp_service (chatbot) | 8001 | `http://localhost:8001/health` y `POST http://localhost:8001/api/chatbot/consulta` |
+
+Si el 8000 o el 8001 del host están ocupados, cámbialos con `BACKEND_PORT` y `NLP_PORT` (en el `.env` de la raíz o en el entorno, por ejemplo `NLP_PORT=18001 docker compose up -d`); el puerto dentro del contenedor no cambia.
+| ml_service | 8002 | **no alcanzable** (ADR-0008): solo desde la red interna, por `http://ml_service:8002` |
+
+El servicio de ML está en una red de Compose interna (`internal: true`, sin salida a Internet) que comparte solo con el backend. Para probarlo, ejecuta una petición desde el contenedor del backend:
+```bash
+docker compose exec -T backend python -c "import urllib.request; print(urllib.request.urlopen('http://ml_service:8002/health').read().decode())"
+```
+
+### Seguridad y cosas a tener en cuenta
+- Ningún `.env`, `.pkl` ni clave entra en las imágenes (cada contexto de build tiene su `.dockerignore`) y los contenedores no corren como root.
+- `backend/.env` solo debe tener las variables del backend. Si tiene `NLP_PROVIDER_API_KEY`, esa clave llegaría al contenedor del backend sin necesitarla: quítala de ahí (va solo en `backend/nlp_service/.env`).
+- El límite de tasa del chatbot usa la IP del cliente. Detrás de Docker o de un proxy hay que poner la IP del proxy en `FORWARDED_ALLOW_IPS`; si no, todos los clientes comparten la misma IP.
+- El backend de negocio todavía no exige autenticación (ver `docs/risks.md`, RB-01): no lo expongas públicamente con datos reales.
+
+### Hacia Azure (TASK-002 y TASK-002b)
+Las imágenes `runtime` son el artefacto de despliegue (ADR-0003). **Se reutiliza:** los tres Dockerfile, los `healthcheck` sobre `/health`, la configuración solo por variables de entorno, el usuario no root y el volumen para el modelo (en Azure sería un Azure Files o una imagen de datos aparte). **Falta:** elegir App Service o Container Apps, el registro de imágenes (por ejemplo Azure Container Registry), el ingreso interno del servicio de ML (sin IP pública, alcanzable solo desde el backend), los secretos (Key Vault o variables del servicio) y la IP del ingress para `FORWARDED_ALLOW_IPS`.
 
 ## 5. Estado del componente NLP (chatbot educativo)
 

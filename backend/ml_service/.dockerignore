@@ -1,0 +1,23 @@
+# Contexto de build del SERVICIO DE ML (backend/ml_service/).
+# El modelo, los datos y los secretos NO entran en la imagen:
+.env
+.env.*
+!.env.example
+**/*.pkl
+app/artefactos
+data
+
+# Entornos virtuales y cache
+.venv
+venv
+venv_*
+**/__pycache__
+**/*.pyc
+.pytest_cache
+**/.pytest_cache
+
+# OJO: tests/ NO se excluye (la etapa 'test' los necesita; la etapa 'runtime' no los copia).
+*.md
+test_ml.sh
+Dockerfile
+.dockerignore

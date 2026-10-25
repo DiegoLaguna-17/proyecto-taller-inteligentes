@@ -1,0 +1,153 @@
+# GlucoTracker — los tres servicios del backend con un solo comando (ADR-0010, design.md § Contenedores).
+#
+#   docker compose up -d --build        # backend (8000), nlp_service (8001) y ml_service (solo red interna)
+#   docker compose ps
+#   docker compose down                 # el modelo de ML se conserva en el volumen ml_artefactos
+#
+# Primera vez: generar el modelo de ML en el volumen (el .pkl no esta en git ni en la imagen):
+#   docker compose run --rm ml_entrenar_real       # modelo real (necesita backend/ml_service/data/raw/*.xlsx)
+#   docker compose run --rm ml_entrenar_demo       # modelo de DEMO con datos sinteticos (ML_MODELO=demo)
+# Pruebas dentro de contenedores:
+#   docker compose --profile pruebas run --rm backend_test   (tambien nlp_test, ml_test)
+#
+# Secretos: NUNCA aqui. Cada servicio lee su propio .env (env_file, no obligatorio para poder levantar sin
+# claves). Las variables NO secretas de Compose (ML_MODELO, FORWARDED_ALLOW_IPS, BACKEND_PORT, NLP_PORT) van en
+# un .env de la raiz.
+
+name: glucotracker
+
+x-python-healthcheck: &salud
+  interval: 15s
+  timeout: 5s
+  retries: 3
+  start_period: 20s
+
+x-ml-build: &ml-build
+  context: ./backend/ml_service
+  dockerfile: Dockerfile
+  target: runtime
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    image: glucotracker/backend:local
+    env_file:
+      - path: ./backend/.env
+        required: false
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"   # puerto del host configurable; el del contenedor no cambia
+    networks: [publica, red_ml]   # red_ml: para llamar al servicio de ML por su nombre (TASK-017, aun no lo llama)
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
+      <<: *salud
+
+  nlp_service:
+    build:
+      context: ./backend/nlp_service
+      dockerfile: Dockerfile
+      target: runtime
+    image: glucotracker/nlp_service:local
+    env_file:
+      - path: ./backend/nlp_service/.env
+        required: false
+    environment:
+      # IP del proxy en el que confiar para X-Forwarded-For (limite de tasa por IP). En Azure: la IP del ingress.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    ports:
+      - "${NLP_PORT:-8001}:8001"
+    networks: [publica]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).status == 200 else 1)"]
+      <<: *salud
+
+  # Servicio de ML: SIN ports (ADR-0008). Solo es alcanzable desde la red interna red_ml, por el nombre ml_service.
+  ml_service:
+    build: *ml-build
+    image: glucotracker/ml_service:local
+    env_file:
+      - path: ./backend/ml_service/.env
+        required: false
+    environment:
+      ML_ARTEFACTOS_DIR: /artefactos
+      ML_MODELO: ${ML_MODELO:-real}   # real | demo (demo = modelo entrenado con datos SINTETICOS, no clinico)
+    expose:
+      - "8002"
+    volumes:
+      - ml_artefactos:/artefactos:ro
+    networks: [red_ml]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3).status == 200 else 1)"]
+      <<: *salud
+
+  # --- Entrenamiento de una sola ejecucion (perfil 'entrenamiento'; no arranca con 'up') -------------------
+  ml_entrenar_real:
+    profiles: [entrenamiento]
+    build: *ml-build
+    image: glucotracker/ml_service:local
+    command: ["python", "-m", "app.train_baseline"]
+    environment:
+      ML_ARTEFACTOS_DIR: /artefactos
+    volumes:
+      - ml_artefactos:/artefactos
+      - ./backend/ml_service/data:/app/data:ro   # el Excel de entrenamiento NO esta en la imagen
+    network_mode: none
+
+  ml_entrenar_demo:
+    profiles: [entrenamiento]
+    build: *ml-build
+    image: glucotracker/ml_service:local
+    command:
+      - sh
+      - -c
+      - >-
+        python -m app.sintetico.generar --n 2000 --semilla 20261024 --salida /tmp/sint/dataset_sintetico.csv
+        && python -m app.train_demo --dataset /tmp/sint/dataset_sintetico.csv
+    environment:
+      ML_ARTEFACTOS_DIR: /artefactos
+    volumes:
+      - ml_artefactos:/artefactos
+    network_mode: none
+
+  # --- Pruebas dentro de contenedores (perfil 'pruebas'; etapa 'test' de cada Dockerfile) --------------------
+  backend_test:
+    profiles: [pruebas]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    image: glucotracker/backend:test
+    network_mode: none
+
+  nlp_test:
+    profiles: [pruebas]
+    build:
+      context: ./backend/nlp_service
+      dockerfile: Dockerfile
+      target: test
+      additional_contexts:
+        docs_nlp: ./docs/nlp
+    image: glucotracker/nlp_service:test
+    network_mode: none
+
+  ml_test:
+    profiles: [pruebas]
+    build:
+      context: ./backend/ml_service
+      dockerfile: Dockerfile
+      target: test
+    image: glucotracker/ml_service:test
+    network_mode: none
+
+networks:
+  publica: {}
+  red_ml:
+    internal: true   # sin salida a Internet ni acceso desde el host: solo backend y ml_service
+
+volumes:
+  ml_artefactos: {}

@@ -77,6 +77,15 @@ Para probar con curl, guardar el cuerpo en un archivo UTF-8 (p. ej. `consulta.js
 
 Levanta el servicio con `NLP_PROVIDER=fake` y `CHATBOT_REQUIRE_AUTH=false` **sin leer `.env`**, prueba `/health` y una consulta, y detiene el servicio al terminar.
 
+## Docker
+
+La imagen del servicio se construye con `backend/nlp_service/Dockerfile` (`python:3.13-slim`, solo `requirements.txt` de producción, usuario no root, sin `.env`) y se levanta con el `docker-compose.yml` de la raíz (puerto **8001 publicado**): ver el README raíz, § "Levantar todo con Docker", y ADR-0010.
+
+- Arranca con `--proxy-headers --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}"`. El límite de tasa usa la IP del cliente: detrás de Docker o de un proxy (Azure) hay que poner la IP del proxy en `FORWARDED_ALLOW_IPS` (archivo `.env` de la raíz), o todos los clientes compartirán la misma IP.
+- La configuración (`NLP_PROVIDER`, `NLP_PROVIDER_API_KEY`, etc.) llega por `env_file: backend/nlp_service/.env`; el `.env` nunca entra en la imagen.
+- Probar sin gastar la clave: `docker compose -f docker-compose.yml -f docker-compose.prueba.yml up -d` (proveedor `fake` y sin autenticación; solo desarrollo).
+- Pruebas dentro de un contenedor: `docker compose --profile pruebas run --rm nlp_test` (la prueba de contrato clínico recibe `docs/nlp/umbrales_ada_v1.json` como contexto de build adicional solo en la etapa `test`).
+
 ## 5. Chat de consola (prueba manual)
 
 ```bash

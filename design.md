@@ -1,5 +1,5 @@
 # design.md
-> GlucoTracker — Version 1.6.0 — 2026-10-25
+> GlucoTracker — Version 1.7.0 — 2026-10-26
 
 ## Architecture Overview
 El backend principal es un monolito modular en FastAPI (ver ADR-0001). Centraliza la lógica de negocio: auth, registros, la **clasificación ADA** Normal/Hipo/Hiper de cada lectura y las alertas al médico. Hay dos servicios independientes:
@@ -60,6 +60,7 @@ Las decisiones técnicas críticas del proyecto han sido formalizadas y justific
 8. **ADR-0007:** [Regresión Logística con SMOTE-NC como línea base del riesgo de hipoglucemia](docs/adr/0007-regresion-logistica-baseline.md) (ML-D1 a ML-D4; reemplaza a ADR-0004)
 9. **ADR-0008:** [Modelo de ML como servicio independiente](docs/adr/0008-servicio-ml-independiente.md) (ML-D8; reemplaza a ADR-0001 para el ML)
 10. **ADR-0009:** [Modelo de demo con datos sintéticos](docs/adr/0009-modelo-demo-datos-sinteticos.md) (segundo modelo separado, entrenado con datos generados por reglas clínicas; no cambia el contrato de ADR-0008)
+11. **ADR-0010:** [Contenerización con Docker Compose](docs/adr/0010-contenerizacion-docker-compose.md) (una imagen y un requirements por servicio; el modelo de ML por volumen; el ML solo en una red interna)
 
 ## Data Models
 
@@ -407,9 +408,38 @@ Todos los errores responden `{"detail": "<mensaje genérico en español>"}` y nu
 3. Nunca usar el modelo de demo salvo con `ML_MODELO=demo` (por defecto, `real`).
 4. El modelo de demo y sus metadatos llevan versión propia (`1.0.0-demo`) y `entrenado_con: "sintetico"`; el dataset lleva la columna `origen = "sintetico"`.
 
+## Contenedores (Docker Compose)
+
+Los tres servicios del backend se empaquetan en imágenes separadas y se levantan con un solo `docker compose up -d` desde la raíz (decisión del equipo, [ADR-0010](docs/adr/0010-contenerizacion-docker-compose.md)). La app móvil **no** va en Docker. Las versiones de los servicios chocan entre sí (fastapi 0.115.0 frente a 0.162.0, pydantic 2.9.2 frente a 2.14.1), por eso cada uno lleva **su** imagen y **su** `requirements.txt`.
+
+| Servicio | Dockerfile | Contexto de build | Puerto | En el host |
+|---|---|---|---|---|
+| `backend` | `backend/Dockerfile` | `backend/` (su `.dockerignore` excluye `ml_service/` y `nlp_service/`) | 8000 | **publicado** (`BACKEND_PORT`, por defecto 8000) |
+| `nlp_service` | `backend/nlp_service/Dockerfile` | `backend/nlp_service/` | 8001 | **publicado** (`NLP_PORT`, por defecto 8001; la app móvil lo llama directamente) |
+| `ml_service` | `backend/ml_service/Dockerfile` | `backend/ml_service/` | 8002 | **no publicado** (solo `expose`, ADR-0008) |
+
+**Imágenes.** `python:3.13-slim` (la versión con la que se verificaron las dependencias del ML), solo el `requirements.txt` de producción, usuario no root (uid 10001), sin `.env`, `.pkl`, pruebas ni entornos virtuales. Etapas: `deps`, `test` (con `requirements-dev.txt` y las pruebas) y `runtime` (la que se despliega). Cada contexto lleva su `.dockerignore`, que no excluye lo que el servicio usa en ejecución (por ejemplo, el corpus del NLP).
+
+**Arranque.** `uvicorn` escucha en `0.0.0.0` en el puerto de cada servicio. El NLP arranca con `--proxy-headers --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}"`: detrás de un proxy hay que poner su IP, porque el límite de tasa usa `request.client.host`. Cada servicio tiene `HEALTHCHECK` sobre su `GET /health`.
+
+**Red.** Dos redes de Compose: `publica` (backend y NLP) y `red_ml` (`internal: true`: backend y ML). El ML solo está en `red_ml`, sin puertos y sin salida a Internet, y solo el backend lo alcanza por el nombre `ml_service`. El backend **no** declara `depends_on` del ML (hoy no lo llama; TASK-017).
+
+**Modelo de ML por volumen.** Un volumen con nombre (`ml_artefactos`) montado en `/artefactos` (`ML_ARTEFACTOS_DIR=/artefactos`) guarda el `.pkl` y su JSON de metadatos, tanto del modelo real como del de demo (subcarpeta `demo/`). Nada de eso entra en la imagen ni en git. Se genera la primera vez con servicios de una sola ejecución del perfil `entrenamiento` (`ml_entrenar_real`, `ml_entrenar_demo`), que reutilizan `python -m app.train_baseline` y `python -m app.sintetico.generar` + `python -m app.train_demo`; el Excel de entrenamiento se monta de solo lectura en esa ejecución y no forma parte de la imagen. Si el modelo falta, el ML sigue vivo: `/health` informa `modelo_cargado: false` y el `POST` responde 503 genérico.
+
+**Configuración y secretos.** Cada servicio lee su propio `.env` (`env_file`, no obligatorio para poder levantar sin claves); nada de secretos en el YAML ni en las imágenes. Un `.env` en la raíz (solo si hace falta) define las variables de Compose que no son secretas: `ML_MODELO` (`real` por defecto o `demo`), `FORWARDED_ALLOW_IPS`, `BACKEND_PORT` y `NLP_PORT` (puertos del host, por si los de por defecto están ocupados). `docker-compose.prueba.yml` es un override sin secretos para probar el chatbot sin gastar la clave (`NLP_PROVIDER=fake`, `CHATBOT_REQUIRE_AUTH=false`).
+
+**Contextos de build.** El contexto del backend de negocio es `backend/` (el Dockerfile debe vivir ahí), que contiene las carpetas de los otros servicios; su `.dockerignore` las excluye, así que no se envían al builder. `tests/` no se excluye en ningún `.dockerignore` porque la etapa `test` los necesita; la etapa `runtime` no los copia.
+
+**Pruebas en contenedores.** El perfil `pruebas` define `backend_test`, `nlp_test` y `ml_test`, que construyen la etapa `test` de cada Dockerfile y ejecutan `pytest`. La prueba de contrato clínico del NLP necesita `docs/nlp/umbrales_ada_v1.json`: entra solo en la etapa `test` mediante un contexto de build adicional (`docs_nlp`), no en la imagen de ejecución.
+
+**Azure (ADR-0003, TASK-002 y TASK-002b).** Las imágenes `runtime` son el artefacto de despliegue. Falta decidir el servicio de Azure (App Service o Container Apps), el registro de imágenes, el ingreso interno del ML y los secretos (Key Vault o variables del servicio).
+
 ## File Structure
 ```
 glucotracker/
+├── docker-compose.yml       # Los tres servicios del backend (ADR-0010); ML sin puertos publicados
+├── docker-compose.prueba.yml # Override sin secretos: NLP con proveedor fake y sin autenticación, para probar sin la clave
+├── .env.example             # Solo variables de Compose no secretas (ML_MODELO, FORWARDED_ALLOW_IPS)
 ├── mobile/                  # App React Native
 │   ├── src/
 │   │   ├── screens/
@@ -428,6 +458,8 @@ glucotracker/
 │   ├── tests/               # Pruebas del backend con Supabase simulado (conftest.py y test_*.py) y test_aislamiento.py (el backend no incluye ni importa el ML ni el chatbot; incluirá el contrato de reglas_ada.py vs docs/nlp/umbrales_ada_v1.json); las de ML pasaron a ml_service/tests/
 │   ├── requirements-dev.txt # Dependencias de pruebas del backend (pytest)
 │   ├── requirements.txt     # Solo del backend
+│   ├── Dockerfile           # Imagen del backend de negocio (etapas deps, test, runtime); contexto backend/
+│   ├── .dockerignore        # Excluye ml_service/, nlp_service/, venvs, .env, etc.
 │   ├── ml_service/          # Servicio de ML independiente (ADR-0008): no importa nada de backend/app/ ni de nlp_service/; sin ingreso público; puerto de desarrollo 8002
 │   │   ├── app/
 │   │   │   ├── __init__.py
@@ -452,6 +484,8 @@ glucotracker/
 │   │   ├── requirements.txt    # Versiones exactas (incluidas numpy, scipy, imbalanced-learn, joblib, openpyxl)
 │   │   ├── requirements-dev.txt
 │   │   ├── .env.example        # Solo nombres de variables
+│   │   ├── Dockerfile          # Imagen del servicio de ML (el modelo entra por volumen en /artefactos)
+│   │   ├── .dockerignore
 │   │   ├── README.md
 │   │   └── test_ml.sh          # script end-to-end del servicio (movido con git mv desde backend/app/test_ml.sh)
 │   └── nlp_service/         # Servicio NLP independiente (ADR-0006); no importa nada de backend/app/
@@ -475,6 +509,8 @@ glucotracker/
 │       ├── requirements.txt    # Versiones exactas propias (fastapi, uvicorn, pydantic, google-genai)
 │       ├── requirements-dev.txt # Dependencias de pruebas (pytest, etc.)
 │       ├── .env.example        # Solo nombres de variables
+│       ├── Dockerfile          # Imagen del servicio NLP (--proxy-headers, --forwarded-allow-ips configurable)
+│       ├── .dockerignore
 │       ├── README.md           # Cómo instalar, configurar, correr y probar el servicio
 │       └── test_chatbot.sh     # Script end-to-end del servicio (análogo a test_ml.sh)
 ├── docs/
@@ -533,6 +569,7 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
   - También hay que definir quién carga y actualiza el perfil (paciente, médico o ambos) y cómo se mapea `enfermedades_base` (texto libre) a las banderas de comorbilidad.
 - [ ] **Qué modelo usar en producción:** ¿se permite `ML_MODELO=demo` fuera de desarrollo y de las demostraciones, o el despliegue de producción debe rechazarlo? Como la API no marca el modelo (decisión del equipo, ADR-0009), si el servicio llegara a usuarios reales habría que reponer la marca o impedir ese valor. Sin resolver: hasta decidirlo, el modelo entrenado con datos sintéticos es solo para desarrollo y presentaciones.
 - [ ] **Validación de las reglas clínicas del generador:** ¿quién (un profesional de la salud del equipo o externo) revisa y aprueba las reglas y sus magnitudes antes de usar el modelo de demo en una presentación? Hoy todas las reglas están **pendientes de revisión por el equipo** y las magnitudes son supuestos.
+- [ ] **Despliegue en Azure de las imágenes (TASK-002, TASK-002b):** las imágenes de Docker (ADR-0010) se reutilizan, pero falta decidir App Service o Container Apps, el registro de imágenes, el ingreso interno del ML y los secretos. Ver § Contenedores.
 - [ ] **Despliegue del servicio de ML sin ingreso público:** hay que provisionar el recurso en Azure alcanzable solo desde el backend por red interna (TASK-002b). Hasta entonces el aislamiento de red, que es la única protección del endpoint en v1, no está verificado en un entorno real.
 - [ ] **Autenticación backend → servicio de ML:** ¿identidad administrada de Azure, mTLS o token de servicio? En v1 solo hay red interna (ML-D8). Hay que resolverlo antes del despliegue (TASK-002).
 - [ ] **Clasificación ADA para el momento `otro`:** ¿qué regla de hiperglucemia aplica cuando la lectura no es en ayunas ni postprandial? Las etiquetas y los cortes de `reglas_ada.py` también requieren revisión clínica.
@@ -561,4 +598,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.5.2 | 2026-10-25 | Fase S3 (TASK-011g): el modelo de demo se entrena reutilizando la tubería con el origen de datos como parámetro (`entrenar_y_evaluar(origen=...)`, `construir_pipeline(usar_smote=...)`, adaptador `app/sintetico/adaptador.py`). Decisiones medidas con el dataset canónico: **sin SMOTE-NC** (AUC 0,722 con SMOTE-NC frente a 0,783 sin él, y probabilidades infladas: media 0,340 frente a 0,150) y **sin términos de interacción** (decisión del usuario: no mejoran el AUC de forma medible). Artefactos propios en `artefactos/demo/` y validación sintética en `cv_metrics_demo.json`. La carga selectiva `ML_MODELO=real\|demo` pasa de S4 a S3; S4 queda reducida a la marca `modo` en `/health` y en la respuesta (cambio de contrato de ADR-0009). Sin cambios en Data Models ni en el contrato público. |
 | 1.5.3 | 2026-10-25 | Fase S4 reducida (TASK-011h): decisión del equipo de **no cambiar el contrato público**. Se retira la propuesta del campo `modo` en la respuesta y en `/health` (y el aviso asociado); ADR-0009 y ADR-0008 lo declaran. La consecuencia aceptada es que la API no distingue entre el modelo real y el entrenado con datos sintéticos; la trazabilidad queda en los metadatos, en `ML_MODELO` (por defecto `real`), en la verificación de huella y de modo, y en la documentación. S4 queda en pruebas de contrato y en la variante `demo` de `test_ml.sh`. La Open Question del rótulo se cierra; queda abierta solo la de qué modelo usar en producción. Sin cambios en Data Models ni en el contrato. |
 | 1.6.0 | 2026-10-25 | Fusión del backend de negocio de Adrian (`adriang-backend`) con los servicios independientes. Se documenta el **estado real** sin alterar el contrato objetivo: rutas implementadas (§ Estado real del backend de negocio), tablas reales de Supabase (nota en § Data Models), estructura de `backend/app/` (`schemas/`, `services/`; `models/` y `nlp/` vacíos; sin `ml/`) y que el backend no emite ni comprueba tokens (login con OTP). Nuevas Open Questions: alcance de `seguimiento_embarazo` y reconciliación del contrato y el esquema (TASK-029). Se retira el resto de ML de `app/main.py`; las dependencias y `.env.example` del backend se alinean con su código. Sin cambios en los servicios de ML y NLP. |
+| 1.7.0 | 2026-10-26 | Fase Docker (TASK-030, ADR-0010): nueva sección "Contenedores (Docker Compose)". Un Dockerfile y un contexto por servicio (`python:3.13-slim`, solo `requirements.txt` de producción, usuario no root, etapas `deps`/`test`/`runtime`), `docker-compose.yml` con red interna para el ML sin puertos publicados, volumen `ml_artefactos` para el modelo (nunca en la imagen), perfiles `entrenamiento` y `pruebas`, y `docker-compose.prueba.yml` sin secretos. Estructura de archivos y Open Question de despliegue en Azure actualizadas. Puertos del host configurables (`BACKEND_PORT`, `NLP_PORT`). Sin cambios en la lógica de los servicios ni en sus contratos. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |
