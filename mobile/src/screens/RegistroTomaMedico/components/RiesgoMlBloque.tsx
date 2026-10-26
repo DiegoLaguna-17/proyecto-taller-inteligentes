@@ -36,24 +36,11 @@ export const RiesgoMlBloque: React.FC<Props> = ({ riesgo }) => {
           <Text style={[styles.valor, { fontSize: esc(FUENTE.cifra, 1.1) }]} testID="ml-riesgo-valor" adjustsFontSizeToFit numberOfLines={1}>
             {formatearPorcentaje(riesgo.riesgo)}
           </Text>
-          {riesgo.supuestos.length > 0 ? (
-            <View style={styles.lista} testID="ml-riesgo-supuestos">
-              {riesgo.supuestos.map((s) => (
-                <Text key={s} style={[styles.item, { fontSize: esc(FUENTE.caption + 1, 1.1) }]}>{`• ${textoSupuesto(s)}`}</Text>
-              ))}
-            </View>
-          ) : null}
+        
         </>
       ) : (
         <>
-          <Text style={[styles.motivo, { fontSize: esc(FUENTE.cuerpo, 1.1) }]} testID="ml-riesgo-motivo">
-            {textoMotivo(riesgo.motivo ?? 'desconocido')}
-          </Text>
-          {faltantes ? (
-            <Text style={[styles.item, styles.faltantes, { fontSize: esc(FUENTE.caption + 1, 1.1) }]} testID="ml-riesgo-faltantes">
-              {`Datos que faltan: ${faltantes}`}
-            </Text>
-          ) : null}
+          
         </>
       )}
 
