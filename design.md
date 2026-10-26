@@ -1,5 +1,5 @@
 # design.md
-> GlucoTracker — Version 1.14.0 — 2026-11-01
+> GlucoTracker — Version 1.15.0 — 2026-11-02
 
 ## Architecture Overview
 El backend principal es un monolito modular en FastAPI (ver ADR-0001). Centraliza la lógica de negocio: auth, registros, la **clasificación ADA** Normal/Hipo/Hiper de cada lectura y las alertas al médico. Hay dos servicios independientes:
@@ -61,6 +61,7 @@ Las decisiones técnicas críticas del proyecto han sido formalizadas y justific
 9. **ADR-0008:** [Modelo de ML como servicio independiente](docs/adr/0008-servicio-ml-independiente.md) (ML-D8; reemplaza a ADR-0001 para el ML)
 10. **ADR-0009:** [Modelo de demo con datos sintéticos](docs/adr/0009-modelo-demo-datos-sinteticos.md) (segundo modelo separado, entrenado con datos generados por reglas clínicas; no cambia el contrato de ADR-0008)
 11. **ADR-0010:** [Contenerización con Docker Compose](docs/adr/0010-contenerizacion-docker-compose.md) (una imagen y un requirements por servicio; el modelo de ML por volumen; el ML solo en una red interna)
+12. **ADR-0011:** [Integración del backend con el servicio de ML](docs/adr/0011-integracion-backend-ml.md) (disparo en el registro del médico, `riesgo_ml` aditivo, regla tipo 2, supuestos y duración por defecto)
 
 ## Data Models
 
@@ -357,6 +358,19 @@ Todos los errores responden `{"detail": "<mensaje genérico en español>"}` y nu
   - En cualquier otro caso → `Normal`.
 - **Pendiente:** para el momento `otro`, la regla de hiperglucemia queda **pendiente de revisión clínica** (Open Question). Las etiquetas y los cortes también están sujetos a esa revisión.
 
+## Integración backend ↔ ML (TASK-017, ADR-0011)
+Decisión y alternativas en [ADR-0011](docs/adr/0011-integracion-backend-ml.md); auditoría y correspondencias de variables en `docs/ml/integracion_backend_ml.md`. **Sin cambios de esquema en Supabase** y sin guardar el riesgo en la base.
+
+- **Disparo:** `POST /api/medicos/registrar/glucosa`, **después** de guardar la lectura y solo si `ML_ENABLED=true`. Con `ML_ENABLED=false` (por defecto) la respuesta es idéntica a la anterior. El registro del paciente no cambia.
+- **Respuesta (campo aditivo de primer nivel):** `riesgo_ml: {riesgo_hipoglucemia: number|null, version_modelo: string|null, motivo: string|null, supuestos: string[]}`. Motivos: `no_aplica_tipo`, `datos_insuficientes`, `momento_no_cubierto`, `no_disponible`. Supuestos: `duracion_estimada`, `comorbilidades_no_capturadas`, `hba1c_no_disponible` (`[]` cuando no se calcula). Informativo y experimental: sin alertas automáticas.
+- **Módulos (aislados, sin importar código del ML):** `backend/app/services/ml_reglas.py` (funciones puras: regla tipo 2, género, edad, IMC, medicación, momento, armado de la entrada y supuestos; punto de extensión para comorbilidades y `anio_diagnostico`), `backend/app/services/ml_client.py` (cliente `httpx` con timeout, errores controlados) y la integración mínima en `api/medicos.py`.
+- **Configuración del backend** (`core/config.py`, `.env.example`): `ML_ENABLED=false`, `ML_URL=http://ml_service:8002`, `ML_TIMEOUT=2.0` (segundos) y `ML_DURACION_DEFECTO_ANIOS=6.5` (mediana del conjunto sintético de entrenamiento; estimada, ver ADR-0011).
+- **Datos del paciente:** una consulta con relaciones (`paciente` → `usuario.fecha_nac`, `paciente_enfermedad`, `tratamiento_enfermedad`); nunca viaja un identificador al ML.
+- **Compose:** el backend ya está en `red_ml`; se añaden sus variables `ML_*` y `ML_MODELO=demo` al `ml_service`, que **no publica puertos**.
+- **Modelo sintético:** `ML_MODELO=demo`; su `version_modelo` pasa a `1.1.0` (sin «demo»; la trazabilidad queda en `entrenado_con: "sintetico"`). El contrato público de `POST /api/riesgo/hipoglucemia` no cambia.
+- **Pendiente (TASK-017h):** capturar `paciente.anio_diagnostico` y las comorbilidades (cambio de esquema); entonces se calcula la duración real y se omiten los supuestos.
+- **Riesgos:** el endpoint no autentica (RB-01) y el riesgo es experimental y no clínico.
+
 ## Modelo de demo con datos sintéticos Design
 
 **Principio de honestidad:** el modelo de demo **aprende las reglas que escribió el equipo, no la realidad**. Existe solo para poder mostrar el flujo integrado (app → backend → servicio de ML → médico) mientras no haya pacientes reales. Sus probabilidades y sus métricas **no son evidencia clínica** y no deben presentarse como tal. El modelo real (`backend/ml_service`, Regresión Logística + SMOTE-NC, ADR-0007) **no se modifica ni se reentrena**: sigue siendo experimental, solo informativo y visible solo para el médico. El detalle de las reglas, distribuciones y esquemas está en [docs/ml/generador_sintetico.md](docs/ml/generador_sintetico.md); aquí solo el diseño de las fases.
@@ -389,7 +403,7 @@ Todos los errores responden `{"detail": "<mensaje genérico en español>"}` y nu
 - **Origen de los datos como parámetro:** `train_baseline.entrenar_y_evaluar(artefactos_dir, origen="real" | "sintetico", ruta_dataset=...)`. Con `real` se comporta exactamente como hoy (Excel, `baseline_metrics.json`). Con `sintetico` lee el CSV sintético, lo adapta con `app/sintetico/adaptador.py` a las columnas que espera `preparar_features(..., expandir_lecturas=False)` y sigue el mismo camino (split agrupado por paciente 80/20 con `GroupShuffleSplit`, `construir_pipeline`, regresión logística, `guardar_artefactos`). No llama a `cargar_summary_crudo` ni lee los 109 registros reales.
 - **Sin SMOTE-NC** (`construir_pipeline(X, y, usar_smote=False)`; el modelo real mantiene `usar_smote=True`). Medido en validación cruzada agrupada con el dataset canónico: con SMOTE-NC el AUC baja de 0,783 a 0,722 y la probabilidad media predicha sube de 0,150 (la prevalencia real) a 0,340 (p95 0,86), es decir, distorsiona la escala de las probabilidades que la demo va a mostrar. Con 15 % de prevalencia y ~300 positivos no hace falta. Tampoco se usa `class_weight`.
 - **Sin términos de interacción** (decisión del usuario, S3). La regresión logística no aprende las 2 interacciones, pero añadirlas no mejora el AUC de forma medible (0,782 con ellas frente a 0,783 sin ellas; con toda la forma no lineal de las reglas, 0,786; reglas verdaderas, 0,794). Se pierde ~0,010 de AUC respecto de las reglas verdaderas, atribuible sobre todo a ruido de estimación.
-- **Artefactos propios** en `app/artefactos/demo/`: `modelo_hipoglucemia_demo.pkl` (ignorado por git) y `modelo_hipoglucemia_demo.json` (versionado) con los campos del JSON real más `version_modelo: "1.0.0-demo"`, `entrenado_con: "sintetico"`, `version_reglas`, `semilla` del dataset, huella del CSV y una `advertencia` ("sus métricas NO son desempeño clínico"). Las métricas del JSON son las del split y se rotulan "validación sintética, no clínica".
+- **Artefactos propios** en `app/artefactos/demo/`: `modelo_hipoglucemia_demo.pkl` (ignorado por git) y `modelo_hipoglucemia_demo.json` (versionado) con los campos del JSON real más `version_modelo: "1.1.0"` (antes `1.0.0-demo`, ADR-0011), `entrenado_con: "sintetico"`, `version_reglas`, `semilla` del dataset, huella del CSV y una `advertencia` ("sus métricas NO son desempeño clínico"). Las métricas del JSON son las del split y se rotulan "validación sintética, no clínica".
 - **Validación sintética aparte:** `app/train_demo.py` (`python -m app.train_demo`) entrena y además corre la validación cruzada agrupada por paciente (el mismo esquema y el mismo bootstrap que `cv_evaluacion.py`), y escribe `app/artefactos/demo/cv_metrics_demo.json`, rotulado "no es desempeño clínico": AUC del modelo con intervalo, AUC de las reglas verdaderas con intervalo (recalculadas desde el CSV y los metadatos del dataset), cuánto recupera el modelo, y los coeficientes aprendidos con intervalo por bootstrap de pacientes. **No toca `cv_metrics.json` ni `baseline_metrics.json`.**
 - **Controles:** los coeficientes de género, hipertensión, dislipidemia, neuropatía y cardiovascular no tienen sesgo (media ≈ 0 en datasets independientes), pero con n = 2.000 su desviación es 0,13 a 0,18, así que en una muestra concreta pueden superar |0,15|. El reporte los publica con su intervalo; no se cambia el tamaño ni la semilla del dataset canónico para que salgan mejor.
 - **Rechazos:** `origen="sintetico"` solo acepta un CSV cuyas filas tengan `origen == "sintetico"` e ids `sint-`, y escribe solo en `artefactos/demo/`.
@@ -406,7 +420,7 @@ Todos los errores responden `{"detail": "<mensaje genérico en español>"}` y nu
 1. Nunca mezclar filas sintéticas con las 109 reales (ni en entrenamiento, ni en validación, ni en archivos).
 2. Nunca evaluar el modelo de demo con datos sintéticos y presentarlo como desempeño clínico.
 3. Nunca usar el modelo de demo salvo con `ML_MODELO=demo` (por defecto, `real`).
-4. El modelo de demo y sus metadatos llevan versión propia (`1.0.0-demo`) y `entrenado_con: "sintetico"`; el dataset lleva la columna `origen = "sintetico"`.
+4. El modelo de demo y sus metadatos llevan versión propia (`1.1.0`, neutra: ver ADR-0011) y `entrenado_con: "sintetico"`; el dataset lleva la columna `origen = "sintetico"`.
 
 ## App móvil: integración con el backend
 La app (`mobile/`, Expo SDK 58, React Native, TypeScript) dejó de ser solo maqueta: cuatro flujos hablan con los servicios reales y el resto sigue simulado. Esta sección es la fuente de verdad de esa integración (TASK-031, TASK-032, TASK-021 a TASK-024, TASK-033).
@@ -874,4 +888,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.12.0 | 2026-10-30 | Fase Móvil 5 (TASK-055 a TASK-060): cierre de pendientes de la app antes de ML y chatbot. Umbrales clínicos en un solo módulo con **70-180 mg/dL como rango oficial** (decisión del usuario); PDF del reporte del médico generado en el dispositivo (`expo-print` + `expo-sharing`) en lugar de `POST /api/paciente/pdf`; retirada de restos estáticos (`ConfiguracionMenu`, banner de protocolo, exportar, versión falsa); módulo de medidas y escalado con ancho máximo, zona segura y límite de fuente; robustez de sesión, red, doble envío, teclado y accesibilidad; aviso de registro con fallo parcial. Sin cambios en backend, NLP ni ML. |
 | 1.13.0 | 2026-10-31 | Fase Chatbot-Front (TASK-061 a TASK-066): efecto de escritura de presentación (`revelado.ts`, `CHAT_ANIMACION`, aviso médico siempre completo), retiro de lo falso del chat (guía de carbohidratos, dictado, «leído», «personalizada»), accesibilidad y vistas, `testID` normalizados (`normalizarTestId`) y recomendación «2 horas» solo después de comer (decisión del usuario). Sin cambios en el contrato del NLP ni en el backend. |
 | 1.14.0 | 2026-11-01 | Registro de glucosa por el médico (TASK-067): pantalla `RegistroTomaMedico` desde el detalle del paciente, `registrarGlucosaMedico` (`POST /api/medicos/registrar/glucosa`), clasificación en el cliente, alerta atribuida al médico asignado con texto para el médico y aviso de lectura posiblemente guardada. Sin cambios en el backend. |
+| 1.15.0 | 2026-11-02 | Fase ML-1 (TASK-017, ADR-0011): integración backend ↔ ML en el registro de glucosa del médico: `riesgo_ml` aditivo (con motivos y supuestos), regla tipo 2, duración por defecto de 6,5 años (mediana del conjunto sintético, estimada), cliente `httpx` aislado con timeout, `ML_ENABLED` apagado por defecto, `ML_MODELO=demo` en Compose y versión del modelo sintético `1.1.0`. Sin cambios de esquema ni del contrato público del ML. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |

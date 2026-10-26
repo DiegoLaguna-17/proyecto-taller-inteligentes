@@ -192,7 +192,7 @@ def test_el_modelo_entrenado_predice_con_el_cargador_en_modo_demo(tmp_path, csv_
          "categoria_medicacion": "insulina", "hba1c": 6.5}, str(base), "demo")
 
     assert 0.0 < p < 1.0
-    assert version == "1.0.0-demo"
+    assert version == "1.1.0"
 
 
 # --- Rechazo de datasets que no sean sinteticos --------------------------------------

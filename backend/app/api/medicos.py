@@ -7,6 +7,8 @@ from app.schemas.medicos import ResponderAlertaBody, RegistrarGlucosaMedicoBody
 import app.core.supabase as sb
 from app.core.security import hash_password
 from app.core.audit import registrar_auditoria
+from app.core.config import settings
+from app.services.ml_client import calcular_riesgo_ml
 
 router = APIRouter(prefix="/api/medicos", tags=["medicos"])
 
@@ -460,11 +462,18 @@ async def registrar_glucosa_medico(req_body: RegistrarGlucosaMedicoBody, request
         id_reg = registro_glucosa.get("id") or registro_glucosa.get("id_registro")
 
         await registrar_auditoria(request, rol="medico", status_code=200, id_rol=req_body.id_medico)
-        return {
+        respuesta = {
             "message": "Registro insertado correctamente",
             "id_registro": id_reg,
             "registro_glucosa": registro_glucosa,
         }
+        # Riesgo informativo del ML (ADR-0011): la lectura YA está guardada; calcular_riesgo_ml nunca lanza y
+        # con ML_ENABLED=false la respuesta es exactamente la de siempre (sin la clave `riesgo_ml`).
+        if settings.ML_ENABLED:
+            respuesta["riesgo_ml"] = await calcular_riesgo_ml(
+                req_body.id_paciente, req_body.nivel_glucosa, req_body.id_momento, req_body.fecha
+            )
+        return respuesta
     except Exception as err:
         return JSONResponse(status_code=500, content={"error": str(err)})
 

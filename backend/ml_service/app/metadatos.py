@@ -34,7 +34,8 @@ NOMBRE_METADATOS_DEMO = "modelo_hipoglucemia_demo.json"
 NOMBRE_CV_DEMO = "cv_metrics_demo.json"
 
 ENTRENADO_CON_SINTETICO = "sintetico"
-SUFIJO_VERSION_DEMO = "-demo"
+# Versión del modelo sintético: neutra (sin la palabra «demo», ADR-0011); la trazabilidad está en `entrenado_con`.
+VERSION_MODELO_SINTETICO = "1.1.0"
 
 LIBRERIAS = ("scikit-learn", "imbalanced-learn", "numpy", "scipy", "pandas", "joblib", "openpyxl")
 
@@ -141,11 +142,11 @@ def _comprobar_modo(metadatos: dict, modo: str) -> None:
     Un modelo de demo solo se carga en modo demo y uno real solo en modo real,
     aunque alguien copie los archivos a la carpeta equivocada (ADR-0009).
     """
+    # La marca es `entrenado_con` (ya no el sufijo «-demo» de la versión, ADR-0011)
     sintetico = metadatos.get("entrenado_con") == ENTRENADO_CON_SINTETICO
-    version_demo = str(metadatos.get("version_modelo", "")).endswith(SUFIJO_VERSION_DEMO)
-    if modo == MODO_DEMO and not (sintetico and version_demo):
+    if modo == MODO_DEMO and not sintetico:
         raise ModeloNoDisponible("modo_incompatible")
-    if modo == MODO_REAL and (sintetico or version_demo):
+    if modo == MODO_REAL and sintetico:
         raise ModeloNoDisponible("modo_incompatible")
 
 

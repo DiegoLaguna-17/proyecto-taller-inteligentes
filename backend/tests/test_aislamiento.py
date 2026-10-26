@@ -130,9 +130,43 @@ def test_archivos_de_configuracion_terminan_en_salto_de_linea(nombre):
     assert (BACKEND / nombre).read_bytes().endswith(b"\n")
 
 
+# Variables del CLIENTE del servicio de ML que el backend sí lee (ADR-0011). Las del propio servicio de ML
+# (ML_MODELO, ML_ARTEFACTOS_DIR, ML_LOG_LEVEL, ML_ENABLE_DOCS) y las del NLP siguen sin ir en el .env del backend.
+VARIABLES_CLIENTE_ML = {"ML_ENABLED", "ML_URL", "ML_TIMEOUT", "ML_DURACION_DEFECTO_ANIOS"}
+
+
 def test_env_example_declara_las_variables_que_lee_config():
     variables = set(re.findall(r"^([A-Z_]+)=", (BACKEND / ".env.example").read_text(encoding="utf-8"), re.MULTILINE))
-    leidas = set(re.findall(r'os\.getenv\("([A-Z_]+)"', (APP_DIR / "core" / "config.py").read_text(encoding="utf-8")))
+    texto_config = (APP_DIR / "core" / "config.py").read_text(encoding="utf-8")
+    leidas = set(re.findall(r'(?:os\.getenv|_bool_env|_float_env)\("([A-Z_]+)"', texto_config))
 
     assert leidas <= variables, f"variables de config.py que faltan en .env.example: {sorted(leidas - variables)}"
-    assert not [v for v in variables if v.startswith(("NLP_", "ML_", "CHATBOT_"))]  # esas son de sus servicios
+    assert VARIABLES_CLIENTE_ML <= variables
+    assert not [v for v in variables if v.startswith(("NLP_", "CHATBOT_"))]  # esas son de sus servicios
+    assert not [v for v in variables if v.startswith("ML_") and v not in VARIABLES_CLIENTE_ML]  # solo las del cliente
+
+
+def test_el_cliente_de_ml_solo_usa_http_y_no_importa_el_servicio_de_ml():
+    texto = (APP_DIR / "services" / "ml_client.py").read_text(encoding="utf-8")
+    assert "import httpx" in texto
+    assert not re.search(r"^\s*(?:from|import)\s+(?:ml_service|app\.ml)", texto, re.MULTILINE)
+    for libreria in LIBRERIAS_DE_ML:
+        assert not re.search(rf"^\s*(?:from|import)\s+{libreria}", texto, re.MULTILINE), libreria
+
+
+def _bloque_compose(servicio: str) -> str:
+    compose = (BACKEND.parent / "docker-compose.yml").read_text(encoding="utf-8")
+    m = re.search(rf"^  {servicio}:\n(.*?)(?=^  \S|^\S)", compose, re.MULTILINE | re.DOTALL)
+    assert m, servicio
+    return m.group(1)
+
+
+def test_el_ml_no_publica_puertos_y_solo_esta_en_la_red_interna():
+    ml = _bloque_compose("ml_service")
+    assert not re.search(r"^\s+ports:", ml, re.MULTILINE)  # sin ports publicados
+    assert "networks:[red_ml]" in ml.replace(" ", "")
+    compose = (BACKEND.parent / "docker-compose.yml").read_text(encoding="utf-8")
+    assert re.search(r"red_ml:\s*\n\s+internal: true", compose)  # red sin salida ni acceso desde el host
+    backend = _bloque_compose("backend")
+    assert "red_ml" in backend and "ML_URL: http://ml_service:8002" in backend
+    assert "ML_ENABLED" not in re.sub(r"#.*", "", backend)  # se activa en backend/.env, no en Compose

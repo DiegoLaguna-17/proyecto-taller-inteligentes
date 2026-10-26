@@ -17,8 +17,8 @@
 #   3. Prueba GET /health y POST /api/riesgo/hipoglucemia con un paciente SIMULADO
 #      (valores inventados): 200, solo las claves del contrato {riesgo_hipoglucemia,
 #      version_modelo}, probabilidad entre 0 y 1, y que el cuerpo no diga "demo" ni
-#      "sintetico" (el contrato publico no revela el modelo; solo el sufijo "-demo"
-#      de version_modelo).
+#      "sintetico" (el contrato publico no revela el modelo; la version del sintetico es neutra, 1.1.0
+#      como version_modelo).
 #   4. Prueba una entrada invalida: 422 generico que no repite lo enviado.
 #   5. Se apaga solo al terminar (tambien si algo falla).
 #
@@ -156,7 +156,7 @@ version = r.pop('version_modelo', None)
 claves_ok = set(r) == {'riesgo_hipoglucemia'} and version
 rango_ok = claves_ok and isinstance(r['riesgo_hipoglucemia'], float) and 0 <= r['riesgo_hipoglucemia'] <= 1
 sin_palabras = not re.search(r'demo|sint[eé]tic', json.dumps(r), re.I)
-sufijo_ok = str(version).endswith('-demo') == (os.environ['MODELO'] == 'demo')
+sufijo_ok = 'demo' not in str(version).lower() and (str(version) == '1.1.0') == (os.environ['MODELO'] == 'demo')
 sys.exit(0 if rango_ok and sin_palabras and sufijo_ok else 1)
 "; then
     echo "FALLO: la respuesta no tiene la forma {riesgo_hipoglucemia (0-1), version_modelo}, trae campos de mas, o la version no corresponde al modelo (${MODELO})."

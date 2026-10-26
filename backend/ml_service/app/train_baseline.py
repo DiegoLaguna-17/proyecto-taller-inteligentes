@@ -57,7 +57,7 @@ from app.metadatos import (
     MODO_DEMO,
     MODO_REAL,
     NOMBRE_MODELO,
-    SUFIJO_VERSION_DEMO,
+    VERSION_MODELO_SINTETICO,
     escribir_metadatos,
     ruta_modelo,
     sha256_archivo,
@@ -73,7 +73,7 @@ METRICAS_PATH = os.path.join(ARTEFACTOS_DIR, "baseline_metrics.json")
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
 VERSION_MODELO = "1.0.0"
-VERSION_MODELO_DEMO = "1.0.0" + SUFIJO_VERSION_DEMO
+VERSION_MODELO_DEMO = VERSION_MODELO_SINTETICO  # neutra: sin «demo» (ADR-0011)
 ORIGENES = ("real", "sintetico")
 RUTA_DATASET_SINTETICO = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "sintetico", "dataset_sintetico.csv"

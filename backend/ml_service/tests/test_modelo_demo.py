@@ -73,7 +73,8 @@ def test_con_demo_se_sirve_el_modelo_de_demo(ambos, monkeypatch):
     p, version = predecir_con_version(PERFIL)
 
     assert 0.0 <= p <= 1.0
-    assert version == "1.0.0-demo"
+    assert version == "1.1.0"
+    assert "demo" not in version
 
 
 def test_los_dos_modelos_son_distintos(ambos):
@@ -132,10 +133,19 @@ def test_un_demo_con_metadatos_de_otro_modo_no_pasa(ambos):
     assert _motivo(ambos, "demo") == "modo_incompatible"
 
 
-def test_un_demo_con_version_sin_sufijo_no_pasa(ambos):
+def test_el_modo_se_decide_por_entrenado_con_y_no_por_la_version(ambos):
+    """ADR-0011: la version del sintetico es neutra; la marca que protege la carga es `entrenado_con`."""
     ruta = ambos / SUBCARPETA_DEMO / NOMBRE_METADATOS_DEMO
     meta = json.loads(ruta.read_text(encoding="utf-8"))
-    meta["version_modelo"] = "1.0.0"
+    meta["version_modelo"] = "9.9.9"
+    ruta.write_text(json.dumps(meta), encoding="utf-8")
+    assert predecir_con_version(PERFIL, str(ambos), "demo")[1] == "9.9.9"  # la version no decide el modo
+
+
+def test_un_demo_sin_entrenado_con_sintetico_no_se_sirve(ambos):
+    ruta = ambos / SUBCARPETA_DEMO / NOMBRE_METADATOS_DEMO
+    meta = json.loads(ruta.read_text(encoding="utf-8"))
+    meta["entrenado_con"] = "real"
     ruta.write_text(json.dumps(meta), encoding="utf-8")
 
     assert _motivo(ambos, "demo") == "modo_incompatible"
@@ -192,8 +202,8 @@ def test_los_metadatos_de_demo_tienen_todos_los_campos(ambos):
 
     assert set(CAMPOS_OBLIGATORIOS_DEMO) <= set(meta)
     assert meta["entrenado_con"] == "sintetico"
-    assert meta["version_modelo"].endswith("-demo")
-    assert meta["version_modelo"] == "1.0.0-demo"
+    assert meta["version_modelo"] == "1.1.0"
+    assert "demo" not in meta["version_modelo"].lower()
     assert meta["sha256_pkl"] == sha256_archivo(str(ambos / SUBCARPETA_DEMO / NOMBRE_MODELO_DEMO))
     assert meta["semilla_dataset"] == 3 and meta["version_reglas"]
     assert meta["random_state"] == 42
@@ -214,7 +224,7 @@ def test_el_modelo_real_no_declara_entrenado_con_sintetico(ambos):
     meta = json.loads((ambos / NOMBRE_METADATOS).read_text(encoding="utf-8"))
 
     assert meta.get("entrenado_con") != "sintetico"
-    assert not meta["version_modelo"].endswith("-demo")
+    assert meta["version_modelo"] == "1.0.0"
 
 
 # --- Endpoint: seleccion sin cambiar el contrato publico ------------------------
@@ -229,7 +239,8 @@ def test_la_api_con_demo_responde_con_version_demo_y_el_mismo_contrato(ambos, mo
 
     assert respuesta.status_code == 200
     assert set(respuesta.json()) == {"riesgo_hipoglucemia", "version_modelo"}  # el campo 'modo' llega en S4
-    assert respuesta.json()["version_modelo"] == "1.0.0-demo"
+    assert respuesta.json()["version_modelo"] == "1.1.0"
+    assert "demo" not in respuesta.text.lower()
     assert salud.json()["modelo_cargado"] is True
 
 

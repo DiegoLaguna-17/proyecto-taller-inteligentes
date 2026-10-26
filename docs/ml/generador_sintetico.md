@@ -16,7 +16,7 @@ El equipo no tiene pacientes reales y necesita **mostrar el flujo integrado** (l
 1. **Nunca** mezclar filas sintéticas con las 109 reales: ni para entrenar, ni para validar, ni en el mismo archivo. El generador no lee ni importa nada de `backend/ml_service/data/raw/`.
 2. **Nunca** evaluar el modelo de demo con datos sintéticos y presentar el resultado como desempeño clínico. Las métricas de demo se rotulan siempre "validación sintética, no clínica".
 3. **Nunca** usar el modelo de demo salvo con `ML_MODELO=demo` (por defecto es `real`).
-4. El modelo de demo y sus metadatos llevan **versión propia** (`1.0.0-demo`) y `entrenado_con: "sintetico"`. El dataset lleva la columna `origen = "sintetico"` en cada fila.
+4. El modelo de demo y sus metadatos llevan **versión propia** (`1.1.0`) y `entrenado_con: "sintetico"`. El dataset lleva la columna `origen = "sintetico"` en cada fila.
 5. Los artefactos de demo viven aparte (`backend/ml_service/app/artefactos/demo/`); nunca se escribe en `app/artefactos/` del modelo real, ni en `baseline_metrics.json` ni en `cv_metrics.json`.
 6. El dataset sintético no contiene identificadores ni valores copiados de los registros reales; sus ids tienen el prefijo `sint-`.
 7. La API **no** declara qué modelo sirve (decisión del equipo, S4): ni la respuesta ni `/health` incluyen el modo, y ningún mensaje contiene "demo" ni "sintético" (solo el sufijo `-demo` de `version_modelo`). La trazabilidad está en los metadatos, en `ML_MODELO` (por defecto `real`) y en la documentación.
@@ -174,7 +174,7 @@ El JSON junto al `.pkl` de demo (`backend/ml_service/app/artefactos/demo/`) tien
 
 | Campo | Valor |
 |---|---|
-| `version_modelo` | `1.0.0-demo` |
+| `version_modelo` | `1.1.0` |
 | `entrenado_con` | `sintetico` |
 | `version_reglas` | la del dataset |
 | `dataset.sha256` | huella del CSV sintético |

@@ -1,5 +1,7 @@
 # 9. Modelo de demo con datos sintéticos
 
+> **Actualización (ADR-0011, 2026-11-02):** la `version_modelo` del modelo sintético pasó de `1.0.0-demo` a `1.1.0` (sin «demo») y el chequeo de modo al cargar usa `entrenado_con: "sintetico"` en lugar del sufijo de la versión. Lo demás de esta ADR sigue vigente.
+
 * **Estado:** Aceptado
 * **Fecha de decisión:** 2026-10-25 (actualizada el mismo día en la Fase S4: el contrato público no cambia)
 * **Autores:** Equipo GlucoTracker (aprobada por el equipo en las Fases S2 y S4)

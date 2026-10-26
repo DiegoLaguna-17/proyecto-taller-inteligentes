@@ -1,6 +1,6 @@
 # Integración backend ↔ ML — auditoría (Fase ML-0, solo lectura)
 
-> **Estado:** auditoría y propuesta; **no se implementó nada** (ni backend, ni ML, ni app). Fecha: 2026-11-01. Evidencia: código de `backend/ml_service/`, `backend/app/`, design.md, ADR-0008/0009/0010, `docs/ml/generador_sintetico.md`, `docs/data_ecosystem.md` y **solo lecturas (GET)** de la base real, impresas únicamente como catálogos, conteos y categorías (nunca nombres, correos, teléfonos, C.I. ni valores clínicos individuales).
+> **Estado:** auditoría (Fase ML-0, 2026-11-01) **e implementación (Fase ML-1, 2026-11-02, ADR-0011)**. Las secciones 1 a 9 describen la auditoría; la sección 10 describe lo implementado y trae los ejemplos de respuesta para la pantalla del médico. Donde la auditoría proponía otra cosa (p. ej. `duracion_diabetes` como `datos_insuficientes`), manda el ADR-0011. Evidencia: código de `backend/ml_service/`, `backend/app/`, design.md, ADR-0008/0009/0010, `docs/ml/generador_sintetico.md`, `docs/data_ecosystem.md` y **solo lecturas (GET)** de la base real, impresas únicamente como catálogos, conteos y categorías (nunca nombres, correos, teléfonos, C.I. ni valores clínicos individuales).
 
 ## 0. Resumen ejecutivo
 
@@ -39,7 +39,7 @@
 | | Real (`ML_MODELO=real`, por defecto) | Sintético (`ML_MODELO=demo`) |
 |---|---|---|
 | Datos | ShanghaiT2DM: 193 filas, 97 pacientes, 17 filas positivas | 2.000 filas generadas por reglas clínicas escritas por el equipo (15 % positivas) |
-| `version_modelo` | `1.0.0` | **`1.0.0-demo`** |
+| `version_modelo` | `1.0.0` | `1.1.0` desde la Fase ML-1 (antes `1.0.0-demo`; ADR-0011) |
 | Rendimiento | AUC 0,640 en el split; validación cruzada agrupada: **no supera el azar** | AUC 0,786 (split) y 0,783 (CV): **mide las reglas del equipo, no la realidad** |
 | Técnica | Regresión logística + SMOTE-NC | Regresión logística sin SMOTE-NC ni interacciones |
 | Metadatos extra | huella `sha256_pkl`, versiones, conteos, dataset | además `entrenado_con: "sintetico"`, `version_reglas`, `semilla_dataset`, `advertencia`, rótulo «validación sintética, no clínica» |
@@ -156,7 +156,7 @@ Si se aceptara `duracion_diabetes` desconocida y las comorbilidades como `false`
   "registro_glucosa": { "...": "sin cambios" },
   "riesgo_ml": {
     "riesgo_hipoglucemia": 0.1234,
-    "version_modelo": "1.0.0-demo",
+    "version_modelo": "1.1.0",
     "motivo": null
   }
 }
@@ -191,3 +191,63 @@ Cuando no se calcula: `{"riesgo_hipoglucemia": null, "version_modelo": null, "mo
 | 7 | ¿Se amplía el catálogo `tratamientos` (hoy Insulina y Metformina) para poder representar sulfonilureas y «ninguno»? | Sí, si se quiere que el modelo distinga la medicación; si no, aceptar la limitación |
 | 8 | ¿Cómo se redacta y se presenta el resultado al médico (número, categorías o solo texto)? | Texto de la sección 8.3, sin cortes ni porcentajes hasta definir ML-D4 |
 | 9 | ¿Se activa antes de resolver la autenticación (RB-01)? | No en un despliegue real; sí solo en una red local de desarrollo y con el modelo sintético |
+
+## 10. Implementado en la Fase ML-1 (ADR-0011) y ejemplos de respuesta
+
+**Qué hace.** `POST /api/medicos/registrar/glucosa` guarda la lectura y, con `ML_ENABLED=true`, añade la clave `riesgo_ml` (solo lectura de Supabase; no se guarda nada más). Con `ML_ENABLED=false` (por defecto) la respuesta es exactamente la anterior. El registro del paciente no cambia.
+
+| Pieza | Dónde |
+|---|---|
+| Reglas y armado de la entrada (puras) | `backend/app/services/ml_reglas.py` |
+| Cliente `httpx` y orquestación (nunca lanza) | `backend/app/services/ml_client.py` |
+| Integración mínima | `backend/app/api/medicos.py` (`registrar_glucosa_medico`) |
+| Configuración | `backend/app/core/config.py` y `backend/.env.example`: `ML_ENABLED=false`, `ML_URL=http://ml_service:8002`, `ML_TIMEOUT=2.0`, `ML_DURACION_DEFECTO_ANIOS=6.5` |
+| Compose | `docker-compose.yml` (variables `ML_*` del backend y `ML_MODELO` con valor por defecto `demo` en el `ml_service`, que **sigue sin `ports`**), `docker-compose.prueba.yml` y `.env.example` raíz |
+| Modelo sintético | `version_modelo` pasa a `1.1.0` (sin «demo»); `entrenado_con: "sintetico"` en los metadatos |
+
+**Valor por defecto de la duración:** `ML_DURACION_DEFECTO_ANIOS = 6,5` años. Origen: **mediana de `duracion_diabetes` del dataset sintético canónico** con que se entrenó el modelo (`backend/ml_service/data/sintetico/dataset_sintetico.csv`, 2.000 registros, semilla 20261024; media 8,2; percentiles 5 y 95: 0,9 y 21,9; mínimo 0 y máximo 40). Está dentro del rango del contrato (0 a 80) y del de entrenamiento (0 a 40). **Es una estimación, no un dato del paciente**: siempre se declara con el supuesto `duracion_estimada`.
+
+**Decisiones de implementación que conviene conocer:**
+- Sin ningún tratamiento registrado (o con nombres sin equivalente, p. ej. «Dieta») la medicación **no** se asume `ninguno`: da `datos_insuficientes`, porque no se distingue «no toma nada» de «no está registrado».
+- Orden de decisión: tipo → momento → datos obligatorios. El momento se mapea por el id del catálogo (`1` ayunas, `2` después de comer → `postprandial`; `3` y cualquier otro → `momento_no_cubierto`).
+- El género usa una lista estricta (`masculino`, `hombre`, `varón`, `femenino`, `mujer`); cualquier otro valor → `datos_insuficientes`.
+- Puntos de extensión (sin tabla ni columna hoy): `armar_entrada(..., extras={"anio_diagnostico": ..., "comorbilidades": {...}})` calcula la duración real y usa las comorbilidades reales y entonces **omite** los supuestos `duracion_estimada` y `comorbilidades_no_capturadas` (TASK-017h).
+
+**Ejemplos de respuesta (JSON ficticio).** Para la pantalla del médico (fase siguiente): leer `riesgo_ml` solo si existe (si el backend tiene `ML_ENABLED=false` la clave no llega), mostrar el número solo si `riesgo_hipoglucemia` no es `null` y **no mostrar `version_modelo`**.
+
+Con riesgo (paciente tipo 2, lectura de 62 mg/dL en ayunas):
+```json
+{
+  "message": "Registro insertado correctamente",
+  "id_registro": 123,
+  "registro_glucosa": { "id_registro": 123, "id_paciente": 5, "id_medico": 3, "id_momento": 1, "fecha": "2026-11-02", "hora": "08:30:00", "nivel_glucosa": 62, "observaciones": null },
+  "riesgo_ml": {
+    "riesgo_hipoglucemia": 0.3594,
+    "version_modelo": "1.1.0",
+    "motivo": null,
+    "supuestos": ["duracion_estimada", "comorbilidades_no_capturadas", "hba1c_no_disponible"]
+  }
+}
+```
+Sin riesgo (paciente tipo 1; también `datos_insuficientes`, `momento_no_cubierto` y `no_disponible` con el mismo formato):
+```json
+{
+  "message": "Registro insertado correctamente",
+  "id_registro": 124,
+  "registro_glucosa": { "id_registro": 124, "id_paciente": 8, "id_medico": 3, "id_momento": 1, "fecha": "2026-11-02", "hora": "08:35:00", "nivel_glucosa": 110, "observaciones": null },
+  "riesgo_ml": { "riesgo_hipoglucemia": null, "version_modelo": null, "motivo": "no_aplica_tipo", "supuestos": [] }
+}
+```
+Con `ML_ENABLED=false` (sin la clave nueva, idéntico a antes):
+```json
+{
+  "message": "Registro insertado correctamente",
+  "id_registro": 125,
+  "registro_glucosa": { "id_registro": 125, "id_paciente": 5, "id_medico": 3, "id_momento": 2, "fecha": "2026-11-02", "hora": "14:10:00", "nivel_glucosa": 140, "observaciones": null }
+}
+```
+Textos sugeridos por motivo (para la app): `no_aplica_tipo` «Solo se estima el riesgo en pacientes con diabetes tipo 2 sin embarazo»; `datos_insuficientes` «Faltan datos del paciente (género, fecha de nacimiento, peso, altura o tratamiento)»; `momento_no_cubierto` «Solo se estima para lecturas en ayunas o después de comer»; `no_disponible` «La estimación no está disponible en este momento». Si `supuestos` no está vacío, mostrar que se usaron datos estimados (duración de la diabetes), que no se capturaron las comorbilidades ni la HbA1c, y el rótulo **«Estimación experimental, no clínica»**.
+
+**Verificación (Fase ML-1).** Suite del backend 142 pruebas (87 previas + 55 nuevas, con el ML simulado y Supabase simulado) y suite del `ml_service` 238 pruebas (237 previas + 1). Humo con un contenedor temporal del ML (modelo sintético, `1.1.0`, sin puertos publicados, en `red_ml`) y un payload ficticio armado por `armar_entrada` desde un contenedor del backend: 200, `{riesgo_hipoglucemia: float, version_modelo: "1.1.0"}`, latencia **mediana 34 ms, p95 87 ms** (n = 30, una conexión nueva por llamada); un ML inalcanzable da `MLNoDisponible(ConnectError)`. No se escribió nada en Supabase ni se llamó al endpoint real.
+
+**Activarlo (equipo):** en `backend/.env` poner `ML_ENABLED=true`, levantar con `ML_MODELO=demo` (por defecto en Compose) y haber ejecutado antes `docker compose run --rm ml_entrenar_demo`. No hay pasos manuales en Supabase.

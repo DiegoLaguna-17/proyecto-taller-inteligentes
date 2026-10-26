@@ -1,10 +1,10 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-11-01 — Session 28
+> Last updated: 2026-11-02 — Session 29
 
 ## ⚡ Resume from here
 
-**Active task:** TASK-017 (rediseñada en la Fase ML-0, subtareas 017a a 017h, todas pendientes): integrar el ML en el registro de glucosa del médico. Decisiones abiertas en `docs/ml/integracion_backend_ml.md` §9.
+**Active task:** TASK-017 (Fase ML-1): integración backend ↔ ML en `POST /api/medicos/registrar/glucosa` (ADR-0011). 017h (captura de `anio_diagnostico` y comorbilidades) queda pendiente.
 **Phase:** Phase 3-4: Lógica de Negocio y API (backend de Adrian fusionado; ML y NLP como servicios aparte)
 **Status:** in progress — backend fusionado y verificado (87 + 237 + 90 pruebas); contrato y esquema del backend por reconciliar con design.md (TASK-029)
 **Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
@@ -19,6 +19,7 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 29 | 2026-11-02 | Fase ML-1 (TASK-017, ADR-0011): documentación primero (ADR-0011, design.md 1.15.0, tasks.md) e integración backend ↔ ML en el registro del médico. | docs/adr/0011-integracion-backend-ml.md, design.md, tasks.md, CONTEXT.md, backend/ |
 | 28 | 2026-11-01 | Fase ML-0 (solo lectura): auditoría de la integración backend ↔ ML en `docs/ml/integracion_backend_ml.md` (contrato, esquema real, correspondencias, regla tipo 2 con conteos reales, diseño, riesgos y decisiones abiertas). TASK-017 rediseñada y dividida en 017a a 017h. Sin cambios de código. | docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
 | 27 | 2026-11-01 | Registro de glucosa por el médico (TASK-067), solo `mobile/`: pantalla `RegistroTomaMedico`, servicio `registrarGlucosaMedico`, alerta atribuida al médico asignado y hallazgos del endpoint para Adrian. Spec primero (design.md 1.14.0, tasks.md). | design.md, tasks.md, CONTEXT.md |
 | 26 | 2026-10-31 | Fase Chatbot-Front (TASK-061 a TASK-066), solo `mobile/`: efecto de escritura de presentación, retiro de lo falso del chat, accesibilidad, `testID` normalizados y recomendación «2 horas» solo después de comer. 186 pruebas (15 nuevas), `tsc` y `expo export` (903 módulos) en verde; humo del NLP con proveedor falso. | design.md 1.13.0, tasks.md, CONTEXT.md, `mobile/` |
@@ -151,6 +152,11 @@ Pendientes del backend de negocio (`backend/app/`) encontrados al conectar la ap
     - `GET /pacientes/perfil/{id}` y `GET /medicos/perfil/{id}` devuelven 500 (no 404) para un id inexistente.
     - Al conectar el ML, `POST /medicos/registrar/glucosa` (sin autenticación, RB-01) permitiría **obtener el riesgo calculado de cualquier paciente con solo su id**; hay que autenticar y validar la pertenencia antes de un despliegue real.
     - `design.md` lista `perfiles_pacientes` como tabla; en el código es un bucket de Storage.
+
+21. **Integración con el ML implementada (Fase ML-1, ADR-0011):**
+    - `POST /medicos/registrar/glucosa` ya llama al ML con `ML_ENABLED=true`: sin autenticación ni validación de pertenencia, cualquiera obtiene un riesgo calculado de un paciente con solo su id (RB-01). Activar solo en una red local de desarrollo.
+    - El riesgo usa una **duración estimada** (6,5 años, mediana del conjunto sintético) y comorbilidades en `false`: se declaran en `riesgo_ml.supuestos`. Capturar `paciente.anio_diagnostico` y las comorbilidades (TASK-017h, cambio de esquema) elimina los supuestos; el armador ya tiene el punto de extensión.
+    - El cliente del backend crea una conexión nueva por llamada (mediana 34 ms, p95 87 ms medidos): suficiente; un cliente compartido podría bajarlo.
 
 **Informativa**
 15. **No hay servicio de notificaciones, recordatorios ni biometría:** la app retiró el menú «Configuración y Seguridad» del perfil porque mostraba alertas estáticas ("recordatorios activos", "conexión segura con el portal clínico") sin ningún endpoint detrás.

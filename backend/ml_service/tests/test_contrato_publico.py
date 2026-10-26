@@ -2,8 +2,9 @@
 Contrato publico de la API (Fase S4 reducida, ADR-0009). Decision del equipo:
 el contrato NO cambia y la API no revela que modelo sirve. La respuesta es
 {riesgo_hipoglucemia, version_modelo}, /health es {status, service,
-modelo_cargado}, y ningun mensaje contiene "demo" ni "sintetico" (la unica
-huella es el sufijo "-demo" de version_modelo, que sale de los metadatos).
+modelo_cargado}, y ningun mensaje ni la version contienen "demo" ni "sintetico" (desde ADR-0011
+la version del modelo sintetico es neutra: 1.1.0; la trazabilidad esta en los
+metadatos, en `entrenado_con`).
 """
 import json
 import re
@@ -45,14 +46,15 @@ def test_la_respuesta_200_tiene_solo_las_claves_del_contrato(ambos, monkeypatch,
     assert isinstance(cuerpo["version_modelo"], str)
 
 
-def test_la_version_solo_se_distingue_por_el_sufijo_de_los_metadatos(ambos, monkeypatch):
+def test_la_version_viene_de_los_metadatos_y_no_dice_demo(ambos, monkeypatch):
     versiones = {}
     for modo in ("real", "demo"):
         with TestClient(_cliente(ambos, monkeypatch, modo)) as cliente:
             versiones[modo] = cliente.post(RUTA, json=PERFIL).json()["version_modelo"]
 
     assert re.fullmatch(r"\d+\.\d+\.\d+", versiones["real"])
-    assert re.fullmatch(r"\d+\.\d+\.\d+-demo", versiones["demo"])
+    assert re.fullmatch(r"\d+\.\d+\.\d+", versiones["demo"])  # neutra: sin «demo»
+    assert versiones["demo"] != versiones["real"]  # la trazabilidad no se pierde
 
 
 def test_health_no_revela_el_modo(ambos, monkeypatch):
