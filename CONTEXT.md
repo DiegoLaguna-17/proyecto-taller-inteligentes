@@ -1,10 +1,10 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-10-31 — Session 26
+> Last updated: 2026-11-01 — Session 28
 
 ## ⚡ Resume from here
 
-**Active task:** Fase Chatbot-Front (TASK-061 a TASK-066): pantalla del chatbot terminada (efecto de escritura, sin elementos falsos, accesible, `testID` estables). Spec en design.md § Fase Chatbot-Front.
+**Active task:** TASK-017 (rediseñada en la Fase ML-0, subtareas 017a a 017h, todas pendientes): integrar el ML en el registro de glucosa del médico. Decisiones abiertas en `docs/ml/integracion_backend_ml.md` §9.
 **Phase:** Phase 3-4: Lógica de Negocio y API (backend de Adrian fusionado; ML y NLP como servicios aparte)
 **Status:** in progress — backend fusionado y verificado (87 + 237 + 90 pruebas); contrato y esquema del backend por reconciliar con design.md (TASK-029)
 **Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
@@ -19,6 +19,8 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 28 | 2026-11-01 | Fase ML-0 (solo lectura): auditoría de la integración backend ↔ ML en `docs/ml/integracion_backend_ml.md` (contrato, esquema real, correspondencias, regla tipo 2 con conteos reales, diseño, riesgos y decisiones abiertas). TASK-017 rediseñada y dividida en 017a a 017h. Sin cambios de código. | docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
+| 27 | 2026-11-01 | Registro de glucosa por el médico (TASK-067), solo `mobile/`: pantalla `RegistroTomaMedico`, servicio `registrarGlucosaMedico`, alerta atribuida al médico asignado y hallazgos del endpoint para Adrian. Spec primero (design.md 1.14.0, tasks.md). | design.md, tasks.md, CONTEXT.md |
 | 26 | 2026-10-31 | Fase Chatbot-Front (TASK-061 a TASK-066), solo `mobile/`: efecto de escritura de presentación, retiro de lo falso del chat, accesibilidad, `testID` normalizados y recomendación «2 horas» solo después de comer. 186 pruebas (15 nuevas), `tsc` y `expo export` (903 módulos) en verde; humo del NLP con proveedor falso. | design.md 1.13.0, tasks.md, CONTEXT.md, `mobile/` |
 | 25 | 2026-10-30 | Fase Móvil 5: cierre de pendientes de la app antes de ML y chatbot (TASK-055 a TASK-060). Umbrales en `umbrales.ts` (70-180 oficial, decisión del usuario), PDF del reporte del médico en el dispositivo (`expo-print` + `expo-sharing`), retirada de restos estáticos, `medidas.ts` y ajuste de vistas con capturas web (`react-native-web`, solo revisión), robustez (guarda de doble envío, aviso de registro parcial, perfil con reintento, contraste y accesibilidad) y § Hallazgos para Adrian. 171 pruebas (27 nuevas); `tsc` y `expo export` en verde. | design.md 1.12.0, tasks.md, CONTEXT.md, `mobile/`, `docs/integracion/capturas/` |
 | 24 | 2026-10-29 | Fase Móvil 4: servicios del administrador (`administrador.ts`, `administradorVista.ts`), solicitudes, detalle con documentos y activación, usuarios, auditoría (enmascarada, carga parcial) y perfil; 144 pruebas, `tsc` y `expo export` en verde; ninguna pantalla simulada; acciones sin endpoint deshabilitadas con aviso. Hallazgo: la auditoría devuelve 1000 filas sin orden. TASK-048, 053 y 054 hechas; 049 a 052 `[~]` a falta de celular y activación real. Spec previa: design.md 1.11.0 § Fase Móvil 4 (contrato real del administrador y de la auditoría, qué hace realmente activar, acciones sin endpoint, hallazgos del backend, decisiones), tasks.md TASK-048 a TASK-054, Open Question nueva. | design.md, tasks.md, CONTEXT.md |
@@ -135,6 +137,20 @@ Pendientes del backend de negocio (`backend/app/`) encontrados al conectar la ap
 12. **Códigos de error:** un id inexistente devuelve **500 en lugar de 404** en `GET /pacientes/perfil/{id}`, `GET /medicos/perfil/{id}` y `datosGlucosa` (comprobado con GET reales en la Fase Móvil 5): la app no puede distinguir una sesión con rol o id inválido de un fallo del servidor; `registrarPaciente` devuelve 500 para un correo duplicado en lugar de 409.
 13. **Formatos inconsistentes:** `fechaNac` llega como `aaaa-mm-dd` en médicos y `dd/mm/aaaa` en pacientes y administradores; los datos ausentes del perfil del médico llegan como texto de relleno (`"No registrado"`, `"N/A"`, `"Sistema"`).
 14. **Tipo de la columna `peso` sin documentar** (no hay SQL ni migraciones versionadas): si fuera `numeric(4,2)` un paciente de 100 kg o más desbordaría. La app valida hasta 500 kg y no sabe si el servidor lo admite. La altura ya está confirmada (metros, `numeric(4,2)`).
+
+19. **`POST /medicos/registrar/glucosa` (usado desde la app, TASK-067):**
+    - No hay **marca de origen** explícita: lo único que distingue una lectura del médico es `id_medico` no nulo en `registro_glucosa`. **Para la decisión del ML: las lecturas con `id_medico` no nulo son registradas por el médico, no medidas por el paciente.**
+    - No valida que el paciente pertenezca al médico ni que el médico exista; sin autenticación (RB-01).
+    - Los campos son `Any` (ids y `nivel_glucosa` sin tipo): acepta un `nivel_glucosa` de **0** y no valida el rango; fecha y hora las manda el cliente.
+    - **No genera alertas**: las crea el cliente con `registrarAlerta`, y se atribuyen al médico **asignado** al paciente (que puede no ser quien registró). Si la lectura se guarda y la alerta falla, queda una lectura anómala sin alerta.
+    - El 500 devuelve `str(err)` y la operación no es idempotente (un reintento duplica la lectura).
+
+20. **Integración con el ML (Fase ML-0, `docs/ml/integracion_backend_ml.md`):**
+    - `duracion_diabetes` (obligatoria para el ML) **no existe** en la base y las 6 comorbilidades no se capturan: hoy 0 pacientes tienen todos los datos. El catálogo `enfermedades_base` solo tiene 3 tipos de diabetes y `tratamientos` solo Insulina y Metformina.
+    - `paciente.genero` es texto libre con valores inconsistentes (`mujer`, `MASCULINO`). Una altura de un paciente tipo 2 es implausible (fuera de 1,2 a 2,2 m).
+    - `GET /pacientes/perfil/{id}` y `GET /medicos/perfil/{id}` devuelven 500 (no 404) para un id inexistente.
+    - Al conectar el ML, `POST /medicos/registrar/glucosa` (sin autenticación, RB-01) permitiría **obtener el riesgo calculado de cualquier paciente con solo su id**; hay que autenticar y validar la pertenencia antes de un despliegue real.
+    - `design.md` lista `perfiles_pacientes` como tabla; en el código es un bucket de Storage.
 
 **Informativa**
 15. **No hay servicio de notificaciones, recordatorios ni biometría:** la app retiró el menú «Configuración y Seguridad» del perfil porque mostraba alertas estáticas ("recordatorios activos", "conexión segura con el portal clínico") sin ningún endpoint detrás.

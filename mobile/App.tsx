@@ -49,6 +49,7 @@ import { AuditoriaAdmin } from './src/screens/AuditoriaAdmin/AuditoriaAdmin';
 import { PerfilUsuario } from './src/screens/PerfilUsuario/PerfilUsuario';
 import { EditarPaciente } from './src/screens/EditarPaciente/EditarPaciente';
 import { EditarMedico } from './src/screens/EditarMedico/EditarMedico';
+import { RegistroTomaMedico } from './src/screens/RegistroTomaMedico/RegistroTomaMedico';
 
 type AuthScreen = 'login' | 'register';
 
@@ -156,6 +157,8 @@ export default function App() {
   const [selectedPatient, setSelectedPatient] = useState<PacienteMedico | null>(null);
   const [selectedAdminRequest, setSelectedAdminRequest] = useState<UsuarioAdmin | null>(null);
   const [reportPatientId, setReportPatientId] = useState<number | null>(null);
+  // Médico: paciente por quien se registra una toma (solo pacientes de misPacientes)
+  const [registrandoPaciente, setRegistrandoPaciente] = useState<PacienteMedico | null>(null);
 
   // Restaura la sesión guardada al abrir la app (no aplica en modo simulado)
   useEffect(() => {
@@ -241,6 +244,7 @@ export default function App() {
     setPacientesMedico(null);
     setIsEditarMedicoOpen(false);
     setReportPatientId(null);
+    setRegistrandoPaciente(null);
     setPerfilAdmin(null);
     borrarSesion();
     setAuthScreen('login');
@@ -396,6 +400,18 @@ export default function App() {
         );
       }
 
+      if (registrandoPaciente) {
+        return (
+          <RegistroTomaMedico
+            paciente={registrandoPaciente}
+            idMedico={sesion.id_rol}
+            onBack={() => setRegistrandoPaciente(null)}
+            // Al volver, DetallePaciente se monta de nuevo y recarga el historial
+            onGuardado={() => setRegistrandoPaciente(null)}
+          />
+        );
+      }
+
       if (selectedPatient) {
         return (
           <DetallePaciente
@@ -406,6 +422,9 @@ export default function App() {
               setSelectedPatient(null);
               setActiveTab('Reportes');
             }}
+            onRegistrarToma={
+              pacientesMedico?.some((p) => p.id === selectedPatient.id) ? () => setRegistrandoPaciente(selectedPatient) : undefined
+            }
             onNavigatePerfil={() => setActiveTab('Perfil')}
           />
         );
@@ -522,6 +541,7 @@ export default function App() {
     isRegistrarTomaOpen ||
     isEditarPerfilOpen ||
     isEditarMedicoOpen ||
+    Boolean(registrandoPaciente) ||
     Boolean(selectedPatient) ||
     Boolean(selectedAdminRequest);
 

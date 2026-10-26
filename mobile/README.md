@@ -185,7 +185,7 @@ La app clasifica cada toma (hipoglucemia, normal, hiperglucemia) con una copia f
 - **Responder una alerta** pide confirmación y la pasa a "Resueltas". El backend no impide responder dos veces la misma alerta (duplicaría la respuesta): la app bloquea el doble envío.
 - **Registro de médico:** la matrícula es un **PDF de hasta 5 MB** y el carnet una imagen **JPG o PNG de hasta 2 MB**; todo se valida en el celular antes de enviar, porque el backend sube los archivos antes de revisar el resto. El teléfono tiene 8 dígitos. El backend no guarda un estado "pendiente": si no puedes iniciar sesión tras registrarte, tu cuenta puede estar pendiente de aprobación.
 - **Edición del médico:** solo se envían los campos que cambiaron y no están vacíos (el backend borra el dato si recibe una cadena vacía).
-- **No hay pantalla para que el médico registre una toma a un paciente** (existe `POST /api/medicos/registrar/glucosa` en el backend, pero no se creó la pantalla).
+- **Registro de una toma por el médico** (`Detalle del paciente` → «Registrar toma», solo para pacientes de `misPacientes`): `POST /api/medicos/registrar/glucosa` y, si no es normal, `POST /api/registro/registrarAlerta`. El backend no valida que el paciente sea del médico ni marca el origen de la lectura (solo guarda `id_medico`); ver CONTEXT.md § Hallazgos para Adrian. **No se pudo probar contra el servidor real** (escribe en Supabase): solo con pruebas y fetch simulado.
 
 ### Notas sobre el registro y la edición del paciente
 
@@ -287,7 +287,11 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `medico-paciente-<id>` | Tarjeta de cada paciente |
 | Detalle del paciente | `detalle-volver`, `detalle-cabecera`, `detalle-nombre`, `detalle-condicion`, `detalle-telefono`, `detalle-ultima-toma` | Cabecera |
 | | `detalle-telemetria`, `detalle-ultima-valor`, `detalle-curva`, `detalle-periodo-semanal`, `detalle-periodo-mensual`, `detalle-curva-vacia` | Telemetría y curva |
-| | `detalle-registros`, `detalle-registro-<id>`, `detalle-tratamientos`, `detalle-reporte` | Registros, tratamientos y botón de reporte |
+| | `detalle-registros`, `detalle-registro-<id>`, `detalle-tratamientos`, `detalle-reporte`, `detalle-registrar-toma` | Registros, tratamientos, botón de reporte y botón «Registrar toma» (solo pacientes del médico) |
+| Registro por el médico | `medico-toma-paciente`, `medico-toma-cargando`, `medico-toma-error-carga`, `medico-toma-reintentar` | Encabezado «Registrando por <paciente>» y estados de carga |
+| | `registro-valor`, `registro-menos`, `registro-mas`, `registro-momento-<ayunas\|despues\|dormir>` | Valor y momento (los mismos componentes que el registro del paciente) |
+| | `medico-toma-observaciones`, `medico-toma-enviar`, `medico-toma-error` | Observaciones (máx. 200), guardar y error |
+| | `medico-toma-confirmacion` (`-mensaje`, `-confirmar`, `-cancelar`), `medico-toma-resultado` (`-mensaje`, `-confirmar`) | Confirmación y resultado |
 | | `detalle-cargando`, `detalle-vacio`, `detalle-error`, `detalle-reintentar` | Estados |
 | Alertas | `alertas-pestana-activas`, `alertas-pestana-resueltas`, `alertas-filtro-todas`, `alertas-filtro-hipo`, `alertas-filtro-hiper` | Pestañas y filtros |
 | | `alertas-banner`, `alertas-banner-cerrar`, `alertas-exito`, `alertas-alerta-<id>` | Aviso, éxito y tarjetas |

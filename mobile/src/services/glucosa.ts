@@ -36,6 +36,12 @@ export interface NuevaToma {
   observaciones?: string;
 }
 
+/** Cuerpo de POST /api/medicos/registrar/glucosa: la lectura la registra el MÉDICO por el paciente. */
+export interface NuevaTomaMedico extends NuevaToma {
+  /** id_medico de la sesión (quien registra). */
+  id_medico: number;
+}
+
 export interface NuevaAlerta {
   /** 1 = hipoglucemia, 2 = hiperglucemia */
   id_tipo_alerta: 1 | 2;
@@ -107,6 +113,20 @@ export async function registrarGlucosa(toma: NuevaToma): Promise<{ id_registro: 
   const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown }>({
     base: API_BASE_URL,
     ruta: '/api/pacientes/registrarGlucosa',
+    metodo: 'POST',
+    cuerpo: toma,
+    mensajes: { 400: 'Faltan datos de la toma. Revisa el valor y el momento.' },
+  });
+  const id = d?.registro_glucosa?.id_registro ?? d?.id_registro;
+  return { id_registro: typeof id === 'number' ? id : null };
+}
+
+/** POST /api/medicos/registrar/glucosa -> id del registro creado (misma tabla que la lectura del paciente, con id_medico). */
+export async function registrarGlucosaMedico(toma: NuevaTomaMedico): Promise<{ id_registro: number | null }> {
+  if (USE_MOCK) return { id_registro: 1 }; // modo simulado: sin red
+  const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown }>({
+    base: API_BASE_URL,
+    ruta: '/api/medicos/registrar/glucosa',
     metodo: 'POST',
     cuerpo: toma,
     mensajes: { 400: 'Faltan datos de la toma. Revisa el valor y el momento.' },

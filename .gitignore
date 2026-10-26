@@ -4,6 +4,7 @@
 .env
 .env.local
 docs/integracion/capturas/
+graphify-out/
 
 # --- Backend (Python / FastAPI) ---
 backend/__pycache__/

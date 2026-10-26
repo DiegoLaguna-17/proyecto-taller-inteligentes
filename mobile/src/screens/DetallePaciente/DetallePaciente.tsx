@@ -27,6 +27,8 @@ interface DetallePacienteProps {
   paciente: PacienteMedico;
   onBack: () => void;
   onGenerateReport: (idPaciente: number) => void;
+  /** Abre el registro de una toma por el paciente; solo se pasa si el paciente es de `misPacientes`. */
+  onRegistrarToma?: () => void;
   onNavigatePerfil?: () => void;
 }
 
@@ -34,6 +36,7 @@ export const DetallePaciente: React.FC<DetallePacienteProps> = ({
   paciente,
   onBack,
   onGenerateReport,
+  onRegistrarToma,
   onNavigatePerfil,
 }) => {
   const [registros, setRegistros] = useState<RegistroHistorial[]>([]);
@@ -136,6 +139,17 @@ export const DetallePaciente: React.FC<DetallePacienteProps> = ({
 
         {/* Treatment Linked */}
         <TratamientoVinculadoCard tratamientos={paciente.tratamientos} />
+
+        {onRegistrarToma ? (
+          <CustomButton
+            title="Registrar toma"
+            onPress={onRegistrarToma}
+            iconLeft="drop"
+            size="lg"
+            style={styles.actionBtn}
+            testID="detalle-registrar-toma"
+          />
+        ) : null}
 
         {/* Action Button: Generar reporte clínico */}
         <CustomButton
