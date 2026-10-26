@@ -59,7 +59,7 @@ export async function registrarTomaMedico(p: {
   const estado: Estado = momento ? evaluarGlucosa(p.datos.edad, tipo, momento, p.valor) : 'PARAM_INVALIDO';
   const obs = (p.observaciones ?? '').trim();
 
-  const { id_registro } = await registrarGlucosaMedico({
+  const { id_registro, riesgoMl } = await registrarGlucosaMedico({
     id_paciente: p.datos.id_paciente,
     id_medico: p.idMedico,
     id_momento: p.idMomento,
@@ -69,11 +69,14 @@ export async function registrarTomaMedico(p: {
     ...(obs ? { observaciones: obs } : {}),
   });
 
+  // El riesgo (ML) es solo informativo: se adjunta si existe y NUNCA interviene en la decisión de la alerta
+  const extra = riesgoMl ? { riesgoMl } : {};
+
   const tipoAlerta = idTipoAlerta(estado);
-  if (!tipoAlerta) return { estado, idRegistro: id_registro, alerta: 'no_aplica' };
+  if (!tipoAlerta) return { estado, idRegistro: id_registro, alerta: 'no_aplica', ...extra };
 
   // La alerta se atribuye al médico ASIGNADO al paciente (como el front web), no necesariamente a quien registra
-  if (id_registro === null || p.datos.id_medico === null) return { estado, idRegistro: id_registro, alerta: 'fallida' };
+  if (id_registro === null || p.datos.id_medico === null) return { estado, idRegistro: id_registro, alerta: 'fallida', ...extra };
   try {
     await registrarAlerta({
       id_tipo_alerta: tipoAlerta,
@@ -81,9 +84,9 @@ export async function registrarTomaMedico(p: {
       id_medico: p.datos.id_medico,
       fecha_alerta: fechaLocal(p.ahora),
     });
-    return { estado, idRegistro: id_registro, alerta: 'enviada' };
+    return { estado, idRegistro: id_registro, alerta: 'enviada', ...extra };
   } catch {
-    return { estado, idRegistro: id_registro, alerta: 'fallida' };
+    return { estado, idRegistro: id_registro, alerta: 'fallida', ...extra };
   }
 }
 

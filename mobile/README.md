@@ -209,6 +209,21 @@ Con `EXPO_PUBLIC_USE_MOCK=true` la app no llama a ningún servidor: vuelven las 
 
 Estas credenciales **no existen en el backend real**: sin la bandera, no entran.
 
+**Riesgo de hipoglucemia del médico (ML), casos simulados.** Al registrar una toma como médico en modo simulado, la **última cifra del valor de glucosa** elige qué `riesgo_ml` «devuelve el backend» (determinista; pasa por el mismo lector que la respuesta real). Con el backend real no hay nada que elegir: el bloque aparece solo si el backend tiene `ML_ENABLED=true`.
+
+| Última cifra | Ejemplo | Caso |
+| :--- | :--- | :--- |
+| 0 | `100`, `60` | Sin `riesgo_ml` (ML apagado): no se muestra el bloque |
+| 1 | `111`, `61` | Con riesgo (17,1 %), versión y los tres supuestos (`61` además crea la alerta de hipoglucemia) |
+| 2 | `112` | `datos_insuficientes` con un faltante (IMC) |
+| 3 | `113` | `datos_insuficientes` con varios faltantes (IMC y tratamiento) |
+| 4 | `114` | `datos_insuficientes` sin faltantes |
+| 5 | `115` | `no_aplica_tipo` |
+| 6 | `116` | `momento_no_cubierto` |
+| 7 | `117` | `no_disponible` |
+| 8 | `118` | Con riesgo 0 (0,0 %) |
+| 9 | `119` | Con riesgo 1 (100,0 %) |
+
 ## Pruebas
 
 ```bash
@@ -244,6 +259,13 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `registro-error` | Mensaje de error (validación o servidor) |
 | | `registro-confirmacion`, `registro-confirmar`, `registro-cancelar` | Modal de confirmación y sus botones |
 | | `registro-resultado` | Modal de resultado |
+| Resultado del médico (riesgo ML) | `ml-riesgo-bloque` | Bloque «Estimación de riesgo de hipoglucemia (experimental)» (solo si el backend devolvió `riesgo_ml`) |
+| | `ml-riesgo-valor` | Porcentaje con 1 decimal y coma (solo con riesgo) |
+| | `ml-riesgo-motivo` | Motivo en lenguaje claro (solo sin riesgo) |
+| | `ml-riesgo-faltantes` | Lista legible de datos que faltan (solo `datos_insuficientes` con faltantes) |
+| | `ml-riesgo-supuestos` | Lista de supuestos (solo con riesgo y supuestos) |
+| | `ml-riesgo-version` | Versión del modelo en texto pequeño |
+| | `ml-riesgo-leyenda` | Leyenda fija «Modelo experimental, no validado clínicamente…» (siempre) |
 | | `registro-resultado-estado`, `registro-resultado-mensaje` | Etiqueta de clasificación y texto del resultado |
 | | `registro-resultado-cerrar` | Botón "Volver al inicio" del modal |
 | Historial | `historial-periodo-diario`, `historial-periodo-semanal`, `historial-periodo-mensual` | Selector de periodo |

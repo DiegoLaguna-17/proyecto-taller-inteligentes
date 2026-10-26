@@ -99,6 +99,23 @@ def _leer_paciente(id_paciente: Any) -> Optional[Dict[str, Any]]:
     }
 
 
+def _registrar_resultado(riesgo_ml: Dict[str, Any], causa: Optional[str] = None) -> None:
+    """
+    UNA línea de log por cálculo (diagnóstico): motivo, códigos de lo que faltó y supuestos. Sin id de paciente, sin
+    valores y sin datos personales. Si no se calculó va como WARNING (visible con la configuración por defecto de
+    uvicorn); si se calculó, como INFO.
+    """
+    motivo = riesgo_ml.get("motivo")
+    faltantes = ",".join(riesgo_ml.get("faltantes") or []) or "-"
+    supuestos = ",".join(riesgo_ml.get("supuestos") or []) or "-"
+    if motivo is None:
+        logger.info("riesgo_ml: calculado supuestos=%s", supuestos)
+    else:
+        logger.warning(
+            "riesgo_ml: no calculado motivo=%s faltantes=%s%s", motivo, faltantes, f" causa={causa}" if causa else ""
+        )
+
+
 async def calcular_riesgo_ml(
     id_paciente: Any,
     glucosa: Any,
@@ -108,24 +125,35 @@ async def calcular_riesgo_ml(
 ) -> Dict[str, Any]:
     """
     Devuelve SIEMPRE un `riesgo_ml` (nunca lanza). Se llama después de guardar la lectura y solo con ML_ENABLED.
-    Solo lee de Supabase; no escribe nada.
+    Solo lee de Supabase; no escribe nada. Deja una línea de log por cálculo (ver `_registrar_resultado`).
     """
+    causa: Optional[str] = None
     try:
         paciente = _leer_paciente(id_paciente)
         if paciente is None:
-            return reglas.riesgo_ml_sin_calculo(reglas.MOTIVO_DATOS_INSUFICIENTES)
-        armado = reglas.armar_entrada(
-            paciente, glucosa, id_momento, fecha_lectura, float(settings.ML_DURACION_DEFECTO_ANIOS)
-        )
-        if armado.entrada is None:
-            return reglas.riesgo_ml_sin_calculo(armado.motivo or reglas.MOTIVO_DATOS_INSUFICIENTES)
-        timeout = float(settings.ML_TIMEOUT)
-        riesgo, version = await asyncio.wait_for(
-            consultar_riesgo(armado.entrada, settings.ML_URL, timeout, transport), timeout=timeout + 0.5
-        )
-        return reglas.riesgo_ml_calculado(round(riesgo, 4), version, armado.supuestos)
+            resultado = reglas.riesgo_ml_sin_calculo(reglas.MOTIVO_DATOS_INSUFICIENTES, [reglas.FALTANTE_PACIENTE])
+        else:
+            armado = reglas.armar_entrada(
+                paciente, glucosa, id_momento, fecha_lectura, float(settings.ML_DURACION_DEFECTO_ANIOS)
+            )
+            if armado.entrada is None:
+                resultado = reglas.riesgo_ml_sin_calculo(
+                    armado.motivo or reglas.MOTIVO_DATOS_INSUFICIENTES, armado.faltantes
+                )
+            else:
+                timeout = float(settings.ML_TIMEOUT)
+                riesgo, version = await asyncio.wait_for(
+                    consultar_riesgo(armado.entrada, settings.ML_URL, timeout, transport), timeout=timeout + 0.5
+                )
+                resultado = reglas.riesgo_ml_calculado(round(riesgo, 4), version, armado.supuestos)
     except MLNoDisponible as exc:
-        logger.warning("Servicio de ML no disponible (%s).", exc.causa)
-    except Exception as exc:  # noqa: BLE001 - incluye tiempo de espera y errores de la consulta
-        logger.warning("No se pudo calcular el riesgo (%s).", type(exc).__name__)
-    return reglas.riesgo_ml_sin_calculo(reglas.MOTIVO_NO_DISPONIBLE)
+        causa = exc.causa
+        resultado = reglas.riesgo_ml_sin_calculo(reglas.MOTIVO_NO_DISPONIBLE)
+    except Exception as exc:  # noqa: BLE001 - incluye tiempo de espera y errores de la consulta (solo el nombre de la clase)
+        causa = type(exc).__name__
+        resultado = reglas.riesgo_ml_sin_calculo(reglas.MOTIVO_NO_DISPONIBLE)
+    try:
+        _registrar_resultado(resultado, causa)
+    except Exception:  # noqa: BLE001 - el log jamás puede romper el registro
+        pass
+    return resultado

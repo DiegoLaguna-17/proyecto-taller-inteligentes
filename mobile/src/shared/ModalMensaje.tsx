@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Modal } from 'react-native';
+import React, { type ReactNode } from 'react';
+import { View, Text, StyleSheet, Modal, ScrollView } from 'react-native';
 import { CustomButton } from './CustomButton';
 import { COLORS } from '../utils/colors';
 import { FONTS } from '../utils/typography';
@@ -16,6 +16,8 @@ interface ModalMensajeProps {
   loading?: boolean;
   /** Prefijo de los testID: `${testIDPrefix}`, `-confirmar`, `-cancelar`, `-mensaje`. */
   testIDPrefix: string;
+  /** Contenido adicional bajo el mensaje (con desplazamiento: los botones siempre quedan visibles). */
+  children?: ReactNode;
 }
 
 // Modal simple (confirmación o aviso) con el estilo de los modales de la app.
@@ -29,13 +31,17 @@ export const ModalMensaje: React.FC<ModalMensajeProps> = ({
   onCancel,
   loading = false,
   testIDPrefix,
+  children,
 }) => {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay} testID={testIDPrefix}>
         <View style={styles.card}>
-          <Text style={styles.title}>{titulo}</Text>
-          <Text style={styles.note} testID={`${testIDPrefix}-mensaje`}>{mensaje}</Text>
+          <ScrollView style={styles.cuerpo} contentContainerStyle={styles.cuerpoContenido} showsVerticalScrollIndicator={false}>
+            <Text style={styles.title}>{titulo}</Text>
+            <Text style={styles.note} testID={`${testIDPrefix}-mensaje`}>{mensaje}</Text>
+            {children}
+          </ScrollView>
           <CustomButton
             title={textoConfirmar}
             onPress={onConfirm}
@@ -74,7 +80,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     maxWidth: 420,
+    maxHeight: '92%',
   },
+  cuerpo: { flexGrow: 0, flexShrink: 1, width: '100%' },
+  cuerpoContenido: { alignItems: 'center' },
   title: {
     fontFamily: FONTS.bold,
     fontSize: 20,

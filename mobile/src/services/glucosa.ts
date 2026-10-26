@@ -1,5 +1,6 @@
 import { API_BASE_URL, USE_MOCK } from './config.ts';
 import { solicitar, ErrorApi, MENSAJES } from './http.ts';
+import { leerRiesgoMl, type RiesgoMl } from './riesgoMl.ts';
 
 export interface Momento {
   id_momento: number;
@@ -121,10 +122,40 @@ export async function registrarGlucosa(toma: NuevaToma): Promise<{ id_registro: 
   return { id_registro: typeof id === 'number' ? id : null };
 }
 
-/** POST /api/medicos/registrar/glucosa -> id del registro creado (misma tabla que la lectura del paciente, con id_medico). */
-export async function registrarGlucosaMedico(toma: NuevaTomaMedico): Promise<{ id_registro: number | null }> {
-  if (USE_MOCK) return { id_registro: 1 }; // modo simulado: sin red
-  const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown }>({
+/**
+ * Modo simulado: `riesgo_ml` crudo según la ÚLTIMA CIFRA del nivel de glucosa (determinista; ver mobile/README.md).
+ * 0 → undefined (ML apagado en el backend: la clave no existe). Pasa por el mismo `leerRiesgoMl` que la respuesta real.
+ */
+export function riesgoMlSimulado(nivelGlucosa: number): unknown {
+  const sin = (motivo: string, faltantes: string[] = []) => ({ riesgo_hipoglucemia: null, version_modelo: null, motivo, supuestos: [], faltantes });
+  const con = (riesgo: number) => ({
+    riesgo_hipoglucemia: riesgo,
+    version_modelo: '1.1.0',
+    motivo: null,
+    supuestos: ['duracion_estimada', 'comorbilidades_no_capturadas', 'hba1c_no_disponible'],
+    faltantes: [],
+  });
+  switch (Math.abs(Math.trunc(nivelGlucosa)) % 10) {
+    case 1: return con(0.1712);
+    case 2: return sin('datos_insuficientes', ['imc']);
+    case 3: return sin('datos_insuficientes', ['imc', 'medicacion']);
+    case 4: return sin('datos_insuficientes');
+    case 5: return sin('no_aplica_tipo');
+    case 6: return sin('momento_no_cubierto');
+    case 7: return sin('no_disponible');
+    case 8: return con(0);
+    case 9: return con(1);
+    default: return undefined;
+  }
+}
+
+/**
+ * POST /api/medicos/registrar/glucosa -> id del registro creado (misma tabla que la lectura del paciente, con id_medico)
+ * y, solo si el backend tiene el ML activo, el riesgo informativo (`riesgo_ml`). Leer el riesgo nunca puede hacer fallar el registro.
+ */
+export async function registrarGlucosaMedico(toma: NuevaTomaMedico): Promise<{ id_registro: number | null; riesgoMl: RiesgoMl | null }> {
+  if (USE_MOCK) return { id_registro: 1, riesgoMl: leerRiesgoMl(riesgoMlSimulado(toma.nivel_glucosa)) }; // modo simulado: sin red
+  const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown; riesgo_ml?: unknown }>({
     base: API_BASE_URL,
     ruta: '/api/medicos/registrar/glucosa',
     metodo: 'POST',
@@ -132,7 +163,13 @@ export async function registrarGlucosaMedico(toma: NuevaTomaMedico): Promise<{ i
     mensajes: { 400: 'Faltan datos de la toma. Revisa el valor y el momento.' },
   });
   const id = d?.registro_glucosa?.id_registro ?? d?.id_registro;
-  return { id_registro: typeof id === 'number' ? id : null };
+  let riesgoMl: RiesgoMl | null = null;
+  try {
+    riesgoMl = leerRiesgoMl(d?.riesgo_ml);
+  } catch {
+    riesgoMl = null;
+  }
+  return { id_registro: typeof id === 'number' ? id : null, riesgoMl };
 }
 
 /** POST /api/registro/registrarAlerta (el backend envía el correo al médico). */

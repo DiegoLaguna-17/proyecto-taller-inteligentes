@@ -213,7 +213,7 @@ Cuando no se calcula: `{"riesgo_hipoglucemia": null, "version_modelo": null, "mo
 - El género usa una lista estricta (`masculino`, `hombre`, `varón`, `femenino`, `mujer`); cualquier otro valor → `datos_insuficientes`.
 - Puntos de extensión (sin tabla ni columna hoy): `armar_entrada(..., extras={"anio_diagnostico": ..., "comorbilidades": {...}})` calcula la duración real y usa las comorbilidades reales y entonces **omite** los supuestos `duracion_estimada` y `comorbilidades_no_capturadas` (TASK-017h).
 
-**Ejemplos de respuesta (JSON ficticio).** Para la pantalla del médico (fase siguiente): leer `riesgo_ml` solo si existe (si el backend tiene `ML_ENABLED=false` la clave no llega), mostrar el número solo si `riesgo_hipoglucemia` no es `null` y **no mostrar `version_modelo`**.
+**Ejemplos de respuesta (JSON ficticio; `riesgo_ml` siempre trae `riesgo_hipoglucemia`, `version_modelo`, `motivo`, `supuestos` y `faltantes`).** Para la pantalla del médico (fase siguiente): leer `riesgo_ml` solo si existe (si el backend tiene `ML_ENABLED=false` la clave no llega), mostrar el número solo si `riesgo_hipoglucemia` no es `null` y **no mostrar `version_modelo`**.
 
 Con riesgo (paciente tipo 2, lectura de 62 mg/dL en ayunas):
 ```json
@@ -225,7 +225,8 @@ Con riesgo (paciente tipo 2, lectura de 62 mg/dL en ayunas):
     "riesgo_hipoglucemia": 0.3594,
     "version_modelo": "1.1.0",
     "motivo": null,
-    "supuestos": ["duracion_estimada", "comorbilidades_no_capturadas", "hba1c_no_disponible"]
+    "supuestos": ["duracion_estimada", "comorbilidades_no_capturadas", "hba1c_no_disponible"],
+    "faltantes": []
   }
 }
 ```
@@ -235,7 +236,7 @@ Sin riesgo (paciente tipo 1; también `datos_insuficientes`, `momento_no_cubiert
   "message": "Registro insertado correctamente",
   "id_registro": 124,
   "registro_glucosa": { "id_registro": 124, "id_paciente": 8, "id_medico": 3, "id_momento": 1, "fecha": "2026-11-02", "hora": "08:35:00", "nivel_glucosa": 110, "observaciones": null },
-  "riesgo_ml": { "riesgo_hipoglucemia": null, "version_modelo": null, "motivo": "no_aplica_tipo", "supuestos": [] }
+  "riesgo_ml": { "riesgo_hipoglucemia": null, "version_modelo": null, "motivo": "no_aplica_tipo", "supuestos": [], "faltantes": [] }
 }
 ```
 Con `ML_ENABLED=false` (sin la clave nueva, idéntico a antes):
@@ -251,3 +252,39 @@ Textos sugeridos por motivo (para la app): `no_aplica_tipo` «Solo se estima el 
 **Verificación (Fase ML-1).** Suite del backend 142 pruebas (87 previas + 55 nuevas, con el ML simulado y Supabase simulado) y suite del `ml_service` 238 pruebas (237 previas + 1). Humo con un contenedor temporal del ML (modelo sintético, `1.1.0`, sin puertos publicados, en `red_ml`) y un payload ficticio armado por `armar_entrada` desde un contenedor del backend: 200, `{riesgo_hipoglucemia: float, version_modelo: "1.1.0"}`, latencia **mediana 34 ms, p95 87 ms** (n = 30, una conexión nueva por llamada); un ML inalcanzable da `MLNoDisponible(ConnectError)`. No se escribió nada en Supabase ni se llamó al endpoint real.
 
 **Activarlo (equipo):** en `backend/.env` poner `ML_ENABLED=true`, levantar con `ML_MODELO=demo` (por defecto en Compose) y haber ejecutado antes `docker compose run --rm ml_entrenar_demo`. No hay pasos manuales en Supabase.
+
+### 10.1 Campo `faltantes` (Fase ML-1b) y diagnóstico en el log
+
+Cuando `motivo = "datos_insuficientes"`, `riesgo_ml.faltantes` lista **códigos cortos, sin valores**, de los datos obligatorios que impidieron calcular. En todos los demás casos es `[]`. Se informan todos a la vez (no solo el primero).
+
+| Código | Qué falta o no es plausible |
+|---|---|
+| `glucosa` | La glucosa no es un número entre 0 (exclusivo) y 700 mg/dL |
+| `genero` | `paciente.genero` no está en la lista estricta (masculino, hombre, varón, femenino, mujer) |
+| `edad` | Sin `fecha_nac` válida, o la edad a la fecha de la lectura no está entre 1 y 120 años |
+| `imc` | Peso fuera de 20 a 300 kg, altura fuera de 1,0 a 2,5 **m**, o IMC fuera de (0, 80] |
+| `medicacion` | Sin tratamientos registrados o sin equivalente en las 4 categorías del modelo |
+| `paciente` | El paciente no se encontró en la base |
+
+Ejemplo (JSON ficticio): paciente tipo 2 al que no se le puede calcular el IMC ni la medicación.
+```json
+{
+  "message": "Registro insertado correctamente",
+  "id_registro": 126,
+  "registro_glucosa": { "id_registro": 126, "id_paciente": 9, "id_medico": 3, "id_momento": 1, "fecha": "2026-11-03", "hora": "08:20:00", "nivel_glucosa": 105, "observaciones": null },
+  "riesgo_ml": {
+    "riesgo_hipoglucemia": null,
+    "version_modelo": null,
+    "motivo": "datos_insuficientes",
+    "supuestos": [],
+    "faltantes": ["imc", "medicacion"]
+  }
+}
+```
+Textos sugeridos por código para la pantalla del médico: `genero` «género», `edad` «fecha de nacimiento», `imc` «peso o altura», `medicacion` «tratamiento», `glucosa` «valor de la glucosa», `paciente` «datos del paciente».
+
+**Log.** Cada cálculo deja **una** línea en el log del backend, sin id de paciente, sin valores y sin datos personales:
+- no calculado (WARNING, visible con la configuración por defecto): `riesgo_ml: no calculado motivo=datos_insuficientes faltantes=imc,medicacion` (con `causa=<nombre de la excepción o http_NNN>` si el motivo es `no_disponible`);
+- calculado (INFO): `riesgo_ml: calculado supuestos=duracion_estimada,comorbilidades_no_capturadas,hba1c_no_disponible`.
+
+Verlas: `docker compose logs backend | grep riesgo_ml`.

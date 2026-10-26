@@ -8,12 +8,15 @@ import {
   type EstadoAlerta,
 } from './clasificacionGlucosa.ts';
 import { registrarAlerta, registrarGlucosa, type DatosPaciente } from './glucosa.ts';
+import type { RiesgoMl } from './riesgoMl.ts';
 
 export interface ResultadoToma {
   estado: Estado;
   idRegistro: number | null;
   /** 'no_aplica' si el estado es NORMAL o PARAM_INVALIDO (no se envía alerta). */
   alerta: EstadoAlerta;
+  /** Riesgo de hipoglucemia (ML) solo en el registro del médico y solo si el backend lo devolvió; informativo, no se guarda. */
+  riesgoMl?: RiesgoMl;
 }
 
 const dos = (n: number) => String(n).padStart(2, '0');

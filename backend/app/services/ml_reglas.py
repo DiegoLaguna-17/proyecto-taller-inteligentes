@@ -28,6 +28,14 @@ SUPUESTO_DURACION = "duracion_estimada"
 SUPUESTO_COMORBILIDADES = "comorbilidades_no_capturadas"
 SUPUESTO_HBA1C = "hba1c_no_disponible"
 
+# Códigos de `riesgo_ml.faltantes` (datos obligatorios que impidieron calcular; nunca llevan valores)
+FALTANTE_GLUCOSA = "glucosa"
+FALTANTE_GENERO = "genero"
+FALTANTE_EDAD = "edad"
+FALTANTE_IMC = "imc"
+FALTANTE_MEDICACION = "medicacion"
+FALTANTE_PACIENTE = "paciente"  # el paciente no se encontró en la base
+
 NOMBRE_TIPO_2 = "diabetes tipo 2"
 
 # Catálogo real `momento_dia` (GET /api/general/momentos): 1 AYUNAS, 2 DESPUES DE COMER, 3 ANTES DE DORMIR.
@@ -170,6 +178,28 @@ class ResultadoArmado:
     entrada: Optional[Dict[str, Any]] = None
     motivo: Optional[str] = None
     supuestos: List[str] = field(default_factory=list)
+    # Solo con motivo datos_insuficientes: códigos de lo que faltó (sin valores)
+    faltantes: List[str] = field(default_factory=list)
+
+
+def faltantes_obligatorios(paciente: Dict[str, Any], glucosa: Any, fecha_lectura: Any) -> List[str]:
+    """
+    Códigos de los datos obligatorios que NO se pueden obtener (nunca valores): glucosa, genero, edad, imc, medicacion.
+    Es independiente del tipo de diabetes y del momento: sirve también para diagnosticar a un paciente concreto.
+    """
+    faltan: List[str] = []
+    g = _numero(glucosa)
+    if g is None or not (0 < g <= GLUCOSA_MAX_ML):
+        faltan.append(FALTANTE_GLUCOSA)
+    if normalizar_genero(paciente.get("genero")) is None:
+        faltan.append(FALTANTE_GENERO)
+    if calcular_edad(paciente.get("fecha_nac"), fecha_lectura) is None:
+        faltan.append(FALTANTE_EDAD)
+    if calcular_bmi(paciente.get("peso"), paciente.get("altura")) is None:
+        faltan.append(FALTANTE_IMC)
+    if categoria_medicacion(paciente.get("tratamientos") or []) is None:
+        faltan.append(FALTANTE_MEDICACION)
+    return faltan
 
 
 def armar_entrada(
@@ -193,13 +223,14 @@ def armar_entrada(
     if momento is None:
         return ResultadoArmado(motivo=MOTIVO_MOMENTO_NO_CUBIERTO)
 
+    faltan = faltantes_obligatorios(paciente, glucosa, fecha_lectura)
+    if faltan:
+        return ResultadoArmado(motivo=MOTIVO_DATOS_INSUFICIENTES, faltantes=faltan)
     g = _numero(glucosa)
     genero = normalizar_genero(paciente.get("genero"))
     edad = calcular_edad(paciente.get("fecha_nac"), fecha_lectura)
     bmi = calcular_bmi(paciente.get("peso"), paciente.get("altura"))
     medicacion = categoria_medicacion(paciente.get("tratamientos") or [])
-    if g is None or not (0 < g <= GLUCOSA_MAX_ML) or genero is None or edad is None or bmi is None or medicacion is None:
-        return ResultadoArmado(motivo=MOTIVO_DATOS_INSUFICIENTES)
 
     supuestos: List[str] = []
 
@@ -238,10 +269,16 @@ def armar_entrada(
     return ResultadoArmado(entrada=entrada, supuestos=supuestos)
 
 
-def riesgo_ml_sin_calculo(motivo: str) -> Dict[str, Any]:
-    """Forma de `riesgo_ml` cuando NO se calcula: riesgo nulo, motivo y supuestos `[]` (no hubo cálculo)."""
-    return {"riesgo_hipoglucemia": None, "version_modelo": None, "motivo": motivo, "supuestos": []}
+def riesgo_ml_sin_calculo(motivo: str, faltantes: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Forma de `riesgo_ml` cuando NO se calcula: riesgo nulo, motivo y supuestos `[]`; `faltantes` solo con datos_insuficientes."""
+    return {
+        "riesgo_hipoglucemia": None,
+        "version_modelo": None,
+        "motivo": motivo,
+        "supuestos": [],
+        "faltantes": list(faltantes or []) if motivo == MOTIVO_DATOS_INSUFICIENTES else [],
+    }
 
 
 def riesgo_ml_calculado(riesgo: float, version: str, supuestos: List[str]) -> Dict[str, Any]:
-    return {"riesgo_hipoglucemia": riesgo, "version_modelo": version, "motivo": None, "supuestos": list(supuestos)}
+    return {"riesgo_hipoglucemia": riesgo, "version_modelo": version, "motivo": None, "supuestos": list(supuestos), "faltantes": []}

@@ -8,6 +8,7 @@ import { ModalMensaje } from '../../shared/ModalMensaje';
 import { ValorGlucosaCard } from '../RegistroToma/components/ValorGlucosaCard';
 import { FechaHoraCard } from '../RegistroToma/components/FechaHoraCard';
 import { MomentoTomaSelector, OpcionMomento } from '../RegistroToma/components/MomentoTomaSelector';
+import { RiesgoMlBloque } from './components/RiesgoMlBloque';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
 import { FUENTE } from '../../utils/medidas';
@@ -228,7 +229,10 @@ export const RegistroTomaMedico: React.FC<RegistroTomaMedicoProps> = ({ paciente
         textoConfirmar="Volver al detalle"
         onConfirm={handleFinish}
         testIDPrefix="medico-toma-resultado"
-      />
+      >
+        {/* Solo informativo y solo en esta vista: no se guarda ni altera la alerta (el aviso de la alerta va primero, en el mensaje) */}
+        {resultado?.riesgoMl ? <RiesgoMlBloque riesgo={resultado.riesgoMl} /> : null}
+      </ModalMensaje>
     </View>
   );
 };

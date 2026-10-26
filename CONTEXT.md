@@ -1,10 +1,10 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-11-02 — Session 29
+> Last updated: 2026-11-03 — Session 31
 
 ## ⚡ Resume from here
 
-**Active task:** TASK-017 (Fase ML-1): integración backend ↔ ML en `POST /api/medicos/registrar/glucosa` (ADR-0011). 017h (captura de `anio_diagnostico` y comorbilidades) queda pendiente.
+**Active task:** TASK-017 (Fase ML-1/ML-2): 017g (pantalla del médico con el riesgo) hecha; sobre la integración de la Fase ML-1: integración backend ↔ ML en `POST /api/medicos/registrar/glucosa` (ADR-0011). 017h (captura de `anio_diagnostico` y comorbilidades) queda pendiente.
 **Phase:** Phase 3-4: Lógica de Negocio y API (backend de Adrian fusionado; ML y NLP como servicios aparte)
 **Status:** in progress — backend fusionado y verificado (87 + 237 + 90 pruebas); contrato y esquema del backend por reconciliar con design.md (TASK-029)
 **Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
@@ -19,6 +19,8 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 31 | 2026-11-03 | Fase ML-2 (TASK-017g), solo `mobile/`: spec primero (design.md 1.16.0, tasks.md); pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modo simulado). | design.md, tasks.md, CONTEXT.md, mobile/ |
+| 30 | 2026-11-03 | Fase ML-1b (TASK-017i): `riesgo_ml.faltantes` y log por cálculo para diagnosticar `datos_insuficientes`. Documentación primero (ADR-0011, design.md 1.15.1, tasks.md). | backend/, docs, tasks.md, CONTEXT.md |
 | 29 | 2026-11-02 | Fase ML-1 (TASK-017, ADR-0011): documentación primero (ADR-0011, design.md 1.15.0, tasks.md) e integración backend ↔ ML en el registro del médico. | docs/adr/0011-integracion-backend-ml.md, design.md, tasks.md, CONTEXT.md, backend/ |
 | 28 | 2026-11-01 | Fase ML-0 (solo lectura): auditoría de la integración backend ↔ ML en `docs/ml/integracion_backend_ml.md` (contrato, esquema real, correspondencias, regla tipo 2 con conteos reales, diseño, riesgos y decisiones abiertas). TASK-017 rediseñada y dividida en 017a a 017h. Sin cambios de código. | docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
 | 27 | 2026-11-01 | Registro de glucosa por el médico (TASK-067), solo `mobile/`: pantalla `RegistroTomaMedico`, servicio `registrarGlucosaMedico`, alerta atribuida al médico asignado y hallazgos del endpoint para Adrian. Spec primero (design.md 1.14.0, tasks.md). | design.md, tasks.md, CONTEXT.md |

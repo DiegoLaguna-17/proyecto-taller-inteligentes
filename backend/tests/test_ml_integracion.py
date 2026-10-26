@@ -76,6 +76,10 @@ def ml(monkeypatch):
     TablaRegistro.insertado = False
     monkeypatch.setattr(ml_client, "consultar_riesgo", fake)
     monkeypatch.setattr(settings, "ML_ENABLED", True)
+    # hermético: no depende del backend/.env del desarrollador
+    monkeypatch.setattr(settings, "ML_DURACION_DEFECTO_ANIOS", 6.5)
+    monkeypatch.setattr(settings, "ML_TIMEOUT", 2.0)
+    monkeypatch.setattr(settings, "ML_URL", "http://ml_service:8002")
     return Falso
 
 
@@ -107,11 +111,15 @@ def test_con_ml_apagado_la_respuesta_es_exactamente_la_de_siempre(client, ml, pr
 
 
 def test_por_defecto_ml_enabled_es_false():
-    from app.core.config import Settings
-    assert Settings().ML_ENABLED is False
-    assert Settings().ML_DURACION_DEFECTO_ANIOS == 6.5
-    assert Settings().ML_TIMEOUT == 2.0
-    assert Settings().ML_URL == "http://ml_service:8002"
+    """Los valores por defecto (sin variables de entorno) y los del .env.example: apagado y con el 6,5 documentado."""
+    from pathlib import Path
+    from app.core import config
+
+    assert config._bool_env("ML_ENABLED_VARIABLE_QUE_NO_EXISTE", False) is False
+    assert config._float_env("ML_TIMEOUT_VARIABLE_QUE_NO_EXISTE", 2.0) == 2.0
+    ejemplo = (Path(config.__file__).resolve().parents[2] / ".env.example").read_text(encoding="utf-8")
+    for linea in ("ML_ENABLED=false", "ML_URL=http://ml_service:8002", "ML_TIMEOUT=2.0", "ML_DURACION_DEFECTO_ANIOS=6.5"):
+        assert linea in ejemplo.splitlines()
 
 
 def test_el_registro_del_paciente_no_cambia_ni_recibe_riesgo(client, ml, mock_supabase):
@@ -137,6 +145,7 @@ def test_tipo_2_valido_devuelve_riesgo_con_supuestos_y_no_cambia_el_resto(client
         "version_modelo": "1.1.0",
         "motivo": None,
         "supuestos": ["duracion_estimada", "comorbilidades_no_capturadas", "hba1c_no_disponible"],
+        "faltantes": [],
     }
     assert ml.antes_de_llamar_estaba_guardada == [True]  # la lectura se guarda ANTES de llamar al ML
 
@@ -163,35 +172,37 @@ def test_postprandial_se_mapea_desde_despues_de_comer(client, ml, preparar):
 
 # ------------------------------------------------------------------ no se calcula (sin llamar al ML)
 
-SIN_CALCULO = {"riesgo_hipoglucemia": None, "version_modelo": None, "supuestos": []}
+SIN_CALCULO = {"riesgo_hipoglucemia": None, "version_modelo": None, "supuestos": [], "faltantes": []}
 
 
 @pytest.mark.parametrize(
-    "caso,paciente,body,motivo",
+    "caso,paciente,body,motivo,faltantes",
     [
-        ("tipo 1", fila_paciente(paciente_enfermedad=[{"enfermedades_base": {"nombre_enfermedad": "Diabetes Tipo 1"}}]), {}, "no_aplica_tipo"),
-        ("gestacional", fila_paciente(paciente_enfermedad=[{"enfermedades_base": {"nombre_enfermedad": "Diabetes Gestacional"}}]), {}, "no_aplica_tipo"),
-        ("sin tipo", fila_paciente(paciente_enfermedad=[]), {}, "no_aplica_tipo"),
-        ("varias filas", fila_paciente(paciente_enfermedad=ENFERMEDADES_T2 + [{"enfermedades_base": {"nombre_enfermedad": "Diabetes Tipo 1"}}]), {}, "no_aplica_tipo"),
-        ("tipo 2 con embarazo", fila_paciente(embarazo=True), {}, "no_aplica_tipo"),
-        ("género desconocido", fila_paciente(genero="otro"), {}, "datos_insuficientes"),
-        ("género vacío", fila_paciente(genero=None), {}, "datos_insuficientes"),
-        ("IMC no plausible (altura en cm)", fila_paciente(altura=175), {}, "datos_insuficientes"),
-        ("IMC no plausible (peso)", fila_paciente(peso=5), {}, "datos_insuficientes"),
-        ("sin fecha de nacimiento", fila_paciente(usuario={"fecha_nac": None}), {}, "datos_insuficientes"),
-        ("medicación sin equivalente", fila_paciente(tratamiento_enfermedad=[{"tratamientos": {"nombre_tratamiento": "Dieta"}}]), {}, "datos_insuficientes"),
-        ("sin tratamiento", fila_paciente(tratamiento_enfermedad=[]), {}, "datos_insuficientes"),
-        ("glucosa 0", fila_paciente(), {"nivel_glucosa": 0}, "datos_insuficientes"),
-        ("antes de dormir", fila_paciente(), {"id_momento": 3}, "momento_no_cubierto"),
-        ("momento desconocido", fila_paciente(), {"id_momento": 99}, "momento_no_cubierto"),
+        ("tipo 1", fila_paciente(paciente_enfermedad=[{"enfermedades_base": {"nombre_enfermedad": "Diabetes Tipo 1"}}]), {}, "no_aplica_tipo", []),
+        ("gestacional", fila_paciente(paciente_enfermedad=[{"enfermedades_base": {"nombre_enfermedad": "Diabetes Gestacional"}}]), {}, "no_aplica_tipo", []),
+        ("sin tipo", fila_paciente(paciente_enfermedad=[]), {}, "no_aplica_tipo", []),
+        ("varias filas", fila_paciente(paciente_enfermedad=ENFERMEDADES_T2 + [{"enfermedades_base": {"nombre_enfermedad": "Diabetes Tipo 1"}}]), {}, "no_aplica_tipo", []),
+        ("tipo 2 con embarazo", fila_paciente(embarazo=True), {}, "no_aplica_tipo", []),
+        ("género desconocido", fila_paciente(genero="otro"), {}, "datos_insuficientes", ["genero"]),
+        ("género vacío", fila_paciente(genero=None), {}, "datos_insuficientes", ["genero"]),
+        ("IMC no plausible (altura en cm)", fila_paciente(altura=175), {}, "datos_insuficientes", ["imc"]),
+        ("IMC no plausible (peso)", fila_paciente(peso=5), {}, "datos_insuficientes", ["imc"]),
+        ("sin fecha de nacimiento", fila_paciente(usuario={"fecha_nac": None}), {}, "datos_insuficientes", ["edad"]),
+        ("medicación sin equivalente", fila_paciente(tratamiento_enfermedad=[{"tratamientos": {"nombre_tratamiento": "Dieta"}}]), {}, "datos_insuficientes", ["medicacion"]),
+        ("sin tratamiento", fila_paciente(tratamiento_enfermedad=[]), {}, "datos_insuficientes", ["medicacion"]),
+        ("glucosa 0", fila_paciente(), {"nivel_glucosa": 0}, "datos_insuficientes", ["glucosa"]),
+        ("varios faltantes a la vez", fila_paciente(genero=None, altura=175, tratamiento_enfermedad=[], usuario={"fecha_nac": None}), {"nivel_glucosa": 0}, "datos_insuficientes", ["glucosa", "genero", "edad", "imc", "medicacion"]),
+        ("dos faltantes (imc y medicación)", fila_paciente(altura=175, tratamiento_enfermedad=[]), {}, "datos_insuficientes", ["imc", "medicacion"]),
+        ("antes de dormir", fila_paciente(), {"id_momento": 3}, "momento_no_cubierto", []),
+        ("momento desconocido", fila_paciente(), {"id_momento": 99}, "momento_no_cubierto", []),
     ],
 )
-def test_casos_en_los_que_no_se_calcula_el_riesgo(client, ml, preparar, caso, paciente, body, motivo):
+def test_casos_en_los_que_no_se_calcula_el_riesgo(client, ml, preparar, caso, paciente, body, motivo, faltantes):
     preparar(paciente=paciente)
     r = registrar(client, **body)
     assert r.status_code == 200, caso
     assert CLAVES_ANTERIORES <= set(r.json())
-    assert r.json()["riesgo_ml"] == {**SIN_CALCULO, "motivo": motivo}, caso
+    assert r.json()["riesgo_ml"] == {**SIN_CALCULO, "motivo": motivo, "faltantes": list(faltantes)}, caso
     assert ml.llamadas == [], caso  # nunca se llama al ML sin datos válidos
     assert ml.antes_de_llamar_estaba_guardada == []
 
@@ -419,3 +430,100 @@ def test_orden_de_decision_tipo_momento_datos():
     # glucosa fuera del contrato del ML
     assert R.armar_entrada(_paciente(), 701, 1, "2026-11-02", 6.5).motivo == "datos_insuficientes"
     assert R.armar_entrada(_paciente(), "abc", 1, "2026-11-02", 6.5).motivo == "datos_insuficientes"
+
+
+# ------------------------------------------------------------------ Fase ML-1b: faltantes y log de diagnóstico
+
+@pytest.mark.parametrize(
+    "cambios,esperado",
+    [
+        ({"genero": "otro"}, ["genero"]),
+        ({"usuario": {"fecha_nac": None}}, ["edad"]),
+        ({"altura": 175}, ["imc"]),
+        ({"peso": None}, ["imc"]),
+        ({"tratamiento_enfermedad": []}, ["medicacion"]),
+        ({"genero": None, "usuario": {"fecha_nac": "2090-01-01"}, "peso": 5, "tratamiento_enfermedad": []}, ["genero", "edad", "imc", "medicacion"]),
+    ],
+)
+def test_faltantes_obligatorios_un_codigo_por_dato_y_varios_a_la_vez(cambios, esperado):
+    p = {**fila_paciente(), **cambios}
+    paciente = {
+        "genero": p["genero"], "peso": p["peso"], "altura": p["altura"], "embarazo": p["embarazo"],
+        "fecha_nac": (p["usuario"] or {}).get("fecha_nac"),
+        "enfermedades": ["Diabetes Tipo 2"],
+        "tratamientos": [t["tratamientos"]["nombre_tratamiento"] for t in p["tratamiento_enfermedad"]],
+    }
+    assert R.faltantes_obligatorios(paciente, 110, "2026-11-02") == esperado
+    a = R.armar_entrada(paciente, 110, 1, "2026-11-02", 6.5)
+    assert a.motivo == "datos_insuficientes" and a.faltantes == esperado and a.entrada is None
+
+
+def test_faltante_glucosa_y_ninguno_cuando_todo_esta():
+    ok = {"genero": "Femenino", "peso": 70, "altura": 1.65, "embarazo": False, "fecha_nac": "1980-01-01",
+          "enfermedades": ["Diabetes Tipo 2"], "tratamientos": ["Metformina"]}
+    assert R.faltantes_obligatorios(ok, 0, "2026-11-02") == ["glucosa"]
+    assert R.faltantes_obligatorios(ok, None, "2026-11-02") == ["glucosa"]
+    assert R.faltantes_obligatorios(ok, 701, "2026-11-02") == ["glucosa"]
+    assert R.faltantes_obligatorios(ok, 110, "2026-11-02") == []
+
+
+def test_faltantes_solo_con_datos_insuficientes_y_siempre_presente():
+    assert R.riesgo_ml_sin_calculo("no_aplica_tipo", ["genero"])["faltantes"] == []  # no se arrastran a otros motivos
+    assert R.riesgo_ml_sin_calculo("no_disponible")["faltantes"] == []
+    assert R.riesgo_ml_sin_calculo("datos_insuficientes", ["imc"])["faltantes"] == ["imc"]
+    assert R.riesgo_ml_calculado(0.2, "1.1.0", [])["faltantes"] == []
+
+
+def test_los_faltantes_no_llevan_valores():
+    paciente = {"genero": "SECRETO-GENERO", "peso": 77.7, "altura": 175, "embarazo": False, "fecha_nac": "1980-01-01",
+                "enfermedades": ["Diabetes Tipo 2"], "tratamientos": ["Dieta-secreta"]}
+    a = R.armar_entrada(paciente, 123, 1, "2026-11-02", 6.5)
+    texto = str(a.faltantes).lower()
+    assert a.faltantes == ["genero", "imc", "medicacion"]
+    for valor in ("secreto", "77.7", "175", "dieta", "123"):
+        assert valor not in texto
+
+
+def test_paciente_inexistente_informa_el_faltante_paciente(client, ml, mock_supabase):
+    mock_supabase.set_table_mock("registro_glucosa", TablaRegistro(data=[{"id_registro": 1}]))
+    mock_supabase.set_table_mock("paciente", MockQueryBuilder(data=None))
+    assert registrar(client).json()["riesgo_ml"] == {**SIN_CALCULO, "motivo": "datos_insuficientes", "faltantes": ["paciente"]}
+
+
+def test_una_linea_de_log_por_calculo_sin_datos_personales_ni_id(client, ml, preparar, caplog):
+    import logging
+    caplog.set_level(logging.INFO, logger="app.services.ml_client")
+    preparar(paciente=fila_paciente(genero="otro", altura=175))
+    registrar(client, nivel_glucosa=137, id_paciente=987654)
+    lineas = [r.getMessage() for r in caplog.records if r.name == "app.services.ml_client"]
+    assert lineas == ["riesgo_ml: no calculado motivo=datos_insuficientes faltantes=genero,imc"]
+    for prohibido in ("987654", "137", "otro", "175", "Masculino", "1970"):
+        assert prohibido not in caplog.text
+
+
+def test_log_de_los_demas_resultados(client, ml, preparar, caplog):
+    import logging
+    caplog.set_level(logging.INFO, logger="app.services.ml_client")
+    preparar()
+    registrar(client)  # calculado
+    preparar(paciente=fila_paciente(embarazo=True))
+    registrar(client)  # no aplica
+    ml.resultado = ml_client.MLNoDisponible("http_503")
+    preparar()
+    registrar(client)  # no disponible
+    lineas = [r.getMessage() for r in caplog.records if r.name == "app.services.ml_client"]
+    assert lineas == [
+        "riesgo_ml: calculado supuestos=duracion_estimada,comorbilidades_no_capturadas,hba1c_no_disponible",
+        "riesgo_ml: no calculado motivo=no_aplica_tipo faltantes=-",
+        "riesgo_ml: no calculado motivo=no_disponible faltantes=- causa=http_503",
+    ]
+
+
+def test_sin_ml_enabled_no_hay_log_ni_campo_nuevo(client, ml, preparar, monkeypatch, caplog):
+    import logging
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(settings, "ML_ENABLED", False)
+    preparar()
+    r = registrar(client)
+    assert set(r.json()) == CLAVES_ANTERIORES
+    assert not [x for x in caplog.records if x.name == "app.services.ml_client"]
