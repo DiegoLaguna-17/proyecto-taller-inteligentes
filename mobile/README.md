@@ -209,7 +209,7 @@ Con `EXPO_PUBLIC_USE_MOCK=true` la app no llama a ningún servidor: vuelven las 
 
 Estas credenciales **no existen en el backend real**: sin la bandera, no entran.
 
-**Riesgo de hipoglucemia del médico (ML), casos simulados.** Al registrar una toma como médico en modo simulado, la **última cifra del valor de glucosa** elige qué `riesgo_ml` «devuelve el backend» (determinista; pasa por el mismo lector que la respuesta real). Con el backend real no hay nada que elegir: el bloque aparece solo si el backend tiene `ML_ENABLED=true`.
+**Riesgo de hipoglucemia del médico (ML), casos simulados.** Al registrar una toma como médico en modo simulado, la **última cifra del valor de glucosa** elige qué `riesgo_ml` «devuelve el backend» (determinista; pasa por el mismo lector que la respuesta real). Con el backend real no hay nada que elegir: el bloque aparece solo si el backend tiene `ML_ENABLED=true`. **Qué se ve hoy:** en los casos con riesgo (1, 8 y 9) el título, el porcentaje, la versión y la leyenda; en los casos sin riesgo (2 a 7) solo el título y la leyenda. **El motivo, los faltantes y los supuestos no se muestran** (la columna «Caso» describe lo que devuelve el backend simulado, no lo que se pinta).
 
 | Última cifra | Ejemplo | Caso |
 | :--- | :--- | :--- |
@@ -261,10 +261,10 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `registro-resultado` | Modal de resultado |
 | Resultado del médico (riesgo ML) | `ml-riesgo-bloque` | Bloque «Estimación de riesgo de hipoglucemia (experimental)» (solo si el backend devolvió `riesgo_ml`) |
 | | `ml-riesgo-valor` | Porcentaje con 1 decimal y coma (solo con riesgo) |
-| | `ml-riesgo-motivo` | Motivo en lenguaje claro (solo sin riesgo) |
-| | `ml-riesgo-faltantes` | Lista legible de datos que faltan (solo `datos_insuficientes` con faltantes) |
-| | `ml-riesgo-supuestos` | Lista de supuestos (solo con riesgo y supuestos) |
-| | `ml-riesgo-version` | Versión del modelo en texto pequeño |
+| | ~~`ml-riesgo-motivo`~~ | **Ya no existe** (el motivo no se muestra) |
+| | ~~`ml-riesgo-faltantes`~~ | **Ya no existe** (los faltantes no se muestran) |
+| | ~~`ml-riesgo-supuestos`~~ | **Ya no existe** (los supuestos no se muestran) |
+| | `ml-riesgo-version` | Versión del modelo en texto pequeño (solo con riesgo y versión válida) |
 | | `ml-riesgo-leyenda` | Leyenda fija «Modelo experimental, no validado clínicamente…» (siempre) |
 | | `registro-resultado-estado`, `registro-resultado-mensaje` | Etiqueta de clasificación y texto del resultado |
 | | `registro-resultado-cerrar` | Botón "Volver al inicio" del modal |

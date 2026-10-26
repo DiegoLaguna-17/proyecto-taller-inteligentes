@@ -1,6 +1,6 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-11-03 — Session 31
+> Last updated: 2026-11-03 — Session 32
 
 ## ⚡ Resume from here
 
@@ -19,6 +19,7 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 32 | 2026-11-03 | Alineación documental (solo docs y README del móvil): `RiesgoMlBloque` simplificado a mano por el autor (sin motivo, faltantes ni supuestos); se retiran sus testIDs de la documentación y se anota la decisión abierta. Sin cambios de código. | design.md, mobile/README.md, docs/adr/0011, docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
 | 31 | 2026-11-03 | Fase ML-2 (TASK-017g), solo `mobile/`: spec primero (design.md 1.16.0, tasks.md); pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modo simulado). | design.md, tasks.md, CONTEXT.md, mobile/ |
 | 30 | 2026-11-03 | Fase ML-1b (TASK-017i): `riesgo_ml.faltantes` y log por cálculo para diagnosticar `datos_insuficientes`. Documentación primero (ADR-0011, design.md 1.15.1, tasks.md). | backend/, docs, tasks.md, CONTEXT.md |
 | 29 | 2026-11-02 | Fase ML-1 (TASK-017, ADR-0011): documentación primero (ADR-0011, design.md 1.15.0, tasks.md) e integración backend ↔ ML en el registro del médico. | docs/adr/0011-integracion-backend-ml.md, design.md, tasks.md, CONTEXT.md, backend/ |
@@ -170,6 +171,7 @@ Pendientes del backend de negocio (`backend/app/`) encontrados al conectar la ap
 
 Things still to be resolved. Move to design.md once decided.
 
+- [ ] **Decisión abierta (riesgo ML en pantalla):** sin el motivo ni los supuestos en pantalla, el médico no ve las limitaciones del cálculo (duración de la diabetes estimada, comorbilidades no capturadas, sin HbA1c, y por qué no hay valor cuando no se calculó). Decidir con el equipo si se restituyen (los textos y el lector ya existen en `riesgoMl.ts`). Hasta entonces, la etiqueta de accesibilidad del bloque aún incluye el motivo.
 - [ ] ¿Qué esquema de autenticación se usará (JWT, sesiones con Supabase Auth, OAuth)?
 - [x] ¿El modelo de ML ya está entrenado o se entrena como parte de este proyecto? → Resuelta en design.md 1.4.0 (se entrena aquí; Regresión Logística con SMOTE-NC, ADR-0007)
 - [ ] Perfil clínico del ML sin lugar en Data Models (género, edad, BMI, duración, medicación, comorbilidades, HbA1c): ¿dónde se capturan? **Bloquea TASK-017, no el servicio de ML.** Opciones, sin resolver (detalle en design.md § Open Questions):

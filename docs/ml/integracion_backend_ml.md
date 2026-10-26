@@ -288,3 +288,5 @@ Textos sugeridos por código para la pantalla del médico: `genero` «género»,
 - calculado (INFO): `riesgo_ml: calculado supuestos=duracion_estimada,comorbilidades_no_capturadas,hba1c_no_disponible`.
 
 Verlas: `docker compose logs backend | grep riesgo_ml`.
+
+**Pantalla del médico (estado actual, Fase ML-2).** La app móvil lee `riesgo_ml` pero hoy muestra solo el porcentaje (con 1 decimal y coma), la versión del modelo y la leyenda de modelo experimental; **no muestra `motivo`, `faltantes` ni `supuestos`**, aunque el backend los siga enviando. Los textos sugeridos de arriba quedan disponibles en `mobile/src/services/riesgoMl.ts` por si el equipo decide restituirlos (decisión abierta en CONTEXT.md).
