@@ -36,6 +36,7 @@ mobile/ios/Pods/
 mobile/.expo/
 mobile/*.log
 mobile/coverage/
+mobile/stitch/
 
 # --- Editor ---
 .vscode/*
