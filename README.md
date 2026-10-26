@@ -4,10 +4,10 @@
 
 GlucoTracker es una plataforma de monitoreo y análisis inteligente de glucosa dirigida a pacientes y médicos, construida bajo un enfoque de *Spec Driven Development* (ver `requirements.md`, `design.md` y `tasks.md` en la raíz del repositorio). El sistema registra y centraliza mediciones de glucosa, y ofrece dos componentes de Inteligencia Artificial complementarios (ver `docs/product_goal.md`):
 
-- **Modelo de riesgo de hipoglucemia (ML):** un modelo de Regresión Logística que estima, a partir de una lectura de glucosa y el perfil clínico del paciente, la probabilidad de un episodio de hipoglucemia, expuesto vía un endpoint REST del backend. Corre en paralelo (no reemplaza) al motor de reglas ADA que clasifica cada lectura puntual como Normal/Hipo/Hiper (ver `docs/model_baseline.md`).
-- **Chatbot educativo (NLP):** un asistente conversacional para consultas de pacientes sobre diabetes tipo 2, basado en inyección de contexto (system prompting) sobre un LLM externo, con alcance restringido a hipoglucemia y metas básicas de control glicémico (ver `docs/nlp/`).
+- **Modelo de riesgo de hipoglucemia (ML):** un modelo de Regresión Logística (ADR-0007) que estima, a partir de una lectura de glucosa y el perfil clínico del paciente, la probabilidad de hipoglucemia observada en el registro (REQ-004). Es **informativa**, visible solo al médico, y **no dispara alertas**. Es un modelo **experimental**: la validación cruzada muestra que no supera el azar con los datos disponibles (`docs/model_baseline.md` §4.1). Vive en el servicio independiente `backend/ml_service/`, sin ingreso público y llamado solo por el backend (ADR-0008); el backend de negocio no contiene código de ML. No clasifica lecturas: la clasificación Normal/Hipo/Hiper con umbrales ADA, que es la que dispara las alertas al médico, está **especificada** en la lógica de negocio del backend (`backend/app/core/reglas_ada.py`, TASK-012a; `design.md` § Clasificación ADA) y **aún no está implementada** (ver `docs/model_baseline.md`).
+- **Chatbot educativo (NLP):** un asistente conversacional para consultas de pacientes sobre diabetes tipo 2, basado en inyección de contexto (system prompting) sobre un LLM externo (Gemini), con alcance restringido a hipoglucemia y metas básicas de control glicémico. Corre como **servicio independiente** en `backend/nlp_service/` (ver `docs/nlp/` y `docs/adr/0006-nlp-servicio-independiente.md`).
 
-El backend es un monolito modular en FastAPI/Python, con persistencia en Supabase/PostgreSQL y despliegue previsto en Azure; el cliente es una app móvil en React Native (`mobile/`). Ver las decisiones de arquitectura completas en `docs/adr/` y los diagramas C4 en `docs/architecture/`.
+El backend de negocio es un monolito modular en FastAPI/Python (`backend/app/`: login con OTP por correo, médicos, pacientes, administradores, registros de glucosa, alertas manuales, auditoría y reporte PDF), con persistencia en Supabase/PostgreSQL. **Hoy no emite ni comprueba tokens** (ningún endpoint exige autenticación; ver `design.md` § Estado real del backend de negocio y `docs/risks.md`), y la clasificación ADA que dispara las alertas está especificada y pendiente (TASK-012a). El chatbot (`backend/nlp_service/`) y el modelo de ML (`backend/ml_service/`) son servicios FastAPI aparte, con dependencias y configuración propias y sin acceso a la base de datos. Los tres tienen despliegue previsto en Azure. El cliente es una app móvil en React Native (`mobile/`), que llama a cada servicio con su propia URL base. Ver las decisiones de arquitectura completas en `docs/adr/` y los diagramas C4 en `docs/architecture/`.
 
 ## 2. Tecnologías utilizadas
 
@@ -15,31 +15,31 @@ Tabla basada exclusivamente en lo que está configurado o implementado en el rep
 
 | Categoría | Tecnología | Uso en el proyecto |
 |---|---|---|
-| Lenguaje (backend) | Python | Implementación completa del backend, del módulo ML y (a futuro) del módulo NLP (`backend/app/`, `backend/requirements.txt`) |
-| Framework backend | FastAPI | Expone la API REST; define el router del endpoint de riesgo (`backend/app/main.py`, `backend/app/ml/riesgo.py`; ADR-0001) |
-| Servidor ASGI | Uvicorn | Ejecuta la aplicación FastAPI (`uvicorn app.main:app --reload`, `backend/requirements.txt`, `backend/app/test_ml.sh`) |
-| Validación de datos | Pydantic | Esquemas de entrada/salida del endpoint de riesgo de hipoglucemia (`backend/app/ml/riesgo.py`) |
+| Lenguaje (backend) | Python | Implementación del backend y del módulo ML (`backend/app/`, `backend/requirements.txt`) y, a futuro, del servicio NLP (`backend/nlp_service/`, con `requirements.txt` propio) |
+| Framework backend | FastAPI | Expone la API REST del backend de negocio (`backend/app/main.py`; ADR-0001) y, en servicios independientes, el endpoint de riesgo (`backend/ml_service/app/api/riesgo.py`; ADR-0008) y el chatbot (`backend/nlp_service/`; ADR-0006) |
+| Servidor ASGI | Uvicorn | Ejecuta la aplicación FastAPI (`uvicorn app.main:app --reload`, `backend/requirements.txt`; `backend/ml_service/test_ml.sh` para el servicio de ML) |
+| Validación de datos | Pydantic | Esquemas de entrada/salida del endpoint de riesgo de hipoglucemia (`backend/ml_service/app/api/riesgo.py`) |
 | Base de datos | PostgreSQL (gestionado vía Supabase) | Persistencia de usuarios, pacientes, registros de glucosa y alertas (ADR-0002; `design.md` § Data Models) |
 | Backend-as-a-Service | Supabase | Cliente `supabase` en `backend/requirements.txt`; variables `SUPABASE_URL` / `SUPABASE_KEY` en `backend/.env.example` |
 | Autenticación (librerías presentes) | `passlib[bcrypt]`, `python-jose[cryptography]` | Declaradas en `backend/requirements.txt` para hashing de contraseñas y JWT, pero el esquema de autenticación final **no está confirmado** (ver Open Questions) |
-| Machine Learning | scikit-learn | Modelo de Regresión Logística dentro de un `Pipeline`, implementado en `backend/app/ml/train_baseline.py` (ver `docs/model_baseline.md` y nota de evidencia más abajo) |
-| Machine Learning — balanceo de clases | imbalanced-learn (SMOTE-NC) | Balanceo de clases dentro del `Pipeline` de entrenamiento, solo sobre el conjunto de train (`docs/model_baseline.md` §3, `backend/requirements.txt`) |
-| Procesamiento de datos | pandas, numpy | Limpieza clínica y construcción de features (`backend/app/ml/data_prep.py`) |
-| Lectura de datos fuente | openpyxl | Lectura de `ShanghaiT2DM_Summary.xlsx` (`backend/app/ml/exportar_dataset.py`, `backend/requirements.txt`) |
-| Persistencia del modelo | joblib | Serialización de `app/ml/modelo_hipoglucemia.pkl` (`backend/app/ml/train_baseline.py`) |
+| Machine Learning | scikit-learn | Modelo de Regresión Logística dentro de un `Pipeline`, implementado en `backend/ml_service/app/train_baseline.py` (ver `docs/model_baseline.md` y nota de evidencia más abajo) |
+| Machine Learning — balanceo de clases | imbalanced-learn (SMOTE-NC) | Balanceo de clases dentro del `Pipeline` de entrenamiento, solo sobre el conjunto de train (`docs/model_baseline.md` §3, `backend/ml_service/requirements.txt`) |
+| Procesamiento de datos | pandas, numpy | Limpieza clínica y construcción de features (`backend/ml_service/app/data_prep.py`) |
+| Lectura de datos fuente | openpyxl | Lectura de `ShanghaiT2DM_Summary.xlsx` (`backend/ml_service/app/exportar_dataset.py`, `backend/ml_service/requirements.txt`) |
+| Persistencia del modelo | joblib | Serialización de `backend/ml_service/app/artefactos/modelo_hipoglucemia.pkl` (`backend/ml_service/app/train_baseline.py`) |
 | Generación de reportes | reportlab | Generación de reportes clínicos en PDF (REQ-008; `backend/requirements.txt`) |
-| NLP / LLM | LLM externo vía system prompting (proveedor específico **no confirmado**, referenciado como "OpenAI/Gemini") | Inyección del corpus `docs/nlp/reglas_ada_v1.txt` en el system prompt (`docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`); variable de entorno genérica `NLP_PROVIDER_API_KEY` en `backend/.env.example` |
+| NLP / LLM | LLM externo vía system prompting; proveedor Gemini (SDK `google-genai`) con interfaz intercambiable (ADR-0005) | Servicio independiente `backend/nlp_service/` (ADR-0006), **en implementación**: configuración, proveedores, prompt y servicio listos; el endpoint queda para TASK-018 (ver `backend/nlp_service/README.md`). Inyecta el corpus `backend/nlp_service/app/corpus/reglas_ada_v1.1.txt` en el system prompt (`docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`). Su clave va en `backend/nlp_service/.env` (`NLP_PROVIDER_API_KEY`), no en el backend |
 | Mobile — lenguaje | TypeScript | `mobile/App.tsx`, `mobile/src/services/api.ts` |
 | Mobile — framework | React Native 0.75.4 + React 18.3.1 | App cliente del sistema (`mobile/package.json`) |
 | Mobile — testing / linting | Jest, ESLint | Scripts `test` y `lint` de `mobile/package.json` |
 | Cloud | Microsoft Azure | Plataforma oficial de despliegue del backend (ADR-0003) |
-| Cloud — notificaciones push (referenciado, no confirmado) | Azure Notification Hubs | Variable `AZURE_NOTIFICATION_HUB_CONNECTION_STRING` en `backend/.env.example`, pero el servicio específico **no está confirmado formalmente** (ver Open Questions) |
+| Cloud — notificaciones push (referenciado, no confirmado) | Azure Notification Hubs | Mencionado en la propuesta del proyecto (antes figuraba la variable `AZURE_NOTIFICATION_HUB_CONNECTION_STRING` en `backend/.env.example`; ningún código la lee y se retiró); el servicio específico **no está confirmado formalmente** (ver Open Questions) |
 | Control de versiones | Git / GitHub | Repositorio remoto en GitHub; flujo de revisión por Pull Request obligatorio (`docs/team_charter.md`) |
 | Gestión de proyecto | ClickUp | Seguimiento de historias de usuario, riesgos y tareas del proyecto (`docs/clickup_estructura.md`) |
 
 ### Nota de evidencia — modelo de Machine Learning
 
-`docs/adr/0004-modelo-clasificacion-baseline.md` documenta como decisión aceptada un modelo de **Árbol de Decisión / SVC**. Sin embargo, el código realmente implementado (`backend/app/ml/train_baseline.py`, `backend/app/ml/riesgo.py`) y `docs/model_baseline.md` usan **Regresión Logística**. La tabla anterior refleja lo que efectivamente está implementado en el código (evidencia verificada directamente en `backend/app/ml/`), no lo declarado en el ADR. Esta discrepancia entre documentos no se resuelve aquí — se reporta como parte de la evidencia usada para esta sección.
+`docs/adr/0004-modelo-clasificacion-baseline.md` (Árbol de Decisión / SVC) fue **reemplazado por `docs/adr/0007-regresion-logistica-baseline.md`**: Regresión Logística con SMOTE-NC, que es lo que implementa el código (`backend/ml_service/app/train_baseline.py`) y lo que documenta `docs/model_baseline.md`. El ADR-0004 se conserva solo como registro histórico, con una nota que remite al ADR-0007. La tabla anterior refleja lo implementado.
 
 ### Decisiones tecnológicas pendientes (Open Questions)
 
@@ -48,9 +48,9 @@ Documentadas formalmente en `design.md` § Open Questions y reflejadas también 
 | Tecnología documentada | Decisión pendiente | Dónde está la Open Question | Impacto sobre la tabla de tecnologías |
 |---|---|---|---|
 | Esquema de autenticación | ¿JWT, sesiones de Supabase Auth, u OAuth? | `design.md` § Open Questions, `CONTEXT.md` § Open questions, `docs/risks.md` (RT-01) | Las librerías `python-jose` y `passlib[bcrypt]` están instaladas, pero no puede listarse "JWT" como el mecanismo de autenticación confirmado del sistema |
-| Proveedor de LLM del chatbot | ¿OpenAI o Gemini (u otro)? El ADR `docs/nlp/adr_system_prompting_vs_rag.md` ya fija el *enfoque* (system prompting sobre LLM externo), pero no el proveedor concreto | `docs/nlp/adr_system_prompting_vs_rag.md`, `docs/nlp/corpus_conocimiento.md`, `docs/nlp/baseline_chatbot.md` (campo `modelo_llm` sin valor fijo); listada también, de forma más general ("LLM externo vs. modelo propio"), en `design.md` § Open Questions y `CONTEXT.md` § Open questions | No puede confirmarse un proveedor específico de LLM en la tabla de tecnologías, solo que el enfoque es "LLM externo" |
-| Servicio de Azure para notificaciones push | ¿Azure Notification Hubs u otro servicio? | `design.md` § Open Questions, `CONTEXT.md` § Open questions | `backend/.env.example` ya nombra `AZURE_NOTIFICATION_HUB_CONNECTION_STRING`, pero esto no equivale a una confirmación formal de la decisión en `design.md` |
-| Algoritmo de ML baseline | ADR-0004 dice Árbol de Decisión/SVC; el código implementado usa Regresión Logística | `docs/adr/0004-modelo-clasificacion-baseline.md` vs. `docs/model_baseline.md` y `backend/app/ml/train_baseline.py` | No es una Open Question declarada como tal, pero es una discrepancia directamente relevante para no presentar el algoritmo de ML como una tecnología inequívocamente confirmada por todos los documentos (ver nota de evidencia arriba) |
+| Proveedor de LLM del chatbot | **Cerrada:** Gemini con interfaz intercambiable (FakeProvider para pruebas; OpenAI diferido), decidido en `docs/adr/0005-proveedor-llm-chatbot.md` | `docs/adr/0005-proveedor-llm-chatbot.md`; Open Question del chatbot marcada como resuelta en `design.md` y `CONTEXT.md` | La tabla de tecnologías ya lista Gemini (SDK `google-genai`) como proveedor |
+| Servicio de Azure para notificaciones push | ¿Azure Notification Hubs u otro servicio? | `design.md` § Open Questions, `CONTEXT.md` § Open questions | No hay variable ni código para notificaciones push en el backend actual; la decisión sigue sin confirmarse formalmente en `design.md` |
+| Algoritmo de ML baseline | **Cerrada:** ADR-0004 (Árbol de Decisión/SVC) fue reemplazado por ADR-0007 (Regresión Logística + SMOTE-NC), que coincide con el código. El modelo es experimental: no supera el azar con los datos actuales | `docs/adr/0007-regresion-logistica-baseline.md`; `docs/model_baseline.md` §4.1 | La tabla de tecnologías lista scikit-learn e imbalanced-learn sin discrepancia entre documentos |
 | Validación de matrícula médica | ¿Contra un registro externo o solo validación de formato? | `design.md` § Open Questions, `CONTEXT.md` § Open questions | No tiene impacto sobre tecnologías de la tabla (es una regla de negocio, no una elección de stack) |
 
 ## 3. Mapa de la documentación
@@ -68,7 +68,13 @@ Este README es un índice navegable y una guía de reproducción; el detalle com
 | ADR 0001 — Backend monolítico FastAPI | Justificación de la arquitectura de backend | `docs/adr/0001-backend-monolitico-fastapi.md` |
 | ADR 0002 — Supabase/PostgreSQL | Justificación de la base de datos y BaaS | `docs/adr/0002-supabase-postgresql.md` |
 | ADR 0003 — Despliegue en Azure | Justificación del proveedor cloud | `docs/adr/0003-despliegue-azure.md` |
-| ADR 0004 — Modelo baseline de clasificación | Justificación del algoritmo elegido para el riesgo glucémico | `docs/adr/0004-modelo-clasificacion-baseline.md` |
+| ADR 0004 — Modelo baseline de clasificación (**reemplazado por el ADR 0007**) | Registro histórico del Árbol de Decisión/SVC descartado | `docs/adr/0004-modelo-clasificacion-baseline.md` |
+| ADR 0010 — Contenerización con Docker Compose | Una imagen por servicio, el modelo de ML por volumen y el ML solo en una red interna | `docs/adr/0010-contenerizacion-docker-compose.md` |
+| ADR 0009 — Modelo de demo con datos sintéticos | Segundo modelo separado, entrenado con datos generados por reglas clínicas; sin cambio de contrato (la API no distingue el modelo) | `docs/adr/0009-modelo-demo-datos-sinteticos.md` |
+| Generador de datos sintéticos (modelo de demo) | Reglas clínicas, distribuciones y esquemas del dataset sintético. Modelo de demo: aprende reglas del equipo, no la realidad | `docs/ml/generador_sintetico.md` |
+| ADR 0007 — Regresión Logística + SMOTE-NC | Decisión vigente del algoritmo del modelo de riesgo | `docs/adr/0007-regresion-logistica-baseline.md` |
+| ADR 0005 — Proveedor LLM del chatbot | Gemini con interfaz intercambiable; política de datos por tier | `docs/adr/0005-proveedor-llm-chatbot.md` |
+| ADR 0006 — Servicio NLP independiente | Por qué el chatbot sale del monolito a `backend/nlp_service/` | `docs/adr/0006-nlp-servicio-independiente.md` |
 | C4 — Contexto del sistema | Diagrama de actores y sistema (Nivel 1) | `docs/architecture/c4_context.md` |
 | C4 — Contenedores | Diagrama de contenedores de software (Nivel 2) | `docs/architecture/c4_container.md` |
 | Ecosistema de datos | Inventario de fuentes, privacidad/licenciamiento y resumen del EDA del componente ML | `docs/data_ecosystem.md` |
@@ -81,45 +87,52 @@ Este README es un índice navegable y una guía de reproducción; el detalle com
 
 Pasos concretos para reproducir el entrenamiento del modelo y levantar el endpoint que lo expone, tal como están documentados en `docs/model_baseline.md` y en `backend/app/test_ml.sh`.
 
+> **Dónde vive el ML:** el entrenamiento, la validación cruzada, la inferencia y el endpoint `POST /api/riesgo/hipoglucemia` están en el servicio `backend/ml_service/`, con su propio venv y sin ingreso público (ADR-0008); su README tiene la guía completa. El backend de negocio (`backend/app/`) no contiene código de ML. El modelo **no** clasifica Normal/Hipo/Hiper: eso es la clasificación ADA especificada en `backend/app/core/reglas_ada.py` (TASK-012a), aún no implementada.
+
 ### 4.1 Requisitos previos
 
-- Python 3.13 (el entorno del proyecto incluye artefactos compilados para esta versión en `backend/app/ml/__pycache__/`).
-- El dataset fuente ya presente en `backend/data/raw/ShanghaiT2DM_Summary.xlsx` (ver `docs/data_ecosystem.md` para su origen y licencia).
+- Python 3.13 (versión con la que se fijaron y verificaron las dependencias del servicio de ML).
+- El dataset fuente ya presente en `backend/ml_service/data/raw/ShanghaiT2DM_Summary.xlsx` (ver `docs/data_ecosystem.md` para su origen y licencia).
 
 ### 4.2 Clonar el repositorio e instalar dependencias
 
 ```bash
 git clone <URL-del-repositorio>
-cd proyecto-taller-inteligentes/backend
-pip install -r requirements.txt
+cd proyecto-taller-inteligentes/backend/ml_service
+python -m venv .venv && source .venv/Scripts/activate   # Windows (Git Bash); el entorno es propio del servicio
+pip install -r requirements-dev.txt
 ```
+
+El backend principal tiene su propio `backend/requirements.txt` y entorno.
 
 ### 4.3 Entrenar el modelo baseline
 
 ```bash
-python -m app.ml.train_baseline
+python -m app.train_baseline        # desde backend/ml_service/
 ```
 
-Este comando genera `app/ml/modelo_hipoglucemia.pkl` (modelo entrenado) y `app/ml/baseline_metrics.json` (métricas), sin pasos manuales ni notebooks intermedios (ver `docs/model_baseline.md` §1).
+Este comando genera en `app/artefactos/` el modelo (`modelo_hipoglucemia.pkl`, fuera de git), sus metadatos con la huella y las versiones (`modelo_hipoglucemia.json`, en git) y `baseline_metrics.json`, sin pasos manuales ni notebooks intermedios (ver `docs/model_baseline.md` §1).
 
-### 4.4 Levantar la API
+### 4.4 Levantar el servicio de ML
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --env-file .env --port 8002   # desde backend/ml_service/
 ```
 
-Verificación rápida de que el servicio está activo:
+Verificación rápida de que el servicio está activo (informa si el modelo está cargado y verificado):
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8002/health
 ```
+
+El backend de negocio se levanta aparte, desde `backend/` con su propio entorno (`uvicorn app.main:app --reload`, puerto 8000).
 
 ### 4.5 Probar el endpoint de riesgo
 
-El endpoint expuesto es `POST /api/riesgo/hipoglucemia` (`backend/app/ml/riesgo.py`). Puede probarse manualmente:
+El endpoint es `POST /api/riesgo/hipoglucemia` del servicio de ML (`backend/ml_service/app/api/riesgo.py`). Devuelve `riesgo_hipoglucemia` (0 a 1) y `version_modelo`; la probabilidad es **solo informativa**, visible solo para el médico, y no dispara alertas. Contrato completo en `design.md` § Servicio de ML y en `backend/ml_service/README.md`. Puede probarse manualmente:
 
 ```bash
-curl -s -X POST "http://localhost:8000/api/riesgo/hipoglucemia" \
+curl -s -X POST "http://localhost:8002/api/riesgo/hipoglucemia" \
   -H "Content-Type: application/json" \
   -d '{
         "glucosa": 68,
@@ -139,16 +152,16 @@ curl -s -X POST "http://localhost:8000/api/riesgo/hipoglucemia" \
       }' | python -m json.tool
 ```
 
-O bien, ejecutar el flujo completo (entrenar + verificar salud de la API + probar el endpoint) con el script incluido en el repositorio:
+O bien, ejecutar el flujo completo (entrenar solo si falta el `.pkl`, levantar el servicio, probar el endpoint y apagarlo) con el script incluido en el repositorio:
 
 ```bash
-cd backend
-./app/test_ml.sh
+cd backend/ml_service
+./test_ml.sh
 ```
 
 ### 4.6 Variables de entorno
 
-Copiar `backend/.env.example` a `backend/.env` y completar con valores reales (credenciales de Supabase, JWT, Azure Notification Hub, API key del proveedor de NLP). El archivo `.env` real nunca debe commitearse (ver `docs/team_charter.md`).
+Copiar `backend/.env.example` a `backend/.env` y completar con valores reales (Supabase, secreto JWT, cuenta de correo para el OTP). Cada servicio tiene su propio `.env`: la API key del proveedor de NLP va en `backend/nlp_service/.env` (a partir de su `.env.example`) y las variables `ML_*` en `backend/ml_service/.env`; el backend no las necesita. El backend se prueba con `PYTHONPATH=. python -m pytest tests` desde `backend/`, con un entorno creado con `pip install -r requirements-dev.txt`. El archivo `.env` real nunca debe commitearse (ver `docs/team_charter.md`).
 
 ```bash
 cp backend/.env.example backend/.env
@@ -164,17 +177,81 @@ Métricas generadas automáticamente al entrenar (`random_state=42`), documentad
 | Precision (clase hipoglucemia) | 0.429 |
 | Recall (clase hipoglucemia) | 0.429 |
 | F1 (clase hipoglucemia) | 0.429 |
-| Filas de entrenamiento | 157 (10 positivos reales antes de SMOTE-NC) |
-| Filas de test | 36 (7 positivos, 100% reales) |
+| Train | 157 **filas** (lecturas), 10 filas positivas reales antes de SMOTE-NC, de 77 pacientes |
+| Test | 36 **filas** (lecturas), 7 filas positivas 100% reales, de solo 4 pacientes positivos (20 pacientes en total) |
+
+Es un único split con muy pocos positivos: sirve como punto de comparación, no como estimación estable (validación cruzada agrupada pendiente, TASK-010a). Conteos del dataset: 100 pacientes, 109 registros, 10 registros positivos, 193 filas y 17 filas positivas (`docs/data_ecosystem.md` §3).
 
 Justificación del modelo elegido, tratamiento del desbalance de clases y limitaciones conocidas: ver `docs/model_baseline.md` §2, §3 y §5; inventario de datos y análisis exploratorio: ver `docs/data_ecosystem.md`.
+
+## Levantar todo con Docker
+
+Los tres servicios del backend (backend de negocio, chatbot NLP y servicio de ML) se levantan con un solo comando usando Docker Compose (decisión del equipo, `docs/adr/0010-contenerizacion-docker-compose.md`; diseño en `design.md` § Contenedores). La app móvil **no** va en Docker. Cada servicio tiene **su** imagen y **su** `requirements.txt`, porque sus versiones chocan entre sí.
+
+### Requisitos
+- Docker Desktop o Docker Engine con Compose v2.24 o superior (verificado con Docker 29.2.1 y Compose v5.1.0; se necesita `env_file` con `required: false`).
+- Para generar el modelo real la primera vez: el dataset en `backend/ml_service/data/raw/ShanghaiT2DM_Summary.xlsx` (ya está en el repositorio).
+
+### Pasos
+```bash
+# 1. Archivos de configuración (opcionales para arrancar; sin claves el chatbot y la base de datos no funcionan,
+#    pero los servicios levantan). Cada servicio lee SOLO su propio .env; nunca se copian a las imágenes.
+cp backend/.env.example backend/.env
+cp backend/nlp_service/.env.example backend/nlp_service/.env
+cp backend/ml_service/.env.example backend/ml_service/.env
+cp .env.example .env            # solo variables NO secretas de Compose (ML_MODELO, FORWARDED_ALLOW_IPS)
+
+# 2. Construir y levantar (backend 8000, nlp_service 8001; ml_service solo en la red interna)
+docker compose up -d --build
+docker compose ps               # los tres deben quedar en estado "healthy"
+
+# 3. Primera vez: generar el modelo de ML en el volumen (el .pkl no está en git ni en las imágenes)
+docker compose run --rm ml_entrenar_real      # modelo real (AUC 0.640 / recall 0.429 en su split de prueba)
+docker compose run --rm ml_entrenar_demo      # modelo de DEMO con datos sintéticos (para ML_MODELO=demo)
+```
+Sin modelo el servicio de ML sigue vivo: `GET /health` informa `modelo_cargado: false` y `POST /api/riesgo/hipoglucemia` responde 503 genérico. Al generar el modelo no hace falta reiniciar el servicio.
+
+### Comandos habituales
+| Qué | Comando |
+|---|---|
+| Ver estado y salud | `docker compose ps` |
+| Ver logs | `docker compose logs -f backend` (o `nlp_service`, `ml_service`) |
+| Parar (conserva el modelo) | `docker compose down` |
+| Parar **y borrar el modelo** | `docker compose down -v` |
+| Servir el modelo de demo | poner `ML_MODELO=demo` en el `.env` de la raíz y `docker compose up -d ml_service` |
+| Probar el chatbot sin gastar la clave | `docker compose -f docker-compose.yml -f docker-compose.prueba.yml up -d` (proveedor `fake`, sin autenticación; solo desarrollo) |
+| Pruebas dentro de contenedores | `docker compose --profile pruebas run --rm backend_test` (también `nlp_test` y `ml_test`) |
+
+### Puertos y red
+| Servicio | Puerto por defecto | Desde el host |
+|---|---|---|
+| backend de negocio | 8000 | `http://localhost:8000/health` |
+| nlp_service (chatbot) | 8001 | `http://localhost:8001/health` y `POST http://localhost:8001/api/chatbot/consulta` |
+
+Si el 8000 o el 8001 del host están ocupados, cámbialos con `BACKEND_PORT` y `NLP_PORT` (en el `.env` de la raíz o en el entorno, por ejemplo `NLP_PORT=18001 docker compose up -d`); el puerto dentro del contenedor no cambia.
+| ml_service | 8002 | **no alcanzable** (ADR-0008): solo desde la red interna, por `http://ml_service:8002` |
+
+El servicio de ML está en una red de Compose interna (`internal: true`, sin salida a Internet) que comparte solo con el backend. Para probarlo, ejecuta una petición desde el contenedor del backend:
+```bash
+docker compose exec -T backend python -c "import urllib.request; print(urllib.request.urlopen('http://ml_service:8002/health').read().decode())"
+```
+
+### Seguridad y cosas a tener en cuenta
+- Ningún `.env`, `.pkl` ni clave entra en las imágenes (cada contexto de build tiene su `.dockerignore`) y los contenedores no corren como root.
+- `backend/.env` solo debe tener las variables del backend. Si tiene `NLP_PROVIDER_API_KEY`, esa clave llegaría al contenedor del backend sin necesitarla: quítala de ahí (va solo en `backend/nlp_service/.env`).
+- El límite de tasa del chatbot usa la IP del cliente. Detrás de Docker o de un proxy hay que poner la IP del proxy en `FORWARDED_ALLOW_IPS`; si no, todos los clientes comparten la misma IP.
+- El backend de negocio todavía no exige autenticación (ver `docs/risks.md`, RB-01): no lo expongas públicamente con datos reales.
+
+### Hacia Azure (TASK-002 y TASK-002b)
+Las imágenes `runtime` son el artefacto de despliegue (ADR-0003). **Se reutiliza:** los tres Dockerfile, los `healthcheck` sobre `/health`, la configuración solo por variables de entorno, el usuario no root y el volumen para el modelo (en Azure sería un Azure Files o una imagen de datos aparte). **Falta:** elegir App Service o Container Apps, el registro de imágenes (por ejemplo Azure Container Registry), el ingreso interno del servicio de ML (sin IP pública, alcanzable solo desde el backend), los secretos (Key Vault o variables del servicio) y la IP del ingress para `FORWARDED_ALLOW_IPS`.
 
 ## 5. Estado del componente NLP (chatbot educativo)
 
 El componente de chatbot está actualmente en etapa de **especificación de diseño y metodología de evaluación**, no cuenta todavía con un script de ejecución ni resultados medidos en este repositorio. Lo que existe documentado es:
 
 - La decisión arquitectónica de usar inyección estática de contexto (system prompting) sobre un LLM externo en vez de RAG, con sus alternativas consideradas y condiciones de revisión futura (ver `docs/nlp/adr_system_prompting_vs_rag.md`).
-- El corpus de conocimiento que se inyectaría en el system prompt (`docs/nlp/reglas_ada_v1.txt`) y su política de versionado (ver `docs/nlp/corpus_conocimiento.md`).
+- La arquitectura del chatbot como servicio independiente `backend/nlp_service/`, al que la app llama directamente (ver `docs/adr/0006-nlp-servicio-independiente.md` y `design.md` § Servicio NLP (chatbot) Design).
+- El corpus de conocimiento que se inyecta en el system prompt (`backend/nlp_service/app/corpus/`, con `reglas_ada_v1.1.txt` como versión vigente) y su política de versionado (ver `docs/nlp/corpus_conocimiento.md`).
 - La metodología de evaluación propuesta: la métrica de Tasa de Adherencia Clínica, el diseño del Golden Dataset (`docs/nlp/golden_dataset.csv`, 20 preguntas en 4 categorías) y el formato esperado de `nlp_baseline_metrics.json` (ver `docs/nlp/baseline_chatbot.md`). El propio documento aclara explícitamente que "la implementación del script que ejecuta las llamadas al LLM y calcula estos valores es un paso de código separado, no cubierto aquí".
 
 No implementar TASK-010 ni TASK-013 (módulo de ML y chatbot respectivamente) sin antes consultar las Open Questions pendientes en `design.md` y en `CONTEXT.md` (ver también `CLAUDE.md`).
@@ -189,12 +266,12 @@ proyecto-taller-inteligentes/
 │   ├── app/
 │   │   ├── main.py                        # punto de entrada FastAPI
 │   │   ├── ml/                            # modelo de riesgo de hipoglucemia (datos, entrenamiento, predicción, endpoint)
-│   │   ├── nlp/                           # módulo del chatbot (en desarrollo)
 │   │   ├── api/, core/, models/           # capas del backend a completar según tasks.md
 │   │   └── test_ml.sh                     # script end-to-end de prueba del componente ML
 │   ├── data/raw/                          # dataset fuente (ShanghaiT2DM)
 │   ├── requirements.txt
-│   └── .env.example
+│   ├── .env.example
+│   └── nlp_service/                       # servicio NLP independiente del chatbot (venv, requirements y README propios)
 ├── mobile/                                # app cliente en React Native
 └── docs/
     ├── adr/                               # decisiones de arquitectura (ADR)
@@ -205,14 +282,16 @@ proyecto-taller-inteligentes/
 
 ## 7. Próximos pasos pendientes
 
-Recopilados tal como están documentados en los `.md` existentes, sin agregar pendientes nuevos:
+Recopilados de los `.md` existentes y de tasks.md:
 
-- Recalibrar el umbral de decisión del modelo de riesgo ("Alta"/"Media"/"Baja") priorizando recall, e incorporar validación cruzada agrupada (`GroupKFold`) antes de declarar mejoras entre iteraciones (ver `docs/model_baseline.md` §5).
+- Validación cruzada agrupada por paciente con IC por bootstrap sobre pacientes, comparando con árbol de decisión y Random Forest (TASK-010a, ML-D2/D3). Después, calibración y umbral con revisión clínica, priorizando recall (TASK-010b, ML-D4). Hasta entonces el modelo es solo informativo (ver `docs/model_baseline.md` §5 y ADR-0007).
+- Implementar la clasificación ADA de la lógica de negocio del backend (`backend/app/core/reglas_ada.py`, TASK-012a) y las alertas que dispara (TASK-012), y migrar el modelo al servicio `backend/ml_service/` (TASK-011d/011e, ADR-0008).
 - Conseguir datos que cubran el momento "antes de dormir", no representado en el dataset fuente actual (ver `docs/model_baseline.md` §5).
 - Reentrenar el modelo cuando existan datos reales propios de la app, dado que el dataset base (ShanghaiT2DM) no necesariamente representa a la población de usuarios de GlucoTracker (ver `docs/risks.md`, RD-01).
-- Evaluar `class_weight` o técnicas de remuestreo adicionales frente al desbalance de clases (ver `docs/risks.md`, RD-02).
-- Verificar contra el código del motor de reglas del backend que los umbrales citados en `reglas_ada_v1.txt` ("70-130 mg/dL en ayunas", "menor a 180 mg/dL postprandial") coinciden exactamente con los usados por dicho motor (ver `docs/nlp/corpus_conocimiento.md` §3).
-- Confirmar la edición/año exacto de la fuente ADA citada en el corpus del chatbot, asegurando que sea la misma ya citada en la propuesta técnica original del motor de reglas (ver `docs/nlp/corpus_conocimiento.md` §1).
+- Evaluar `class_weight` (sigue sin evaluarse) o técnicas de remuestreo adicionales frente al desbalance de clases, dentro de TASK-010a (ver `docs/risks.md`, RD-02).
+- El servicio NLP ya compara con un test de contrato los umbrales del corpus ("70-130 mg/dL en ayunas", "menor a 180 mg/dL postprandial") contra sus constantes y contra `docs/nlp/umbrales_ada_v1.json` (TASK-013j). La clasificación ADA del backend, especificada en `backend/app/core/reglas_ada.py` (TASK-012a) y aún no implementada, deberá pasar el mismo contrato (ver `docs/nlp/corpus_conocimiento.md` §3).
+- Confirmar la edición/año exacto de la fuente ADA citada en el corpus del chatbot y en `umbrales_ada_v1.json`, que será también la fuente de la clasificación ADA del backend (TASK-012a) (ver `docs/nlp/corpus_conocimiento.md` §1).
+- Resolver la Open Question del perfil clínico en Data Models (bloquea TASK-017, no el servicio de ML) y la de autenticación entre el backend y el servicio de ML (ver `design.md` § Open Questions).
 - Implementar el script que ejecuta las llamadas al LLM y calcula las métricas de adherencia del chatbot (`nlp_baseline_metrics.json`), descrito pero no cubierto por la metodología (ver `docs/nlp/baseline_chatbot.md` §4).
 - Considerar un filtro adicional de palabras clave sobre la salida del LLM como trabajo futuro si la adherencia en casos `adversarial` no resulta aceptable (ver `docs/nlp/baseline_chatbot.md` §6 y `docs/risks.md`, RIA-03).
 - Evaluar un modelo LLM local como trabajo futuro si la dependencia de un proveedor externo se vuelve un problema en producción (ver `docs/nlp/adr_system_prompting_vs_rag.md` y `docs/risks.md`, RIA-04).

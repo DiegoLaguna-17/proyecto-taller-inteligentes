@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "fuente": "American Diabetes Association, Standards of Care in Diabetes (edición pendiente de confirmar, ver corpus_conocimiento.md §1)",
+  "unidad_glucosa": "mg/dL",
+  "hipoglucemia_umbral_mg_dl": 70,
+  "ayunas_min_mg_dl": 70,
+  "ayunas_max_mg_dl": 130,
+  "postprandial_max_mg_dl": 180,
+  "carbohidratos_rapidos_g": 15,
+  "espera_remedicion_min": 15,
+  "descargo_medico": "Consulta siempre a tu médico tratante para cambios en tu medicación."
+}

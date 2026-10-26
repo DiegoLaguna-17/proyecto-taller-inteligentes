@@ -1,0 +1,56 @@
+{
+  "version_modelo": "1.0.0",
+  "fecha_entrenamiento": "2026-10-24T15:46:45+00:00",
+  "sha256_pkl": "21ac53405c98d0d329aa6b5f88013ba246c39cd61d4a25ef4a5c93d84b6e1b19",
+  "versiones": {
+    "python": "3.13.3",
+    "scikit-learn": "1.5.2",
+    "imbalanced-learn": "0.14.2",
+    "numpy": "2.4.6",
+    "scipy": "1.15.3",
+    "pandas": "2.2.3",
+    "joblib": "1.6.0",
+    "openpyxl": "3.1.5"
+  },
+  "metricas": {
+    "modelo": "regresion_logistica_baseline",
+    "auc_roc": 0.6404,
+    "precision_hipo": 0.4286,
+    "recall_hipo": 0.4286,
+    "f1_hipo": 0.4286,
+    "matriz_confusion": {
+      "orden": [
+        "real_no",
+        "real_hipo"
+      ],
+      "valores": [
+        [
+          25,
+          4
+        ],
+        [
+          4,
+          3
+        ]
+      ]
+    },
+    "n_train": 157,
+    "n_test": 36,
+    "positivos_test": 7,
+    "random_state": 42
+  },
+  "random_state": 42,
+  "dataset": {
+    "archivo": "ShanghaiT2DM_Summary.xlsx",
+    "sha256": "fd37a621878532ebfb50d35432f18dbff0a4d870a76b565e40ff4668b295adf5"
+  },
+  "conteos": {
+    "filas": 193,
+    "filas_positivas": 17,
+    "pacientes": 97,
+    "filas_train": 157,
+    "filas_positivas_train": 10,
+    "filas_test": 36,
+    "filas_positivas_test": 7
+  }
+}

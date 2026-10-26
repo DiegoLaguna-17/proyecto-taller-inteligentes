@@ -20,10 +20,19 @@
   - _Refs rationale_: NFR-002 (disponibilidad) y NFR-001 (tráfico cifrado) dependen de esta infraestructura base.
   - _Output_: Servicio en Azure accesible por HTTPS con certificado válido.
   - _Verify_: `curl -I https://<url>` retorna 200 y certificado válido (sin warnings de SSL).
-- [ ] **TASK-003** []: Scaffolding del proyecto FastAPI (`backend/app/`) con estructura de carpetas de design.md (api, ml, nlp, models, core).
+- [ ] **TASK-002a** [NFR-001, NFR-002]: Provisionar en Azure un recurso propio para el servicio NLP (`backend/nlp_service/`), separado del backend, con HTTPS/SSL y sus propias variables de entorno (ADR-0006). No bloquea las tareas TASK-013; el servicio no se expone públicamente hasta TASK-014.
+  - _Refs rationale_: ADR-0006 (segundo despliegue): NFR-001 exige tráfico cifrado y NFR-002 disponibilidad también para el servicio NLP.
+  - _Output_: Servicio NLP accesible por HTTPS con certificado válido; `NLP_PROVIDER_API_KEY` configurada como secreto del recurso, no en el repositorio.
+  - _Verify_: `curl -I https://<url-nlp>/health` retorna 200 y certificado válido (sin warnings de SSL). Si hay un proxy delante (Azure), uvicorn arranca con `--proxy-headers --forwarded-allow-ips=<IP del proxy>`, para que el límite de tasa vea la IP real del cliente (design.md § `app/rate_limit.py`).
+- [ ] **TASK-002b** [NFR-001, NFR-002]: Provisionar en Azure un recurso propio para el servicio de ML (`backend/ml_service/`) **sin ingreso público**, alcanzable solo desde el backend por red interna (ADR-0008, ML-D8). No bloquea las tareas del modelo (TASK-010, TASK-010a/b, TASK-011a–d).
+  - _Refs rationale_: ADR-0008: el servicio no tiene autenticación propia en v1, así que su protección es la red; riesgo de exposición accidental.
+  - _Output_: Recurso del servicio de ML en la red interna del despliegue, sin endpoint público; `ML_SERVICE_URL` configurada en el backend como variable de entorno (no en el repositorio).
+  - _Verify_: Desde Internet, la URL o IP del servicio no responde (timeout o conexión rechazada). Desde el backend, `GET /health` → 200 por la red interna.
+- [x] **TASK-003** []: Scaffolding del proyecto FastAPI (`backend/app/`) con estructura de carpetas de design.md (api, schemas, services, core; el ML y el chatbot son servicios aparte, ADR-0006 y ADR-0008).
   - _Refs rationale_: Estructura base descrita en design.md § File Structure.
   - _Output_: Proyecto FastAPI ejecutable localmente con endpoint `/health`.
   - _Verify_: `GET /health` retorna 200 en entorno local.
+  - _Hecho (2026-10-25, tras la fusión con `adriang-backend`)_: `app.main:app` importa y `GET /health` → 200 con `TestClient` (y `backend/tests/test_aislamiento.py` lo fija); estructura actualizada en design.md 1.6.0.
 - [ ] **TASK-004** []: Scaffolding del proyecto React Native (`mobile/`) con navegación base y estructura de screens/components/services.
   - _Refs rationale_: Estructura base descrita en design.md § File Structure.
   - _Output_: App React Native que compila y muestra una pantalla de login vacía.
@@ -36,107 +45,560 @@
   - _Refs rationale_: Base de autenticación para REQ-001 y alta de usuarios para REQ-002.
   - _Output_: Migración SQL para T_Usuario según el esquema de design.md.
   - _Verify_: Insertar un usuario de prueba y confirmar que `contrasena_hash` nunca almacena texto plano.
+  - _Estado tras la fusión (2026-10-25)_: existe la tabla `usuario` en Supabase (nombre distinto de `T_Usuario`); no hay migraciones en este repositorio, así que el criterio no se puede verificar aquí. Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-006** [REQ-002]: Crear tablas T_Paciente, T_Medico y T_Administrador con sus relaciones a T_Usuario.
   - _Refs rationale_: Extensiones de usuario descritas en design.md.
   - _Output_: Migraciones SQL para las tres tablas con FKs correctas.
   - _Verify_: Insertar un paciente y un médico de prueba, confirmar integridad referencial.
-- [ ] **TASK-007** [REQ-003, REQ-004]: Crear tabla T_Registro_glucosa con campos de clasificación ML.
-  - _Refs rationale_: Soporta el registro de glucosa (REQ-003) y el resultado de clasificación (REQ-004).
+  - _Estado tras la fusión (2026-10-25)_: existen `paciente`, `medico` y `administrador` en Supabase (nombres distintos de `T_*`); sin migraciones en el repositorio. Se deja `[ ]` (ver TASK-029).
+- [ ] **TASK-007** [REQ-003, REQ-004, REQ-005]: Crear tabla T_Registro_glucosa con `clasificacion_ada` (lógica de negocio) y los campos de riesgo del ML (`riesgo_hipoglucemia`, `riesgo_modelo_version`, `riesgo_calculado_en`), según design.md 1.4.0.
+  - _Refs rationale_: Soporta el registro de glucosa (REQ-003), la clasificación ADA que dispara alertas (REQ-005) y la probabilidad informativa del ML (REQ-004).
   - _Output_: Migración SQL para T_Registro_glucosa.
-  - _Verify_: Insertar un registro de prueba sin `clasificacion_ml` y confirmar que el campo acepta NULL.
+  - _Verify_: Insertar un registro de prueba sin `clasificacion_ada` ni `riesgo_hipoglucemia` y confirmar que ambos aceptan NULL; insertar `riesgo_hipoglucemia = 1.5` y confirmar que el CHECK lo rechaza.
+  - _Estado tras la fusión (2026-10-25)_: existe `registro_glucosa` en Supabase; no se verificó que tenga `clasificacion_ada` ni los campos de riesgo del ML (TASK-012a y TASK-017 pendientes). Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-008** [REQ-005]: Crear tablas T_Tipo_alerta y T_Alertas.
   - _Refs rationale_: Necesarias para notificaciones automáticas al médico (REQ-005).
   - _Output_: Migraciones SQL con FK de T_Alertas a T_Registro_glucosa y T_Tipo_alerta.
   - _Verify_: Insertar un tipo de alerta y una alerta asociada a un registro de prueba.
+  - _Estado tras la fusión (2026-10-25)_: existe `alertas` en Supabase; no se encontró una tabla `T_Tipo_alerta` equivalente en el código. Se deja `[ ]` (ver TASK-029).
 - [ ] **TASK-009** [NFR-001]: Crear tabla T_Auditoria_Endpoints.
   - _Refs rationale_: Trazabilidad de seguridad exigida en NFR-001.
   - _Output_: Migración SQL para T_Auditoria_Endpoints.
   - _Verify_: Insertar un registro de auditoría de prueba manualmente.
+  - _Estado tras la fusión (2026-10-25)_: existe `auditoria_endpoints` y `core/audit.py` escribe en ella (id, rol, endpoint, operación, código HTTP, IP; no guarda el cuerpo). Criterio no verificado contra la base real. Se deja `[ ]` (ver TASK-029).
 
 ## Phase 3: Lógica de Negocio
 *Goal*: Implementar el modelo de ML, el chatbot y las reglas de negocio centrales.
 
-- [ ] **TASK-010** [REQ-004, NFR-003]: Entrenar y serializar el modelo de clasificación (SVC o Árbol de Decisión) para Normal/Riesgo Hipo/Riesgo Hiper.
-  - _Refs rationale_: REQ-004 exige la clasificación; NFR-003 exige que responda en <2s.
-  - _Output_: Modelo serializado (ej. `.pkl`) cargable por el backend, con métricas de ROC-AUC y Exactitud documentadas.
-  - _Verify_: Evaluación offline del modelo con un dataset de validación reporta ROC-AUC y Exactitud aceptables (definir umbral con el equipo clínico).
-- [ ] **TASK-011** [REQ-004, NFR-003]: Implementar el módulo `app/ml/` que carga el modelo y expone una función de clasificación interna.
+*Orden sugerido para ML (fase M2 y siguientes)*: TASK-011c → TASK-011a → TASK-011b → TASK-010a → TASK-010b; luego TASK-011d → TASK-011e. Clasificación y alertas: TASK-012a → TASK-012 → TASK-017.
+
+- [~] **TASK-010** [REQ-004, NFR-003]: Entrenar y serializar el modelo de **probabilidad de hipoglucemia observada en el registro** (Regresión Logística con SMOTE-NC, ADR-0007; reemplaza el alcance original "SVC o Árbol para Normal/Riesgo Hipo/Riesgo Hiper", que queda fuera del ML por ML-D1/ML-D5). Se completa con TASK-010a y TASK-010b.
+  - _Refs rationale_: REQ-004 v1.1.0 (probabilidad informativa); NFR-003 (< 2 s).
+  - _Output_: Modelo serializado (`.pkl`) cargable por el servicio, con métricas documentadas. Se usa AUC-ROC en lugar de exactitud, que se infla con el desbalance (RD-02).
+  - _Verify_: Evaluación con validación cruzada agrupada e intervalos (TASK-010a), y umbral y recall mínimo fijados con revisión clínica (TASK-010b).
+  - _Hecho (evidencia, 2026-10-24)_:
+    - `backend/ml_service/app/train_baseline.py` entrena y escribe `modelo_hipoglucemia.pkl`, `modelo_hipoglucemia.json` y `baseline_metrics.json` (trasladado desde `backend/app/ml/` en M5a).
+    - Métricas documentadas en `docs/model_baseline.md` §4. Reproducidas en memoria con el mismo split (`random_state=42`): AUC 0.640, precisión, recall y F1 de 0.429, matriz `[[25,4],[4,3]]`.
+    - Conteos verificados contra el Excel: 109 registros, 100 pacientes, 10 positivos, 4 pacientes mixtos, 193 filas, 17 positivas.
+  - _Pendiente_: TASK-010a y TASK-010b. El "umbral aceptable" que pedía el criterio original no existe todavía (ML-D4).
+- [x] **TASK-010a** [REQ-004]: Validación cruzada agrupada por paciente con intervalos (ML-D3) y comparación de modelos (ML-D2).
+  - _Refs rationale_: ADR-0007; `docs/model_baseline.md` §5. Un solo split con 7 filas positivas de 4 pacientes no permite afirmar mejoras (RIA-01, RD-04).
+  - _Output_:
+    - Script de validación `backend/ml_service/app/cv_evaluacion.py` (`python -m app.cv_evaluacion` desde `backend/ml_service/`), que escribe `backend/ml_service/app/artefactos/cv_metrics.json` (versionado). Pruebas en `backend/ml_service/tests/`. con `StratifiedGroupKFold` o `GroupKFold` repetido agrupando por `id_paciente_real`, SMOTE-NC dentro de cada fold e intervalos del 95% por bootstrap **sobre pacientes**.
+    - Reporte de AUC-ROC, recall, precisión, F1 y Brier por modelo: Regresión Logística (línea base), árbol de decisión y Random Forest, con las mismas semillas y folds.
+    - Evaluación de `class_weight` como alternativa o complemento de SMOTE-NC (RD-02).
+    - Resultados en el JSON de metadatos y en `docs/model_baseline.md`.
+  - _Verify_:
+    - Un test comprueba que en ningún fold un paciente aparece en train y validación.
+    - El reporte se regenera igual con la misma semilla.
+    - La regla de decisión de ML-D2 queda aplicada y documentada: se cambia de modelo solo si el IC de la métrica principal no se solapa con el de la línea base; en empate, gana el más simple.
+  - _Hecho (2026-10-24, fase M2)_:
+    - `cv_evaluacion.py` reutiliza `construir_pipeline` y `preparar_features`; las variantes solo reemplazan los pasos `smote` y `modelo`.
+    - **Esquema** (decisión del usuario): `StratifiedKFold` k=5 sobre **pacientes** (etiqueta: algún registro positivo), mapeado a sus filas, repetido con las semillas 0 a 4. Garantiza 2 pacientes positivos por fold. `StratifiedGroupKFold` k=5 dejó folds sin positivos en 13 de 20 semillas.
+    - SMOTE-NC solo dentro del train de cada fold. `assert` sin fuga en cada fold.
+    - IC 95% por bootstrap percentil de 1000 remuestreos sobre pacientes.
+    - Variantes: RL + SMOTE-NC, RL sin SMOTE-NC, RL `balanced`, árbol `balanced` (max_depth 3, min_samples_leaf 5) y Random Forest `balanced` (300 árboles, max_depth 5, min_samples_leaf 3, valores de la celda D1 del notebook). Ninguno se ajustó.
+    - Salida en `backend/ml_service/app/artefactos/cv_metrics.json`, versionada; `baseline_metrics.json` y el `.pkl` no se tocan (huellas verificadas).
+    - Pruebas: `python -m pytest tests/ml` desde `backend/` → 11 passed (dataset sintético, sin red ni Excel).
+    - Resultado medido: en **ninguna** variante el límite inferior del IC del AUC supera 0.5. Los IC del AUC de todas las variantes se solapan con el de la línea base, así que, según la regla de ML-D2, **no se cambia de modelo**.
+  - _Hecho (2026-10-24, fase M2b)_:
+    - Dos referencias **sin entrenamiento** en `cv_evaluacion.py`, con los mismos folds, semillas y bootstrap sobre pacientes: puntaje constante (AUC 0.500, recall 1.0, precisión = prevalencia, lift 1.0: comprueba el cálculo de métricas) y regla por medicación (`medicacion_cod`, cortes `>=1`, `>=2`, `>=3`; AUC 0.462 [0.297, 0.640]). Van en la sección `referencias` de `cv_metrics.json`, separada de `variantes`, y no entran en la regla de ML-D2.
+    - `cv_metrics.json` reporta además la prevalencia de positivos (global y por fold) y el *lift* (precisión / prevalencia) con IC por umbral. Prevalencia de filas positivas: 0.088 [0.039, 0.146].
+    - Pruebas: `python -m pytest tests/ml` → 18 passed. Incluyen la regla por medicación con AUC 1.0 en un caso construido, la constante con AUC 0.5 y lift 1, y que la evaluación completa (variantes y referencias) se regenera idéntica con las mismas semillas.
+    - Resultados y su interpretación en `docs/model_baseline.md` §4.1 y §5; fuga leve de la mediana de HbA1c en `docs/risks.md` (RD-05).
+    - Conclusión: ninguna variante supera el azar (el límite inferior del IC del AUC no pasa de 0.5 en ninguna); la regla por medicación (0.462) no supera a la línea base (0.631) y los IC se solapan; la precisión de los modelos queda cerca de la prevalencia y todos los IC de lift incluyen 1.0. El modelo se mantiene **experimental**.
+  - _Pendiente (fuera de TASK-010a)_: Brier y curva de calibración (pasan a TASK-010b); los resultados con IC quedan en `cv_metrics.json` (design.md 1.4.4).
+- [ ] **TASK-010b** [REQ-004]: Umbral y calibración del modelo (ML-D4). Requiere TASK-010a. **En espera: no procede mientras el modelo no supere el azar** (en M2 y M2b ningún límite inferior del IC del AUC supera 0.5).
+  - _Refs rationale_: ML-D4: el recall mínimo y el umbral de "Alta" se fijan tras M2 **con revisión clínica**; RIA-06.
+  - _Output_:
+    - Curva de calibración y Brier; si hace falta, calibración (Platt o isotónica) validada dentro de la validación cruzada agrupada.
+    - Propuesta de umbral(es) priorizando recall, revisada por un profesional de la salud.
+    - Decisión registrada en un ADR o en ADR-0007 y en design.md. Mientras no exista, el modelo sigue solo informativo y el contrato no devuelve nivel de alerta.
+  - _Verify_: El acta o registro de la revisión clínica existe. El recall en validación cruzada con el umbral elegido, con su IC, está documentado. Ningún valor de umbral aparece en el código antes de esta tarea.
+- [~] **TASK-011** [REQ-004, NFR-003]: Módulo que carga el modelo y expone la predicción de probabilidad (`predecir_riesgo`, reemplaza a `clasificar_registro`, porque el ML ya no clasifica). Se completa con TASK-011a, 011c y 011d.
   - _Refs rationale_: REQ-004; la latencia debe cumplir NFR-003.
-  - _Output_: Función `clasificar_registro(registro)` que retorna la clasificación en <2s.
+  - _Output_: Función que retorna la probabilidad en < 2 s, expuesta por `POST /api/riesgo/hipoglucemia`.
   - _Verify_: Test de latencia local mide el tiempo de respuesta y confirma p95 < 2000ms.
-- [ ] **TASK-012** [REQ-005]: Implementar lógica de generación de alertas cuando la clasificación es de riesgo.
-  - _Refs rationale_: REQ-005 — toda clasificación riesgosa debe generar una alerta.
-  - _Output_: Función que, dada una clasificación de riesgo, crea un registro en T_Alertas.
-  - _Verify_: Test unitario: clasificación "Riesgo Hipo" produce exactamente una fila nueva en T_Alertas.
-- [ ] **TASK-013** [REQ-006]: Implementar el módulo `app/nlp/` del chatbot (resolver Open Question de design.md sobre LLM externo vs modelo propio antes de codificar).
+  - _Hecho (evidencia)_: `backend/ml_service/app/predict.py` (`predecir_riesgo`) carga el bundle del `.pkl` verificando huella y versiones, y `backend/ml_service/app/api/riesgo.py` expone `POST /api/riesgo/hipoglucemia`. El backend de negocio ya no contiene código de ML (TASK-011e). Latencia medida con el modelo real: p50 6.7 ms, p95 8.8 ms.
+  - _Pendiente_: lo que falta de TASK-011a (conteos sobre el Excel real, split agrupado y SMOTE-NC ausente en `predict`) y de TASK-011d (verificar `git log --follow` tras el commit).
+- [~] **TASK-011a** [REQ-004, NFR-003]: Pruebas pytest del componente ML, sin red y sin el `.pkl` real cuando no haga falta.
+  - _Refs rationale_: Hoy no hay pruebas automatizadas del ML; `docs/model_baseline.md` §3 (split sin fuga).
+  - _Output_: Tests que cubren:
+    - Conteos de `data_prep` sobre el Excel: 109 registros, 100 pacientes, 10 positivos, 193 filas, 17 positivas.
+    - El split agrupado sin pacientes compartidos.
+    - Que SMOTE-NC no se aplica en `predict`.
+    - El contrato de `predecir_riesgo` (probabilidad entre 0 y 1).
+    - La latencia p95 < 2000 ms sobre N predicciones locales.
+  - _Verify_: `python -m pytest` pasa, y los conteos fallan si se altera el dataset (en una copia temporal).
+  - _Hecho (2026-10-24, fase M5a)_: las pruebas viven en `backend/ml_service/tests/` y `python -m pytest` desde esa carpeta da **59 passed**, sin red ni Excel real. Cubren `preparar_features` y `predecir_riesgo` con un modelo pequeño entrenado sobre datos sintéticos dentro de la sesión de pruebas (`test_prediccion.py`), el JSON de metadatos (`test_metadatos.py`), la verificación de huella y versiones (`test_huella.py`), el aislamiento de imports (`test_aislamiento.py`), que ningún log ni excepción contenga valores de entrada (`test_logs.py`), `/health`, la configuración y la validación cruzada (`test_cv_evaluacion.py`, movida desde `backend/tests/ml/`).
+  - _Hecho (2026-10-24, fase M5b)_: prueba de latencia sobre el endpoint con el modelo pequeño de prueba (p95 < 2000 ms en 200 predicciones) y pruebas del endpoint; `hba1c` ausente o `None` se trata como faltante (corregido en `predict.py`). Total: 116 passed. Con el modelo real contra `uvicorn`, 200 peticiones: p50 6.7 ms, p95 8.8 ms.
+  - _Pendiente_: conteos sobre el Excel real (109 registros, 10 positivos…), el split agrupado, y SMOTE-NC ausente en `predict` (los dos primeros requieren el Excel; en las pruebas se usa solo el sintético).
+- [x] **TASK-011b** [REQ-004]: Fijar versiones exactas y metadatos del artefacto (ML-D7).
+  - _Refs rationale_: ML-D7; RT-06 (un `.pkl` puede no cargar o cambiar de comportamiento con otras versiones de librerías).
+  - _Output_:
+    - Versiones exactas de numpy, imbalanced-learn, joblib y openpyxl en el `requirements.txt` que ejecute el modelo, verificadas con `pip index versions` y `pip check`. Candidatas con las que se reprodujeron las métricas: numpy 2.5.4, imbalanced-learn 0.14.2, joblib 1.6.0 y openpyxl 3.1.5, con scikit-learn 1.5.2 y pandas 2.2.3.
+    - `train_baseline.py` escribe junto al `.pkl`, que sigue fuera de git, un JSON de metadatos versionado: versión, fecha, SHA-256 del `.pkl`, versiones de librerías y métricas.
+  - _Verify_: En un venv limpio, `pip check` sin conflictos. El reentrenamiento reproduce las métricas de `docs/model_baseline.md` §4. El JSON contiene la huella del `.pkl` generado. `git status` no muestra el `.pkl`.
+  - _Hecho (2026-10-24, fase M5a)_:
+    - `backend/ml_service/requirements.txt` fija pandas 2.2.3, numpy 2.4.6, scikit-learn 1.5.2, imbalanced-learn 0.14.2, scipy 1.15.3, joblib 1.6.0, openpyxl 3.1.5, fastapi 0.162.0, uvicorn 0.54.0, pydantic 2.14.1 y python-dotenv 1.2.4 (pytest 9.1.1 y httpx 0.28.1 en `requirements-dev.txt`), elegidas con `pip index versions`. scipy 1.15.3 es la más reciente sin el aviso `iprint` de scikit-learn 1.5.2 (con 1.16 y 1.17 avisa de deprecación y con 1.18 "Unknown solver options"); numpy 2.4.6 es la más reciente que scipy 1.15.3 admite. No se silenció ningún aviso.
+    - `pip check`: sin conflictos, en un venv limpio fuera del repositorio y en `backend/ml_service/.venv`.
+    - `python -m app.train_baseline` en ese entorno reproduce AUC 0.6404, recall 0.4286 y la matriz de confusión [[25, 4], [4, 3]] de `docs/model_baseline.md` §4.
+    - Escribe `backend/ml_service/app/artefactos/modelo_hipoglucemia.json` (versión, fecha, `sha256_pkl`, versiones, métricas, `random_state`, dataset con su huella, conteos); `git check-ignore` confirma que el `.pkl` queda ignorado.
+    - Las métricas con IC de la validación cruzada quedan en `cv_metrics.json`, no en este JSON (design.md 1.4.4).
+- [x] **TASK-011c** [REQ-004, NFR-001]: Errores genéricos del endpoint de riesgo. **Se implementa en el endpoint del servicio** (`backend/ml_service/app/api/riesgo.py`, fase M5b); el router antiguo del backend se retiró en TASK-011e sin corregirlo.
+  - _Refs rationale_: Hoy responde 400 con `f"No se pudo calcular el riesgo: {exc}"` y 503 con `str(exc)`, que incluye la ruta del archivo. Esto puede filtrar detalles internos o valores. Además, el 422 de FastAPI devuelve los valores recibidos, glucosa incluida (NFR-001).
+  - _Output_: 503 y 500 con mensajes genéricos en español; manejador propio de 422 sin eco de la entrada; sin la excepción encadenada en la respuesta.
+  - _Verify_: Tests con TestClient: modelo ausente → 503 genérico sin rutas; error de inferencia simulado → 500 genérico; entrada inválida → 422 sin el valor de glucosa en el cuerpo.
+  - _Hecho (2026-10-24, fase M5b)_: `backend/ml_service/app/api/riesgo.py` y `tests/test_api_riesgo.py`. 422 con manejador propio (13 casos de entrada inválida, JSON malformado, cuerpo no UTF-8 y cuerpo vacío, ninguno repite lo enviado; el 400 de FastAPI se convierte en 422); 503 con `ModeloNoDisponible` o configuración inválida (también con un `.pkl` alterado real); 500 genérico para cualquier otro error, sin el texto de la excepción (el log solo lleva el nombre de la clase). El router antiguo del backend, que sí repetía la entrada, se eliminó en TASK-011e.
+- [~] **TASK-011d** [REQ-004, NFR-001]: Scaffolding del servicio `backend/ml_service/` (design.md § Servicio de ML).
+  - _Refs rationale_: Aislamiento tipo `nlp_service` (ADR-0006); ML-D8 (sin ingreso público, solo el backend lo llama).
+  - _Output_:
+    - Servicio con `GET /health`, que informa si el modelo está cargado.
+    - `POST /api/riesgo/hipoglucemia` con el contrato propuesto: solo `riesgo_hipoglucemia` y `version_modelo`, **sin `alerta`**.
+    - Verificación de huella y versiones al cargar el artefacto (→ 503).
+    - Archivos propios: `requirements*.txt`, `.env.example`, README, `tests/` y `test_ml.sh`.
+    - Código y dataset trasladados con `git mv` desde `backend/app/ml/` y `backend/data/raw/`.
+  - _Verify_: `pytest` desde `backend/ml_service/` en verde. `pip check` limpio. `GET /health` → 200 con uvicorn. Un grep no encuentra imports de `backend/app`. `git log --follow` del dataset muestra su historial. El reentrenamiento en el servicio reproduce las métricas.
+  - _Hecho (2026-10-24, fase M5a)_:
+    - `backend/ml_service/` con `app/` (`main.py` con `GET /health` e indicador `modelo_cargado`, `config.py`, `errors.py`, `metadatos.py`), `tests/`, `requirements.txt` y `requirements-dev.txt` propios, `.env.example` (solo nombres), README, `.venv` propio y puerto 8002.
+    - Traslado con `git mv` (git status los muestra como renombrados) de `data_prep.py`, `train_baseline.py`, `predict.py`, `exportar_dataset.py` y `ShanghaiT2DM_Summary.xlsx`. `cv_evaluacion.py`, `cv_metrics.json` y las pruebas de M2 no tenían historial en git: se movieron sin `git mv`. Imports del servicio relativos a su propio paquete (`app.data_prep`, no `app.ml...`).
+    - `predict.py` verifica huella y versiones antes de deserializar, una sola vez por proceso, y lanza `ModeloNoDisponible` genérico (→ 503 en M5b).
+    - Decisión del usuario (M5a): `backend/app/ml/` conservó temporalmente `riesgo.py` y copias idénticas de `data_prep.py` y `predict.py`; se retiraron en TASK-011e.
+    - Verificado: `pytest` en `backend/ml_service` → 59 passed; `pip check` limpio; `GET /health` del servicio → 200; `GET /health` del backend → 200 y `POST /api/riesgo/hipoglucemia` del backend sigue respondiendo.
+  - _Hecho (2026-10-24, fase M5b)_: `POST /api/riesgo/hipoglucemia` en el servicio con el contrato sin `alerta` (valores permitidos validados, campos adicionales → 422, 4 decimales, `version_modelo` del JSON); `ML_ENABLE_DOCS` (404 en `/docs`, `/redoc` y `/openapi.json` por defecto; encendida documenta 200/422/500/503 con esquema y ejemplo sintético en español); `test_ml.sh` movido con `git mv` y adaptado al servicio (puerto 8002, no reentrena si existe el `.pkl`, se apaga solo). Verificado con `uvicorn` en el 8002: `curl` real → 200 con `{riesgo_hipoglucemia, version_modelo}`; `GET /health` → 200.
+  - _Pendiente_: comprobar `git log --follow` del dataset y de los módulos movidos una vez hecho el commit (no se puede verificar antes); el despliegue sin ingreso público (TASK-002b) y la autenticación entre servicios (Open Question).
+- [x] **TASK-011e** [REQ-004]: Retirar `backend/app/ml/` del backend. Requiere TASK-011d.
+  - _Refs rationale_: Evitar dos implementaciones del modelo; design.md § Servicio de ML (estado actual vs. destino).
+  - _Output_:
+    - `backend/app/main.py` sin el router de riesgo.
+    - `backend/app/ml/` y `backend/app/test_ml.sh` eliminados (ya trasladados).
+    - Dependencias de ML (scikit-learn, imbalanced-learn, pandas, numpy, joblib, openpyxl) retiradas de `backend/requirements.txt` si el backend ya no las usa.
+    - README y `docs/model_baseline.md` §1 con las rutas nuevas.
+  - _Verify_: `git grep "app.ml"` en `backend/app` no retorna resultados. El backend arranca y `/health` → 200. `pip check` del backend sin conflictos.
+  - _Hecho (2026-10-24, fase M6)_:
+    - Eliminados `backend/app/ml/` completo (`riesgo.py`, las copias transitorias de `data_prep.py` y `predict.py`, `__init__.py`, `dataset_inputs_hipoglucemia.csv` y el `.pkl` local ignorado por git) y, antes, `backend/app/test_ml.sh` (movido a `backend/ml_service/` en M5b). No quedaba ningún test del backend que cubrir: las pruebas de ML ya vivían en `backend/ml_service/tests/`.
+    - `backend/app/main.py` sin el router de riesgo; `POST /api/riesgo/hipoglucemia` en el backend responde 404. No se tocó supabase, auth ni `core/`.
+    - `backend/requirements.txt` sin scikit-learn, pandas, numpy, imbalanced-learn, openpyxl y joblib (ningún módulo de `backend/app` las usa). En un venv limpio fuera del repo: `pip check` sin conflictos y ninguna librería de ML instalada.
+    - `uvicorn app.main:app` del backend con ese venv: `GET /health` → 200. `pytest` en `backend/ml_service` → 116 passed y en `backend/nlp_service` → 90 passed. El backend no tiene pruebas propias todavía.
+    - `backend/ml_service/app/artefactos/cv_metrics.json` regenerado con numpy 2.4.6 y scipy 1.15.3: solo cambian la fecha, las versiones y `generado_por`; todas las cifras son idénticas.
+    - Documentación sin referencias al endpoint antiguo ni al campo `alerta` como estado actual (README, design.md 1.4.6, ADR-0004/0006/0007/0008, `docs/`, CLAUDE.md, CONTEXT.md).
+- [x] **TASK-011f** [REQ-004, NFR-001]: Fase S2 — generador de datos sintéticos para el modelo de demo (design.md § Modelo de demo con datos sintéticos; reglas y distribuciones en `docs/ml/generador_sintetico.md`).
+  - _Refs rationale_: no hay pacientes reales para una demo del flujo integrado; el modelo real no supera el azar (TASK-010a) y no se toca.
+  - _Output_:
+    - `backend/ml_service/app/sintetico/reglas.py` (reglas clínicas con su `version_reglas`), `generador.py` y `generar.py` (CLI) (`python -m app.sintetico.generar --n 2000 --semilla <int> --salida <ruta.csv>` desde `backend/ml_service/`).
+    - CSV en `backend/ml_service/data/sintetico/` (ignorado por git) y JSON de metadatos del dataset (versionado) con semilla, versión de las reglas, fecha, `n`, prevalencia objetivo y obtenida, AUC de las reglas, huella del CSV y `origen: "sintetico"`.
+    - Pruebas en `backend/ml_service/tests/sintetico/`, sin red y sin el Excel real.
+  - _Verify_:
+    - Con la misma semilla el CSV y el JSON (salvo la fecha) son idénticos; con otra semilla cambian.
+    - Prevalencia obtenida dentro de 15 % ± 1,5 puntos con n = 2.000; AUC de las reglas (con las probabilidades verdaderas) entre 0,70 y 0,80 (ventana fijada en la Fase S2), ajustando solo `escala_senal` (0,8 de partida) o el intercepto si hace falta.
+    - Todas las columnas cumplen los rangos y valores permitidos del contrato del servicio; `origen == "sintetico"` en todas las filas; ids con prefijo `sint-`.
+    - Una prueba por cada regla de la tabla comprueba el sentido del efecto (la probabilidad cambia en el sentido esperado al variar solo esa variable); género, hipertensión, dislipidemia, neuropatía y cardiovascular no la alteran.
+    - Ninguna fila ni id coincide con los 109 registros reales; el generador no importa ni lee `data/raw/`.
+    - Las reglas figuran como "pendiente de revisión por el equipo" hasta que se resuelva la Open Question de su validación.
+  - _Hecho (2026-10-25, fase S2)_:
+    - `backend/ml_service/app/sintetico/` (`reglas.py`, `generador.py`, `generar.py`) y `tests/sintetico/test_generador.py` (58 pruebas). CLI `python -m app.sintetico.generar --n 2000 --semilla <n> --salida <ruta.csv>`. CSV ignorado por git (`.gitignore`); JSON de metadatos junto al CSV, versionable (`backend/ml_service/data/sintetico/dataset_sintetico.json`).
+    - Medido con n = 2.000 y semilla 20261024: prevalencia 15,0 %; **AUC de las probabilidades verdaderas 0,794** (n = 60.000: 0,779); probabilidad mediana 0,097 y p95 0,469; tasa de positivos por medicación: insulina 23,7 %, sulfonilurea 19,9 %, metformina u otros 7,6 %, ninguno 6,5 %. No se ajustó ningún parámetro.
+    - Misma semilla → CSV idéntico byte a byte (comprobado también por CLI en dos rutas); semillas distintas → datasets distintos.
+    - Cada fila se valida con el modelo pydantic real del endpoint; `origen == "sintetico"` en todas; ids `sint-`; pacientes con 1 a 3 registros.
+    - Una prueba por regla: términos exactos de R1 a R13, las dos interacciones, y una regresión logística que recupera los coeficientes (× 0,8) con los controles (género, hipertensión, dislipidemia, neuropatía y cardiovascular) en |coef| < 0,15.
+    - El generador no importa `backend/app`, `nlp_service`, `data_prep` ni `sklearn`, no lee archivos de datos (prueba con `read_excel`/`read_csv` bloqueados) y rechaza escribir en `data/raw/`. Un script desechable no halló coincidencias exactas de (edad, IMC, duración, HbA1c, glucosa) con las lecturas reales.
+    - Criterio ajustado respecto de S1: ventana de AUC de las reglas 0,70 a 0,80 (S1 decía 0,75 a 0,82), por indicación del usuario en S2.
+- [x] **TASK-011g** [REQ-004, NFR-001]: Fase S3 — entrenar el modelo de demo con el dataset sintético y cargarlo de forma selectiva con `ML_MODELO`. Requiere TASK-011f.
+  - _Refs rationale_: ADR-0009; design.md § Modelo de demo con datos sintéticos (reglas de separación). El modelo de demo aprende las reglas del equipo, no la realidad; sus métricas no son desempeño clínico.
+  - _Output_:
+    - `train_baseline.entrenar_y_evaluar(origen="real"|"sintetico")` y `construir_pipeline(usar_smote=...)`; `app/sintetico/adaptador.py`; `app/train_demo.py` (`python -m app.train_demo` desde `backend/ml_service/`). Sin SMOTE-NC y sin interacciones (decisiones medidas, ver design.md 1.5.2).
+    - `app/artefactos/demo/modelo_hipoglucemia_demo.pkl` (ignorado por git), `modelo_hipoglucemia_demo.json` (versionado; `version_modelo: "1.0.0-demo"`, `entrenado_con: "sintetico"`, `sha256_pkl`, versiones, semilla, advertencia) y `cv_metrics_demo.json` (versionado; rotulado "no es desempeño clínico"; AUC del modelo y de las reglas verdaderas con intervalo, y coeficientes aprendidos con intervalo).
+    - `ML_MODELO` (`real` por defecto | `demo`) en `config.py` y `.env.example`; `predict.py` carga del directorio del modo y verifica huella, versiones y `entrenado_con`.
+  - _Verify_:
+    - La validación cruzada agrupada por paciente da un AUC entre 0,70 y 0,80 con el límite inferior del IC por encima de 0,5; se reporta junto al AUC de las reglas verdaderas (0,794).
+    - El `.pkl`, el JSON, `baseline_metrics.json` y `cv_metrics.json` del modelo real no cambian (huellas antes y después).
+    - Con `ML_MODELO=real` nunca se carga el modelo de demo y con `demo` nunca el real; valor inválido → `ConfiguracionInvalida` → 503; artefacto de demo ausente o con huella alterada → `ModeloNoDisponible` → 503.
+    - El entrenamiento de demo es reproducible con la misma semilla, separa por paciente y no lee los 109 registros reales.
+    - Los 174 tests anteriores siguen pasando.
+  - _Hecho (2026-10-25, fase S3)_:
+    - `train_baseline.entrenar_y_evaluar(origen="real"|"sintetico")` y `construir_pipeline(usar_smote=...)` reutilizan la tubería (el camino `real` no cambió: mismo `.pkl` reproducible, huella `21ac5340…`); `app/sintetico/adaptador.py`; `app/train_demo.py` (`python -m app.train_demo`). `ML_MODELO` (`real` por defecto | `demo`) en `config.py` y `.env.example`; `metadatos.py` y `predict.py` cargan del directorio del modo y exigen `entrenado_con == "sintetico"` y versión `-demo` para el demo (y lo contrario para el real).
+    - Artefactos en `backend/ml_service/app/artefactos/demo/`: `modelo_hipoglucemia_demo.pkl` (ignorado por git), `modelo_hipoglucemia_demo.json` (versión `1.0.0-demo`, `entrenado_con: "sintetico"`, `sha256_pkl` `4e3873af…`, versiones, semilla del dataset 20261024, advertencia) y `cv_metrics_demo.json` (rotulado "NO ES DESEMPENO CLINICO").
+    - **Validación sintética (agrupada por paciente, 5 × 5, bootstrap de 1.000 pacientes):** AUC del modelo de demo **0,783 [0,758, 0,814]** frente a **0,794 [0,769, 0,823]** de las reglas verdaderas: recupera el 96,5 % de la señal (diferencia 0,010). AUC por fold de 0,705 a 0,825. Split 80/20 por paciente del modelo guardado: AUC 0,786.
+    - **Sin SMOTE-NC** (decisión medida): con SMOTE-NC el AUC baja a 0,722 y la probabilidad media predicha sube de 0,150 (la prevalencia) a 0,340. **Sin interacciones** (decisión del usuario): 0,782 con las 2 interacciones frente a 0,783 sin ellas.
+    - **Controles** (sin efecto en las reglas), coeficiente [IC 95 % por bootstrap de pacientes]: género +0,08 [−0,19, +0,37]; hipertensión +0,21 [−0,09, +0,51]; dislipidemia +0,15 [−0,24, +0,53]; neuropatía −0,44 [−0,88, −0,02]; cardiovascular +0,03 [−0,20, +0,33]. **Hipertensión, dislipidemia y neuropatía superan |0,15|** con el dataset canónico; no es sesgo del generador (en 30 datasets independientes de n = 2.000 la media de cada control es ≈ 0 y su desviación 0,13 a 0,18; con n = 20.000 baja a 0,04 a 0,08), pero la neuropatía excluye el 0 por poco en esta muestra. Decisión del usuario: se deja el dataset canónico y se reporta.
+    - Pruebas: `python -m pytest` desde `backend/ml_service/` → **226 passed** (174 previas, 1 por el módulo nuevo en la prueba parametrizada de aislamiento, 51 nuevas): selección real/demo, valor inválido, el real nunca carga el demo y viceversa (también con archivos copiados a la carpeta equivocada), artefacto ausente, huella alterada, versiones, metadatos del demo, reproducibilidad del entrenamiento, separación por paciente, que no lee los datos reales, rechazo de datasets no sintéticos y que solo escribe en `artefactos/demo/`. Una mutación (quitar la comprobación de modo) hace fallar 4 pruebas.
+    - Verificado con `uvicorn` en el 8002 (pacientes simulados): `ML_MODELO=demo` → riesgo alto (insulina, glucosa 62, 78 años, HbA1c 6,4) **0,8014** y riesgo bajo (sin medicación, glucosa 118, 46 años) **0,0515**, `version_modelo` `1.0.0-demo`; `ML_MODELO=real` → 0,0170 y 0,0064 (`1.0.0`) y el payload de M5b sigue dando **0,3171**. Huellas del modelo real sin cambios; `ML_MODELO` inválido → 503 genérico y el servicio arranca.
+    - Hallazgos: (1) el `.pkl` del modelo real faltaba en disco (archivo ignorado por git); se regeneró en una carpeta temporal fuera del repo, se comprobó que su SHA-256 es idéntico al del JSON versionado y solo entonces se copió a `artefactos/`. (2) Con `ML_MODELO` inválido el servicio no arrancaba; ahora arranca y responde 503.
+    - Sin cambio de contrato público (y el equipo decidió después, en S4, que tampoco se añadirá `modo`).
+- [x] **TASK-011h** [REQ-004, NFR-001]: Fase S4 (reducida) — el contrato público **no cambia**. Requiere TASK-011g.
+  - _Refs rationale_: ADR-0009 (decisión del equipo de no exponer el modelo en la API); ADR-0008 (el contrato es `{riesgo_hipoglucemia, version_modelo}`).
+  - _Output_:
+    - ADR-0009, ADR-0008, `design.md`, `CONTEXT.md` y README del servicio con la decisión: no se añade `modo` ni aviso a la respuesta ni a `/health`; consecuencia aceptada (la respuesta no distingue entre el modelo real y el entrenado con datos sintéticos) y riesgo declarado (si llegara a usuarios reales habría que reponer la marca).
+    - `backend/ml_service/tests/test_contrato_publico.py`: fija las claves exactas de la respuesta 200 en ambos modos, que `/health` es idéntico en ambos modos y no revela el modo, y que ninguna respuesta contiene "demo" ni "sintetico" salvo el sufijo de `version_modelo`.
+    - `backend/ml_service/test_ml.sh` con variante `demo` (`./test_ml.sh demo`): forma correcta de la respuesta y 422 ante entrada inválida.
+    - README del servicio: sección "modelo real y modelo entrenado con datos sintéticos".
+  - _Verify_:
+    - Las pruebas de contrato pasan y los 226 tests anteriores siguen pasando.
+    - Con `ML_MODELO=real` y con `ML_MODELO=demo`, el `curl` a `POST /api/riesgo/hipoglucemia` y a `/health` devuelve solo las claves del contrato; ningún cuerpo contiene "demo" ni "sintético" salvo el sufijo de `version_modelo`.
+    - `./test_ml.sh` y `./test_ml.sh demo` pasan.
+  - _Hecho (2026-10-25, fase S4 reducida)_:
+    - Decisión del equipo registrada: ADR-0009 (reescrita: la decisión de no exponer el modelo, la consecuencia aceptada y el riesgo de que habría que reponer la marca), ADR-0008 (nota: sin cambio de contrato), `design.md` 1.5.3, `CONTEXT.md` y README del servicio (sección "Modelo real y modelo entrenado con datos sintéticos"). La Open Question del rótulo/`modo` se cierra; queda abierta solo la de qué modelo usar en producción.
+    - Revisión previa: el código que arma las respuestas (`api/riesgo.py`, `main.py`, `errors.py`) no contiene "demo" ni "sintetico"; lo único es el sufijo `-demo` de `version_modelo`, que sale de los metadatos. No hizo falta cambiar código de la API.
+    - `tests/test_contrato_publico.py` (11 pruebas): claves exactas de la respuesta 200 en ambos modos, `/health` idéntico en ambos modos y sin modo, versión con sufijo solo en `demo`, ninguna respuesta (200, 422 de varios tipos, 500, 503, `/health`, 404, OpenAPI y `/docs`) contiene "demo", "sintético" ni `"modo"`, y el esquema OpenAPI solo expone las dos claves. Una mutación (añadir `modo` a `/health`) hace fallar 4.
+    - `test_ml.sh` con variante `demo` (`./test_ml.sh demo`): ambas variantes pasan (200, forma exacta, rango 0-1, sufijo de versión según el modelo, 422 sin repetir lo enviado).
+    - `pytest` en `backend/ml_service` → **237 passed** (los 226 anteriores + 11); `pip check` limpio.
+    - Con `uvicorn` en el 8002 (paciente simulado de riesgo alto): `ML_MODELO=real` → `{"riesgo_hipoglucemia":0.017,"version_modelo":"1.0.0"}` y `/health` → `{"status":"ok","service":"glucotracker-ml","modelo_cargado":true}`; `ML_MODELO=demo` → `{"riesgo_hipoglucemia":0.8014,"version_modelo":"1.0.0-demo"}` y el mismo `/health`. Huellas del modelo real sin cambios.
+- [ ] **TASK-012a** [REQ-005]: Clasificación ADA en la lógica de negocio del backend: `backend/app/core/reglas_ada.py` (design.md § Clasificación ADA), con constantes propias y test de contrato contra `docs/nlp/umbrales_ada_v1.json`.
+  - _Refs rationale_: ML-D5 (el ML no clasifica); decisión del usuario (M1): el backend clasifica Normal/Hipo/Hiper con umbrales ADA.
+  - _Output_: `clasificar_lectura(nivel, momento)` → `Normal` \| `Riesgo Hipo` \| `Riesgo Hiper`. La regla para el momento `otro` queda según lo que resuelva la Open Question de design.md.
+  - _Verify_: Tests de valores límite: 69, 70, 130, 131, 179 y 180 en ayunas y postprandial. El test de contrato falla si cambia una constante o el JSON de referencia.
+- [ ] **TASK-012** [REQ-005]: Lógica de negocio del backend que genera alertas al médico cuando la **clasificación ADA** (TASK-012a) es de riesgo. **El modelo de ML no interviene** (ML-D5): su probabilidad es informativa y no dispara alertas (REQ-004, ML-D4).
+  - _Refs rationale_: REQ-005 — toda clasificación riesgosa debe generar una alerta; la decide la lógica de negocio, no el modelo.
+  - _Output_: Función que, dada una `clasificacion_ada` de riesgo, crea un registro en T_Alertas.
+  - _Verify_: Test unitario: clasificación "Riesgo Hipo" produce exactamente una fila nueva en T_Alertas. Un registro con `riesgo_hipoglucemia` alto y clasificación "Normal" no produce ninguna.
+  - _Estado tras la fusión (2026-10-25)_: el backend crea alertas con `POST /api/registro/registrarAlerta` y el médico las responde con `POST /api/medicos/responder/alerta`; **no** se derivan de la clasificación ADA (no existe, TASK-012a). Se deja `[ ]`.
+- [ ] **TASK-013** [REQ-006]: Implementar el chatbot como **servicio NLP independiente** en `backend/nlp_service/` (ADR-0006; design.md § Servicio NLP (chatbot) Design). Se completa al cerrar TASK-013a, 013b, 013c, 013d, 013i, 013j, 013f y 013g. Todas las rutas de las subtareas son relativas a `backend/nlp_service/`, salvo que se indique otra cosa.
   - _Refs rationale_: REQ-006 requiere respuestas informativas sobre diabetes, nutrición y niveles de glucosa.
   - _Output_: Función `responder_consulta(texto)` que retorna una respuesta con aclaración de que no reemplaza consejo médico.
-  - _Verify_: Consulta de prueba ("¿Qué debo comer si mi glucosa está en 70 mg/dL?") retorna una respuesta no vacía con el disclaimer incluido.
+  - _Verify_: Consulta de prueba ("¿Qué debo comer si mi glucosa está en 70 mg/dL?") retorna una respuesta no vacía con el disclaimer incluido (con `FakeProvider` en pruebas automatizadas).
+  - Orden sugerido: 013a → 013b → 013c → 013j → 013d → 013i → TASK-018 → 013f → 013g. TASK-013k es independiente y conviene hacerla antes de TASK-001. TASK-013h es post-v1.
+- [x] **TASK-013a** [REQ-006]: Scaffolding del servicio — `backend/nlp_service/` con `app/main.py` (`GET /health`), `tests/`, `requirements.txt` (versiones exactas propias: fastapi, uvicorn, pydantic, google-genai), `requirements-dev.txt` (pytest y lo necesario para `TestClient`), `.env.example` (solo nombres de variables de design.md) y `README.md` (instalar, configurar, correr desde `backend/nlp_service/`, probar).
+  - _Refs rationale_: ADR-0006: servicio aislado, sin importar `backend/app/` ni compartir requirements. Las versiones no dependen de las de supabase del backend.
+  - _Output_: Servicio ejecutable con `uvicorn app.main:app` desde `backend/nlp_service/`. Las versiones de `requirements.txt` se verifican con `pip index versions` y no se suponen.
+  - _Verify_: En un venv limpio fuera del repo: `pip install -r requirements.txt -r requirements-dev.txt` y `pip check` → sin conflictos. `pytest` (desde `backend/nlp_service/`) cubre `GET /health` → 200. `git grep -nE "from app\.(core|ml)|import app\.(core|ml)|backend/app" backend/nlp_service` no retorna resultados.
+  - _Resultado (2026-10-24)_: versiones de `pip index versions` → fastapi 0.162.0, pydantic 2.14.1, uvicorn 0.54.0, google-genai 2.33.0, python-dotenv 1.2.4 (dev: pytest 9.1.1, httpx 0.28.1). `pip check` → "No broken requirements found." en un venv limpio del scratchpad y en `backend/nlp_service/.venv`. `tests/test_health.py` pasa; `uvicorn app.main:app --port 8001` + `curl /health` → 200. `git grep --untracked` de aislamiento sin resultados, más `tests/test_aislamiento.py`. Se agregaron `.venv/` y `.pytest_cache/` del servicio a `.gitignore`.
+- [x] **TASK-013b** [REQ-006]: Corpus — `git mv docs/nlp/reglas_ada_v1.txt backend/nlp_service/app/corpus/reglas_ada_v1.txt` (sin cambios de contenido); crear `app/corpus/reglas_ada_v1.1.txt` (mismo contenido con tildes, descargo literal «Consulta siempre a tu médico tratante para cambios en tu medicación.» en una sola línea (en v1 está partido por un salto de línea) y encabezado que ya no atribuya el motor de reglas a `app/ml/riesgo.py`); crear `docs/nlp/umbrales_ada_v1.json` con el formato de design.md; actualizar las referencias en `docs/` y `README.md`. Requiere TASK-013a.
+  - _Refs rationale_: ADR-0006 (corpus dentro del servicio, reemplaza el destino de D9); corpus_conocimiento.md §4 (un archivo nuevo por versión, nunca sobrescribir); el Golden Dataset permanece en `docs/nlp/`.
+  - _Output_: v1 movido con historial; v1.1 como corpus vigente; archivo de referencia JSON versionado; ninguna referencia a `docs/nlp/reglas_ada_v1.txt` en el repositorio.
+  - _Verify_: `git grep "docs/nlp/reglas_ada_v1.txt"` no retorna resultados; `git log --follow backend/nlp_service/app/corpus/reglas_ada_v1.txt` muestra el historial previo; `git diff --no-index` entre v1 y v1.1 muestra solo tildes y el encabezado; `python -m json.tool docs/nlp/umbrales_ada_v1.json` lo valida.
+  - _Resultado parcial (2026-10-24)_: `git mv` hecho (git status: `R docs/nlp/… -> backend/nlp_service/app/corpus/reglas_ada_v1.txt`); v1.1 y JSON creados; referencias actualizadas (solo quedan las de esta misma tarea en tasks.md). El diff v1 → v1.1 muestra tildes, el descargo en una línea, el encabezado y la nota "[PENDIENTE…]" movida del cuerpo al encabezado para que no llegue al LLM; las reglas no cambian.
+  - _Cierre (2026-10-24)_: commit `de9e753`. `git log --follow backend/nlp_service/app/corpus/reglas_ada_v1.txt` muestra `de9e753` y el historial previo `c80225f` ("docs(nlp): corpus de conocimiento…"), y `git show --stat de9e753` registra el renombre con 0 líneas cambiadas. Con esto se cumplen todos los puntos de _Verify_.
+- [x] **TASK-013c** [REQ-006, NFR-001]: Config propia y constantes — `app/config.py` (variables del servicio de design.md; ninguna clave con valor por defecto) y `app/clinical.py` (70, 130, 180 mg/dL; 15 g; 15 min; `DESCARGO_MEDICO` con tildes). Requiere TASK-013a.
+  - _Refs rationale_: ADR-0006 (cada servicio tiene su copia de constantes; reemplaza `backend/app/core/clinical.py`); D3 (auth, longitud, tasa por entorno); NFR-001 (clave solo por entorno).
+  - _Output_: Settings validados. La configuración incompleta del proveedor levanta el error que el router mapea a 503. Temperature no es variable de entorno.
+  - _Verify_: `pytest` cubre: configuración completa con `NLP_PROVIDER=fake` carga sin clave; con `NLP_PROVIDER=gemini` sin `NLP_PROVIDER_API_KEY`, levanta "no configurado"; `NLP_TEMPERATURE` no es leída por `config.py`.
+  - _Resultado (2026-10-24)_: `tests/test_config.py` pasa (fake sin clave; gemini sin `NLP_MODEL` o sin `NLP_PROVIDER_API_KEY` nombra solo la variable; valores inválidos; `NLP_TEMPERATURE` ignorada; la clave no aparece en `repr`). Valores por defecto: timeout 30 s, descargo forzado `true`, auth `true`, 1000 caracteres, 10/min.
+- [x] **TASK-013d** [REQ-006, NFR-001]: Proveedores — `app/llm_client.py` (interfaz `LLMClient`, `GeminiProvider` con `google-genai`, `FakeProvider`; `OpenAIProvider` diferido) y `app/errors.py`. Requiere TASK-013c.
+  - _Refs rationale_: ADR-0005 (D1, D2): proveedor por `NLP_PROVIDER`, modelo por `NLP_MODEL`, id exacto del modelo disponible por corrida.
+  - _Output_: `get_llm_client()` retorna la implementación según `NLP_PROVIDER`; fallos y timeouts del SDK se traducen a los errores de `errors.py`, sin el texto de la consulta en el mensaje.
+  - _Verify_: `pytest` cubre `NLP_PROVIDER=fake` → `FakeProvider`, valor desconocido → error de configuración, y `GeminiProvider` con el cliente del SDK sustituido por un doble (sin red) que traduce excepción → fallo del proveedor y timeout → timeout. Ningún test hace llamadas de red.
+  - _Resultado (2026-10-24)_: `tests/test_llm_client.py` pasa. Los errores del SDK (`ServerError`, `ClientError`, `httpx.ReadTimeout`, otros) se traducen sin el texto de la consulta y sin excepción encadenada. El timeout se pasa en milisegundos (`HttpOptions`) y el SDK no reintenta (sin `retry_options`). No se probó contra la API real.
+- [x] **TASK-013e** []: Resolver el conflicto de dependencias D11 (`google-genai` exige `httpx>=0.28.1`; `supabase==2.7.4` exige `httpx<0.28`). Elegir una opción de ADR-0005 § Consecuencias con aprobación del equipo y actualizar `requirements.txt`. **Superada por ADR-0006** (el chatbot tiene su propio `requirements.txt`; ver TASK-013k).
+  - _Refs rationale_: ADR-0005 (D11).
+  - _Output_: `backend/requirements.txt` instalable con el SDK del proveedor y el cliente de Supabase en el mismo entorno; decisión registrada en ADR-0005.
+  - _Verify_: En un venv limpio, `pip install -r backend/requirements.txt` termina sin conflictos, `pip check` no reporta incompatibilidades y `python -c "import supabase, google.genai"` no falla.
+  - _Resultado (2026-10-24)_: opción 1 — `supabase==2.16.0` + `httpx==0.28.1`. Venv limpio con `-r requirements.txt google-genai`: `pip check` → "No broken requirements found."; imports OK; `GET /health` vía TestClient → 200. Evidencia en ADR-0005. Se revierte en TASK-013k.
+- [ ] **TASK-013f** [REQ-006]: Golden Dataset v1.1 en `docs/nlp/` — mismas 20 preguntas que v1, con todos los checks ejecutables por código, sin LLM como juez (D5), más `app/checks.py` en el servicio. Requiere TASK-013a.
+  - _Refs rationale_: D5; docs/nlp/baseline_chatbot.md §3. Los checks semánticos de v1 (`descargo_medico`, `no_puedo_recomendar_dosis`, `no_tengo_informacion`, `consulta_profesional`, `aumentar_dosis`) no son evaluables literalmente.
+  - _Output_: `docs/nlp/golden_dataset_v1.1.csv` (v1 se conserva sin cambios) con la regla de coincidencia documentada (mayúsculas, acentos, límites de palabra), y `descargo_medico` definido como `clinical.DESCARGO_MEDICO`; `checks.py` evalúa `contiene:` / `NO_contiene:`.
+  - _Verify_: Las preguntas y categorías de v1.1 son idénticas a v1 (test o diff); los tests de `checks.py` cubren un caso que pasa y uno que falla por cada pregunta.
+- [ ] **TASK-013g** [REQ-006]: Script de evaluación del baseline `app/evaluation.py`: corridas sin contexto y con contexto (corpus v1.1) sobre Golden Dataset v1.1 → `app/nlp_baseline_metrics.json`. Requiere TASK-013i y TASK-013f.
+  - _Refs rationale_: docs/nlp/baseline_chatbot.md §4; D2 (id exacto del modelo, temperature 0.2); D6 (métrica sobre salida cruda; descargo forzado aparte). Gemini tier gratuito solo con las 20 preguntas sintéticas (D1).
+  - _Output_: JSON con adherencia por categoría y global, `modelo_llm` exacto, `temperature`, versión del corpus y del Golden Dataset, y adherencia con descargo forzado reportada aparte; `baseline_chatbot.md` §4 actualizado con estos campos.
+  - _Verify_: Corrida con `FakeProvider` produce un JSON válido con todos los campos (en pruebas automatizadas); una corrida manual con Gemini registra el id del modelo devuelto por el proveedor.
+- [ ] **TASK-013h** [REQ-006]: *(Post-v1, no bloquea TASK-013)* Corpus v2 con manejo de emergencias (síntomas severos, pérdida de conciencia, etc.), con revisión clínica (D7).
+  - _Refs rationale_: D7: emergencias fuera de alcance de v1; corpus_conocimiento.md §4 exige un archivo nuevo por versión.
+  - _Output_: `app/corpus/reglas_ada_v2.txt` revisado por un profesional de la salud, con preguntas de emergencia agregadas a una nueva versión del Golden Dataset.
+  - _Verify_: Revisión clínica firmada/documentada; el test de contrato de TASK-013j pasa también con v2.
+- [x] **TASK-013i** [REQ-006, NFR-001]: Prompt y servicio — `app/prompt_builder.py` y `app/service.py` con `responder_consulta(texto, *, con_contexto=True)`, `TEMPERATURE = 0.2` y el descargo por código con `NLP_ENFORCE_DISCLAIMER`; más la herramienta de prueba manual `app/dev_chat.py` (`python -m app.dev_chat [--sin-contexto]`, solo stdout, sin archivos ni logs, nombra solo la variable faltante). Requiere TASK-013b y TASK-013d.
+  - _Refs rationale_: ADR System Prompting vs. RAG (corpus completo en el system prompt); D6 (descargo por código, reportado aparte); D8 (sin estado).
+  - _Output_: El system prompt contiene íntegro el cuerpo de `app/corpus/reglas_ada_v1.1.txt` (sin el encabezado de metadatos); al proveedor solo se envían el system prompt y el texto del usuario.
+  - _Verify_: Test con `FakeProvider` que captura la llamada: el prompt contiene el cuerpo del corpus, no contiene el encabezado y no incluye ningún otro dato; `temperature` enviada = 0.2; con `NLP_ENFORCE_DISCLAIMER=true` una respuesta sin descargo sale con `DESCARGO_MEDICO` y con `false` sale intacta; los mensajes de excepción no contienen el texto de la consulta.
+  - _Resultado (2026-10-24)_: `tests/test_service.py`, `tests/test_prompt_builder.py` y `tests/test_dev_chat.py` pasan. Con FakeProvider, `responder_consulta('¿Qué debo comer si mi glucosa está en 70 mg/dL?')` → texto no vacío con descargo (también verificado fuera de pytest). El descargo no se duplica si el LLM ya lo escribió (comparación sin tildes, mayúsculas ni saltos de línea). `dev_chat` con proveedor real no se probó.
+- [x] **TASK-013j** [REQ-006]: Test de contrato clínico — `tests/test_contrato_clinico.py` compara `app/clinical.py` con `docs/nlp/umbrales_ada_v1.json` y con `app/corpus/reglas_ada_v1.1.txt`. Requiere TASK-013b y TASK-013c.
+  - _Refs rationale_: ADR-0006 (duplicación de constantes mitigada por contrato); corpus_conocimiento.md §3.
+  - _Output_: Test que falla ante cualquier diferencia de umbral o del texto del descargo entre las tres fuentes.
+  - _Verify_: `pytest tests/test_contrato_clinico.py` pasa sin red; alterar un valor en `clinical.py`, en el JSON o en el corpus (en una copia temporal) hace fallar el test.
+  - _Resultado (2026-10-24)_: pasa (11 casos). Mutaciones en copias temporales fuera del repo: `clinical.py` 130→131 → 3 fallan; JSON 180→190 → 1 falla; descargo sin tilde en el corpus → 1 falla; corpus "70 a 125" → 2 fallan.
+- [x] **TASK-013k** []: Desacoplar el backend del chatbot — revertir en `backend/requirements.txt` `supabase==2.16.0` a `supabase==2.7.4` y quitar `httpx==0.28.1`; retirar `NLP_PROVIDER_API_KEY` de `backend/.env.example`; quitar "chatbot" del comentario de routers de `backend/app/main.py`.
+  - _Refs rationale_: ADR-0006 y ADR-0005 (D11 superado): el backend ya no necesita `httpx>=0.28.1` y vuelve a su pin original, sin adoptar cambios del cliente Supabase que no necesita (hoy ningún código importa `supabase`).
+  - _Output_: Backend sin dependencias ni variables del chatbot.
+  - _Verify_: En un venv limpio fuera del repo: `pip install -r backend/requirements.txt` y `pip check` → sin conflictos; `python -c "import supabase"` funciona; `TestClient(app).get('/health')` → 200; `git grep NLP_ backend/.env.example` no retorna resultados.
+  - _Hecho (2026-10-25, tras la fusión con `adriang-backend`)_: `NLP_PROVIDER_API_KEY` y el resto de `NLP_*` ya no están en `backend/.env.example` (ni Azure ni `DATABASE_URL`, que el backend no lee); el comentario del chatbot en `main.py` ya no existe. **La parte de revertir `supabase` a 2.7.4 y quitar `httpx` queda superada:** el backend ahora sí importa `supabase` (`app/core/supabase.py`) y su `TestClient` necesita `httpx`, así que se mantienen `supabase==2.16.0` y `httpx==0.28.1`. Verificado en un venv limpio fuera del repo con `pip install -r requirements-dev.txt`: `pip check` sin conflictos, `import supabase` funciona, `GET /health` → 200 y `git grep NLP_ backend/.env.example` sin resultados. `backend/.env` (local, ignorado por git) todavía contiene `NLP_PROVIDER_API_KEY`: conviene quitarla a mano de ahí.
 
 ## Phase 4: Capa de API
 *Goal*: Exponer la lógica de negocio como endpoints REST autenticados, según design.md § API / Interface Design.
 
-- [ ] **TASK-014** [REQ-001]: Implementar `POST /auth/login` con verificación de hash y emisión de token.
+- [~] **TASK-014** [REQ-001]: Implementar `POST /auth/login` con verificación de hash y emisión de token.
   - _Refs rationale_: REQ-001.
   - _Output_: Endpoint funcional que retorna token válido para credenciales correctas y 401 para incorrectas.
   - _Verify_: Test de integración cubre login exitoso y fallido.
-- [ ] **TASK-015** [REQ-002]: Implementar `POST /auth/registro` restringido a Administrador, con validación de matrícula para médicos.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/login` verifica el hash bcrypt y envía un OTP por correo; `POST /api/verify-otp` lo confirma (8 pruebas en `tests/test_auth.py`, Supabase simulado). **Falta** la emisión y comprobación de un token y la ruta `/auth/login` del contrato; hoy ningún endpoint exige autenticación (RT-01).
+- [~] **TASK-015** [REQ-002]: Implementar `POST /auth/registro` restringido a Administrador, con validación de matrícula para médicos.
   - _Refs rationale_: REQ-002.
   - _Output_: Endpoint que rechaza alta de médico sin matrícula válida.
   - _Verify_: Test de integración: alta de médico sin matrícula retorna error de validación.
-- [ ] **TASK-016** [REQ-003]: Implementar `POST /pacientes/{id}/registros-glucosa`.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/medicos/registrar` (con matrícula y carnet) y `POST /api/pacientes/registrarPaciente`, y la activación por el administrador (`PUT /api/administradores/medico/activar/{id}`), con pruebas. **Falta** restringir el alta a Administrador con autenticación y la ruta `/auth/registro` del contrato.
+- [~] **TASK-016** [REQ-003]: Implementar `POST /pacientes/{id}/registros-glucosa`.
   - _Refs rationale_: REQ-003.
   - _Output_: Endpoint que persiste un nuevo registro de glucosa.
   - _Verify_: Test de integración crea un registro y lo recupera vía GET.
-- [ ] **TASK-017** [REQ-004, REQ-005]: Conectar el guardado de un registro de glucosa con la clasificación ML y, si es riesgoso, con la creación de alerta y notificación push.
-  - _Refs rationale_: REQ-004 y REQ-005 — el flujo completo descrito en la Especificación § 8.A.
-  - _Output_: Al llamar TASK-016, el registro queda clasificado y, si aplica, se dispara una notificación push al médico asignado.
-  - _Verify_: Test end-to-end: registro con nivel crítico genera alerta en T_Alertas y una notificación push simulada/mockeada.
-- [ ] **TASK-018** [REQ-006]: Implementar `POST /chatbot/consulta`.
-  - _Refs rationale_: REQ-006.
-  - _Output_: Endpoint que recibe texto libre y retorna la respuesta del módulo NLP.
-  - _Verify_: Test de integración con una consulta de ejemplo retorna 200 y respuesta no vacía.
-- [ ] **TASK-019** [REQ-007]: Implementar `GET /pacientes/{id}/historial` con filtro por rango de fechas.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/pacientes/registrarGlucosa` (con pruebas) y `POST /api/medicos/registrar/glucosa` (sin prueba). **Falta** la ruta `/pacientes/{id}/registros-glucosa` del contrato; la clasificación ADA y el riesgo del ML se conectan en TASK-017.
+- [~] **TASK-017** [REQ-004, REQ-005]: Conectar el registro de glucosa **del médico** con el servicio de ML (probabilidad informativa; ML-D5: no dispara alertas). **Rediseñada en la Fase ML-0 (2026-11-01)**: ver `docs/ml/integracion_backend_ml.md`. La clasificación ADA y las alertas con notificación push (TASK-012a, TASK-012) siguen siendo parte de la historia original y se conectan aparte; **el riesgo ya no se guarda en la base** (decisión del equipo: se devuelve solo en la respuesta de `POST /api/medicos/registrar/glucosa`, campo aditivo `riesgo_ml`, sin tablas ni cambios de esquema; el registro del paciente no cambia).
+  - _Refs rationale_: REQ-004 v1.1.0 y REQ-005; ML-D5 y ML-D8 (solo el backend llama al ML); modelo sintético (`ML_MODELO=demo`, ADR-0009); solo diabetes tipo 2.
+  - _Output_: al registrar el médico una glucosa de un paciente con diabetes tipo 2 y datos suficientes, la respuesta incluye `riesgo_ml` `{riesgo_hipoglucemia, version_modelo, motivo}`; en cualquier otro caso `riesgo_hipoglucemia: null` con motivo (`no_aplica_tipo`, `datos_insuficientes`, `momento_no_cubierto` o `no_disponible`). El registro **nunca** falla ni se demora por el ML (timeout corto).
+  - _Verify_: pruebas con el ML simulado (subtareas); el cuerpo previo de la respuesta no cambia.
+  - _Subtareas (estado al 2026-11-02, Fase ML-1)_:
+    - [x] **TASK-017a** Cliente ML aislado (`backend/app/services/ml_client.py`): `ML_ENABLED` apagado por defecto, `ML_SERVICE_URL`, `ML_TIMEOUT_SECONDS`, errores controlados y registrados sin datos personales. _Depende de:_ nada. **Hecho (2026-11-02):** `app/services/ml_client.py` (httpx, timeout 2 s configurable, sin reintentos, errores controlados) y `ML_*` en `core/config.py` y `.env.example`; `ML_ENABLED=false` por defecto.
+    - [x] **TASK-017b** Regla «solo tipo 2» (`es_tipo_2`: exactamente una enfermedad, `diabetes tipo 2` normalizado, sin embarazo) y motivos de no cálculo. _Depende de:_ nada. Embarazo activo con tipo 2 → `no_aplica_tipo` (ADR-0011). **Hecho (2026-11-02):** `es_tipo_2` en `ml_reglas.py` (una fila, `diabetes tipo 2` normalizado, sin embarazo); tipo 1, gestacional, sin tipo, varias filas y tipo 2 con embarazo → `no_aplica_tipo`.
+    - [x] **TASK-017c** Armado de la entrada desde la base (una consulta con relaciones): género normalizado, edad a la fecha de la lectura, IMC con altura en metros, categoría de medicación, `momento` (antes de dormir → `momento_no_cubierto`), comorbilidades `false` y `hba1c` null. _Depende de:_ 017a. **Decisión de la Fase ML-1 (ADR-0011):** `duracion_diabetes` no existe en la base y se usa `ML_DURACION_DEFECTO_ANIOS` (6,5, mediana del conjunto sintético) con el supuesto `duracion_estimada`; su falta **nunca** produce `datos_insuficientes`; comorbilidades `false` con `comorbilidades_no_capturadas` y `hba1c` nula con `hba1c_no_disponible`. **Hecho (2026-11-02):** `armar_entrada` en `ml_reglas.py` (género estricto, edad a la fecha de la lectura, IMC con altura en metros, medicación, momento, supuestos) con puntos de extensión para `anio_diagnostico` y comorbilidades; una sola consulta a Supabase.
+    - [x] **TASK-017d** Campo `riesgo_ml` aditivo en la respuesta de `POST /api/medicos/registrar/glucosa` (sin quitar ni renombrar campos; compatible con el front web y la app móvil). _Depende de:_ 017a, 017b y 017c. **Hecho (2026-11-02):** `riesgo_ml` aditivo en `POST /api/medicos/registrar/glucosa` solo con `ML_ENABLED=true`; el resto de la respuesta intacta.
+    - [x] **TASK-017e** Pruebas con el ML simulado (caso feliz, tipos no 2, datos faltantes, 422/503/500, timeout, `ML_ENABLED=false`, respuesta previa intacta). _Depende de:_ 017d. **Hecho (2026-11-02):** `backend/tests/test_ml_integracion.py` (55 pruebas con el ML y Supabase simulados) y `test_aislamiento.py` actualizado (variables del cliente ML, Compose sin `ports` en el ML, red interna); backend 142 pruebas, `ml_service` 238.
+    - [x] **TASK-017f** `docker-compose.yml`: variables `ML_ENABLED`, `ML_SERVICE_URL=http://ml_service:8002` y `ML_TIMEOUT_SECONDS` en el backend (ya está en la red interna `red_ml`); sin `ports` ni `depends_on` bloqueante en el ML; `ML_MODELO=demo` en Compose y en el `.env.example` raíz; `version_modelo` del sintético `1.1.0` sin «demo». _Depende de:_ 017a. **Hecho (2026-11-02):** `docker-compose.yml` (variables `ML_*` en el backend; `ML_MODELO` con valor por defecto `demo` en el ML, sin `ports`), `docker-compose.prueba.yml` y `.env.example` raíz; `version_modelo` del sintético `1.1.0` (ADR-0011). Humo: payload ficticio desde un contenedor del backend al ML por `red_ml`, mediana 34 ms y p95 87 ms.
+    - [x] **TASK-017g** (Fase ML-2, solo `mobile/`; spec en design.md § Riesgo de hipoglucemia en la pantalla del médico) Pantalla del médico (app): mostrar `riesgo_ml` en el resultado de «Registrar toma» como porcentaje con 1 decimal, o el motivo en lenguaje claro con los faltantes, con supuestos, versión y leyenda fija de modelo experimental; sin categorías, colores de alarma ni cambios en las alertas; lector defensivo `leerRiesgoMl` que nunca rompe el registro; modo simulado con todos los casos. _Depende de:_ 017d y 017i. **Hecho (2026-11-03):** `services/riesgoMl.ts` (lector defensivo, porcentaje, textos), `registrarGlucosaMedico` con `riesgoMl` y modo simulado por última cifra, `RiesgoMlBloque` en el modal de resultado (`ModalMensaje` admite contenido con desplazamiento), README con casos y `testID`. 21 pruebas nuevas (móvil 220), `tsc` limpio, `expo export` (android, 907 módulos) y capturas web de los 10 casos más el de alerta + riesgo en 360x640, 390x844 y 412x915 (fuera de git). No verificable sin celular ni backend real: el aspecto en dispositivo, el lector de pantalla, la fuente del sistema ampliada y la respuesta real con `ML_ENABLED=true`. **Nota (2026-11-03):** el autor simplificó después `RiesgoMlBloque`: ya no muestra motivo, faltantes ni supuestos (testIDs `ml-riesgo-motivo`, `-faltantes` y `-supuestos` retirados); la documentación se alineó y queda una Decisión abierta en CONTEXT.md.
+    - [x] **TASK-017i** Diagnóstico de datos insuficientes: `riesgo_ml.faltantes` (códigos sin valores) y una línea de log por cálculo (motivo y códigos, sin datos personales ni id). Aditivo; mismas pruebas más una por código. _Depende de:_ 017d. **Hecho (2026-11-03):** `faltantes_obligatorios` y `ResultadoArmado.faltantes` en `ml_reglas.py`, `riesgo_ml.faltantes` siempre presente, `_registrar_resultado` en `ml_client.py` (una línea por cálculo); 15 pruebas nuevas (backend 157) y pruebas hermeticas que ya no leen `backend/.env`. Ver `docs/ml/integracion_backend_ml.md` §10.1.
+    - [ ] **TASK-017h** (pendiente; punto de extensión ya preparado en `armar_entrada`) (opcional, cambio de esquema en Supabase + app) Capturar `anio_diagnostico` (y, más adelante, las comorbilidades) en el registro y la edición del paciente. _Depende de:_ decisiones 1 y 2; bloquea que haya pacientes con todos los datos.
+- [x] **TASK-018** [REQ-006, NFR-001]: Implementar `POST /api/chatbot/consulta` **en el servicio NLP**: `backend/nlp_service/app/api/chatbot.py`, `app/auth.py` (dependencia reemplazable; 401 con `CHATBOT_REQUIRE_AUTH=true` hasta TASK-014), `app/rate_limit.py` (en memoria, por IP), montaje en `app/main.py` y `backend/nlp_service/test_chatbot.sh`, según el contrato de design.md § API (sin estado, límites de longitud y tasa). Requiere TASK-013i.
+  - _Refs rationale_: REQ-006; D3, D8, D10; ADR-0006 (servicio expuesto directamente a la app, seguridad propia). Sin despliegue público hasta TASK-014 (divergencia registrada en CONTEXT.md). Cuando exista TASK-014, `auth.py` se conecta a la validación local del token de sesión.
+  - _Output_: Endpoint que recibe `{texto}` y retorna `{respuesta}`; errores 422 / 429 (`CHATBOT_RATE_LIMIT_PER_MINUTE`) / 503 / 502 / 504.
+  - _Verify_: `pytest` desde `backend/nlp_service/` con `FakeProvider` cubre 200 con respuesta no vacía, 422 (vacío y mayor a `CHATBOT_MAX_INPUT_CHARS`), 429, 503, 502 y 504; con `CHATBOT_REQUIRE_AUTH=true` y sin token, la dependencia rechaza la llamada; comprueba que el texto de la consulta no aparece en logs capturados (`caplog`) ni en el `detail` de errores.
+  - _Resultado (2026-10-24)_: `tests/test_api_chatbot.py` y `tests/test_rate_limit.py` pasan; la suite completa da 90 passed.
+    - Casos cubiertos: 200 con descargo; 422 (vacío, solo espacios, sin campo, no string, demasiado largo, JSON malformado, cuerpo no UTF-8); 429 con `Retry-After`; 503 (cinco configuraciones); 502; 504; 401 (también por defecto); orden auth → tasa → entrada → proveedor; el texto no aparece en `caplog` ni en las respuestas.
+    - Además, FastAPI respondía **400** en inglés ante un cuerpo no UTF-8; se mapea al 422 genérico del contrato.
+    - `./test_chatbot.sh` (PORT=8002) con `NLP_PROVIDER=fake` y `CHATBOT_REQUIRE_AUTH=false` → 200, respuesta no vacía y con descargo. No se probó contra Gemini real.
+- [~] **TASK-019** [REQ-007]: Implementar `GET /pacientes/{id}/historial` con filtro por rango de fechas.
   - _Refs rationale_: REQ-007.
   - _Output_: Endpoint que retorna registros filtrados por fecha, accesible por Paciente y Médico.
   - _Verify_: Test de integración filtra correctamente por rango diario/semanal/mensual.
-- [ ] **TASK-020** [REQ-008]: Implementar `GET /pacientes/{id}/reporte-pdf`.
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `GET /api/pacientes/registros/{idPaciente}` y `GET /api/registro/datosGlucosa/{idUsuario}` (con pruebas). **Falta** el filtro por rango de fechas y la ruta `/pacientes/{id}/historial` del contrato.
+- [~] **TASK-020** [REQ-008]: Implementar `GET /pacientes/{id}/reporte-pdf`.
   - _Refs rationale_: REQ-008.
   - _Output_: Endpoint que genera y retorna un PDF con la evolución clínica del paciente.
   - _Verify_: Test de integración descarga un PDF válido (content-type `application/pdf`, tamaño > 0).
+  - _Hecho parcial (2026-10-25, tras la fusión)_: `POST /api/paciente/pdf` genera el PDF con `reportlab` (con pruebas). **Falta** que sea `GET /pacientes/{id}/reporte-pdf`, restringido a Médico.
 
 ## Phase 5: Frontend Móvil
 *Goal*: Construir las pantallas de React Native que consumen la API de la Fase 4.
 
-- [ ] **TASK-021** [REQ-001]: Pantalla de login conectada a `POST /auth/login`.
-  - _Refs rationale_: REQ-001.
-  - _Output_: Pantalla funcional que almacena el token de sesión.
-  - _Verify_: Login manual exitoso navega a la pantalla principal; login fallido muestra error.
-- [ ] **TASK-022** [REQ-003]: Pantalla de registro de toma de glucosa.
-  - _Refs rationale_: REQ-003.
-  - _Output_: Formulario que envía nivel, hora y momento del día al backend.
-  - _Verify_: Registro manual desde la app aparece reflejado en el historial (TASK-023).
-- [ ] **TASK-023** [REQ-007]: Pantalla de historial con lista y gráfico (diario/semanal/mensual).
+- [ ] **TASK-029** [REQ-001 a REQ-008, NFR-001]: Reconciliar el contrato y el esquema del backend de negocio fusionado con design.md.
+  - _Refs rationale_: tras la fusión con `adriang-backend` las rutas reales (`/api/login`, `/api/pacientes/registrarGlucosa`, …) y las tablas reales de Supabase (`usuario`, `registro_glucosa`, `seguimiento_embarazo`, …) difieren de la tabla de API y de los Data Models de design.md; el equipo debe decidir cuál es la fuente de verdad. Ver design.md § Estado real del backend de negocio y las Open Questions de `seguimiento_embarazo` y autenticación.
+  - _Output_: decisión registrada (ADR o design.md) sobre rutas y esquema; design.md y tasks.md alineados con ella; si se mantiene el esquema real, migraciones versionadas en el repositorio.
+  - _Verify_: design.md § API y § Data Models describen exactamente lo implementado (o el código se ajusta al diseño); TASK-005 a TASK-009 verificables contra migraciones versionadas.
+- [x] **TASK-030** [NFR-001, NFR-002]: Contenerizar los tres servicios del backend con Docker Compose (design.md § Contenedores, [ADR-0010](docs/adr/0010-contenerizacion-docker-compose.md)).
+  - _Refs rationale_: las versiones de los servicios chocan entre sí (cada uno lleva su imagen y su `requirements.txt`); el `.pkl` no entra en git ni en la imagen; el servicio de ML no tiene ingreso público (ADR-0008); las imágenes se reutilizan en Azure (ADR-0003, TASK-002).
+  - _Output_:
+    - `backend/Dockerfile`, `backend/nlp_service/Dockerfile` y `backend/ml_service/Dockerfile` (`python:3.13-slim`, solo `requirements.txt` de producción, usuario no root, etapas `deps`/`test`/`runtime`) y un `.dockerignore` por contexto.
+    - `docker-compose.yml` en la raíz: `backend` (8000) y `nlp_service` (8001) publicados; `ml_service` sin puertos publicados, en una red interna; volumen `ml_artefactos` en `/artefactos`; `healthcheck` por servicio; `restart: unless-stopped`; sin secretos en el YAML. Perfiles `entrenamiento` (genera el modelo real y el de demo en el volumen) y `pruebas` (pytest dentro de contenedores). `docker-compose.prueba.yml` y `.env.example` raíz.
+    - README raíz (sección "Levantar todo con Docker"), README de los servicios y CONTEXT.md.
+  - _Verify_:
+    - `docker compose build` sin errores; tamaños de imagen registrados.
+    - `docker compose up -d`: los tres servicios `healthy`; `GET :8000/health` y `GET :8001/health` → 200.
+    - `:8002` **no** responde desde el host y **sí** desde otro contenedor de la red interna (`http://ml_service:8002/health`).
+    - `POST /api/riesgo/hipoglucemia` dentro de la red → 200 con solo `{riesgo_hipoglucemia, version_modelo}`, con `ML_MODELO=real` y con `demo`; sin modelo → 503 genérico y el contenedor sigue vivo.
+    - `POST /api/chatbot/consulta` con `NLP_PROVIDER=fake` → 200 con el aviso obligatorio.
+    - Ningún `.env`, `.pkl` ni clave dentro de las imágenes (`docker history` e inspección del sistema de archivos); los tres contenedores no corren como root.
+    - `docker compose down` y `up` conservan el modelo del volumen.
+    - Las tres suites siguen en verde, también dentro de contenedores (perfil `pruebas`): backend 87, `ml_service` 237, `nlp_service` 90.
+  - _Pendiente (fuera de esta tarea)_: registro de imágenes, ingreso interno del ML y secretos en Azure (TASK-002 y TASK-002b).
+  - _Hecho (2026-10-26, verificado en Docker Desktop 29.2.1 / Compose v5.1.0 sobre Windows)_:
+    - `docker compose build`: backend **318 MB**, nlp_service **258 MB**, ml_service **682 MB** (`python:3.13-slim`). El primer `build` del ML se cortó por un error transitorio de BuildKit (`EOF`) y se repitió sin cambios.
+    - `docker compose up -d`: los tres `healthy`. `GET :8000/health` y `GET :18001/health` (el 8001 del host estaba ocupado por un proceso ajeno; se usó `NLP_PORT=18001`) → 200.
+    - `ml_service`: 0 puertos publicados; desde el host no responde (`curl` exit 7); desde el contenedor del backend (`http://ml_service:8002`) sí. El NLP no puede alcanzarlo y el ML no tiene salida a Internet (red `internal`); el backend sí.
+    - Sin modelo: `/health` 200 con `modelo_cargado:false`, `POST` 503 genérico, el contenedor sigue `healthy`. Tras `docker compose run --rm ml_entrenar_real` (AUC 0,6404 y recall 0,4286, igual que en Windows) el ML sirve el modelo sin reiniciarse: `ALTO` 0,017 y `BAJO` 0,0064 (`version_modelo` `1.0.0`), idéntico a Windows. Con `ml_entrenar_demo` y `ML_MODELO=demo`: 0,8014 y 0,0515 (`1.0.0-demo`), idéntico a Windows (AUC sintético 0,7834).
+    - NLP: con `docker-compose.prueba.yml` (proveedor `fake`) → 200 con el aviso obligatorio; con la configuración real de su `.env` (Gemini) → 200 con el aviso.
+    - Imágenes: ningún `.env`, `.pkl`, Excel, pruebas ni venv; los valores reales de los secretos de los tres `.env` no aparecen en la configuración, el historial ni el sistema de archivos de ninguna imagen. Los tres contenedores corren como `app` (uid 10001).
+    - `docker compose down` y `up -d` conservan el modelo del volumen (misma predicción).
+    - Pruebas dentro de contenedores (perfil `pruebas`): backend **87**, nlp_service **90**, ml_service **237** passed.
+    - Hallazgos: (1) el `.pkl` entrenado en Linux tiene otra huella SHA-256 que el del JSON versionado (entrenado en Windows) aunque las métricas y predicciones coinciden; cada entorno usa su propio JSON, así que no hay conflicto, pero el JSON versionado no sirve de huella para el modelo entrenado en el contenedor. (2) El límite de tasa del NLP verá la IP de la puerta de enlace de Docker hasta configurar `FORWARDED_ALLOW_IPS`.
+- [x] **TASK-031** [REQ-001, NFR-001]: Capa de servicios de la app móvil (`mobile/src/services/`): configuración, cliente HTTP y sesión.
+  - _Refs rationale_: design.md § App móvil: integración. El backend no emite token (RB-01): la sesión guarda solo `id_usuario`, `id_rol` y `rol`.
+  - _Output_: `config.ts` (URLs desde `EXPO_PUBLIC_API_URL`/`EXPO_PUBLIC_NLP_URL` y `EXPO_PUBLIC_USE_MOCK`), `http.ts` (fetch con timeout y error uniforme en español, sin filtrar detalles ni registrar cuerpos), `sesion.ts` (`expo-secure-store`, se borra al cerrar sesión), `mobile/.env.example` y `.env` ignorado por git; dependencia `expo-secure-store` (versión de SDK 58).
+  - _Verify_: `npx tsc --noEmit` sin errores; pruebas de `http.ts` (timeout, `{error}`, 422 sin filtrar `detail`, red caída) en verde; `git check-ignore mobile/.env` lo confirma y ningún archivo versionado contiene una IP real.
+  - _Hecho (2026-10-26)_: `config.ts`, `http.ts`, `sesion.ts` (+ `auth.ts`, `glucosa.ts`, `chatbot.ts`, `registroToma.ts`, `historial.ts`), `mobile/.env.example`, `expo-secure-store` `~58.0.2`. `npx tsc --noEmit` sin errores; `npm test`: 44 pruebas en verde (11 de `http.ts`: sin URL, timeout, `{error}`, 5xx sin texto técnico, 422 sin filtrar `detail` ni la contraseña, 429 con `Retry-After`, red caída); `git check-ignore -v mobile/.env` → `.gitignore:4`; ninguna IP real en archivos versionados. Metro inlinea las variables (bundle con valores centinela). **Sin verificar:** `sesion.ts` (necesita el almacenamiento seguro de un dispositivo).
+- [x] **TASK-032** [REQ-003, REQ-005]: Port fiel de `glucosa.service.ts` del front web a `mobile/src/services/clasificacionGlucosa.ts`.
+  - _Refs rationale_: decisión del equipo de clasificar en el cliente; rarezas portadas tal cual (design.md § Clasificación en el cliente).
+  - _Output_: funciones puras (`evaluarGlucosa`, `obtenerTipoPaciente`) con los mismos rangos, grupos de edad (6–12, 13–19, 20–35, 36–60, > 60) e hipoglucemia fija `< 70`, y `clasificacionGlucosa.test.ts` (`node --test`).
+  - _Verify_: la tabla de casos por grupo de edad, tipo (Tipo 1, Tipo 2, Embarazada, Gestacional) y momento (ayunas, despues, dormir) en los límites (`max` y `max + 1`, 69, 70) pasa; las tres rarezas tienen su prueba con el resultado documentado.
+  - _Hecho (2026-10-26)_: `clasificacionGlucosa.ts` (port fiel) y su prueba: rangos normales y diabéticos por grupo de edad (6–12, 13–19, 20–35, 36–60, > 60) y momento, Embarazada y Diabetes Gestacional, en `max`, `max + 1`, 69 y 70; hipoglucemia fija `< 70`; las tres rarezas con su resultado (ver design.md). Decisión del usuario: portarlas tal cual.
+- [~] **TASK-021** [REQ-001]: Login con OTP en la app, conectado a `POST /api/login` y `POST /api/verify-otp`.
+  - _Refs rationale_: REQ-001; contrato real del backend (no hay `/auth/login` ni token).
+  - _Output_: `InicioSesion` en dos pasos (correo y contraseña → código de 6 dígitos), sesión guardada y restaurada al abrir la app, `App.tsx` con el rol real (`medico`, `administrador`, otro = paciente), credenciales fijas solo tras `EXPO_PUBLIC_USE_MOCK=true`.
+  - _Verify_: contra el backend con contenedores, `POST /api/login` con credenciales inválidas muestra el mensaje del backend traducido a la interfaz sin detalles técnicos; con `USE_MOCK=true` el acceso rápido sigue funcionando. **No verificable aquí:** el OTP real llega por correo (requiere Supabase y correo reales) y la prueba en un celular.
+  - _Hecho (2026-10-26)_: `InicioSesion` en dos pasos (`OtpForm`), sesión restaurada al abrir, rol real en `App.tsx`, modo simulado tras `EXPO_PUBLIC_USE_MOCK`. Pruebas con `fetch` simulado (cuerpo exacto, 401 genérico que no revela si falló el correo o la contraseña, código incorrecto, `id_rol` 0). Contra el backend real en Docker: `POST /api/login` sin `contrasena` → 422 traducido a "Los datos enviados no son válidos." sin filtrar el cuerpo. **Pendiente de verificar con celular y cuenta real:** el OTP por correo y el login completo (no se hizo un login real para no escribir en la auditoría ni usar cuentas del equipo).
+- [~] **TASK-022** [REQ-003, REQ-005]: Registro de toma de glucosa conectado.
+  - _Refs rationale_: REQ-003 y REQ-005; design.md § Flujos conectados.
+  - _Output_: `RegistroToma` carga momentos y `datosGlucosa`, deduce el tipo de paciente, clasifica en local, envía `registrarGlucosa` y, si el resultado no es NORMAL, `registrarAlerta`; `ResultadoClasificacionModal` muestra el resultado con los textos del front web (hipoglucemia e hiperglucemia, "se avisó al médico") y el caso `PARAM_INVALIDO` (se guarda sin alerta y se avisa). Momentos `ayunas`, `despues`, `dormir`.
+  - _Verify_: pruebas de la lógica de envío con `fetch` simulado (cuerpo exacto de `registrarGlucosa` y `registrarAlerta`, no se llama a la alerta si es NORMAL ni si es `PARAM_INVALIDO`); `GET /api/general/momentos` real devuelve los tres momentos. **No verificable aquí:** el registro real de glucosa y el correo al médico (Supabase y correo reales).
+  - _Hecho (2026-10-26)_: `RegistroToma` (carga de momentos y datos, valor editable, modal de confirmación, clasificación local, guardado, alerta, modal de resultado con los textos del front web y caso `PARAM_INVALIDO`), `registroToma.ts`. Pruebas: NORMAL no llama a la alerta; hipoglucemia (tipo 1) e hiperglucemia (tipo 2) la registran con el `id_registro` devuelto; `PARAM_INVALIDO` guarda sin alerta; si falla el guardado no hay alerta; si falla la alerta se informa. `GET /api/general/momentos` real devuelve `1 AYUNAS, 2 DESPUES DE COMER, 3 ANTES DE DORMIR`. **Pendiente de verificar con celular y Supabase real:** el guardado real de una toma y el correo al médico.
+- [~] **TASK-023** [REQ-007]: Historial conectado a `GET /api/pacientes/registros/{id_rol}`.
   - _Refs rationale_: REQ-007.
-  - _Output_: Vista con toggle entre lista y gráfico, filtrable por período.
-  - _Verify_: Cambiar el filtro de período actualiza correctamente los datos mostrados.
-- [ ] **TASK-024** [REQ-006]: Pantalla de Chatbot.
+  - _Output_: `HistorialPaciente` con estados de carga, vacío y error; filtros Diario/Semanal/Mensual y promedio calculados en el cliente con los registros reales (funciones puras en `services/`).
+  - _Verify_: pruebas unitarias de filtro por periodo y promedio (incluye lista vacía y fechas sin ceros); cambiar el periodo actualiza lista, gráfico y promedio. **No verificable aquí:** datos reales de un paciente.
+  - _Hecho (2026-10-26)_: `HistorialPaciente` con carga, vacío y error; Diario/Semanal/Mensual (1/7/30 días con hoy), promedio, desviación estándar poblacional y tiempo en rango 70–140 calculados en el cliente con `historial.ts` y datos reales del contrato (`fecha`, `hora`, `nivelGlucosa`, `momentoDia`, `tipo_alerta`). Pruebas de periodos (límites y fechas futuras), promedio, desviación, lista vacía y redondeo. **Pendiente de verificar con celular y datos reales de un paciente.**
+- [~] **TASK-024** [REQ-006]: Pantalla de Chatbot.
   - _Refs rationale_: REQ-006.
-  - _Output_: Interfaz de chat conectada a `POST /chatbot/consulta`.
-  - _Verify_: Enviar una consulta manual muestra la respuesta del backend en pantalla.
+  - _Output_: Interfaz de chat conectada a `POST /api/chatbot/consulta` del servicio NLP, con una URL base propia `NLP_API_BASE_URL` en `mobile/src/services/` (separada de `API_BASE_URL` del backend, configurable por ambiente, desde `EXPO_PUBLIC_NLP_URL`). Mensajes de error para 422, 429 y 502/503/504. Envía solo `{texto}` (el contrato no admite contexto clínico); sin historial en el servidor.
+  - _Verify_: Enviar una consulta manual muestra la respuesta del servicio NLP en pantalla; con `NLP_API_BASE_URL` apuntando a un servicio caído se muestra un error amigable sin el texto de la consulta.
+  - _Hecho (2026-10-26)_: `ChatBot` consume `POST {NLP}/api/chatbot/consulta` solo con `{texto}` (el contrato no admite contexto clínico), muestra la respuesta completa con el aviso del servicio y el aviso fijo, maneja 422/429/401/502/503/504 y red caída sin repetir la consulta; la conversación vive en la pantalla. **Real, con los contenedores:** una consulta genérica → 200, 1054 caracteres, aviso obligatorio presente, 2,3 s; texto vacío → 422 con mensaje amable; una ráfaga de consultas vacías → 429 "Hiciste muchas consultas seguidas… (unos 58 s)". **Pendiente de verificar en un celular:** la pantalla en sí.
+- [x] **TASK-033** [REQ-001, REQ-003, REQ-006, REQ-007]: Marcado de lo simulado, `testID` y documentación de la app móvil.
+  - _Refs rationale_: las pantallas aún con `mockData.ts` deben quedar identificadas; las pantallas conectadas llevan identificadores estables para pruebas de interfaz.
+  - _Output_: comentario `SIMULADO` en cada pantalla que usa `mockData.ts` y su lista en design.md; `testID` en español en las pantallas conectadas (`login-correo`, `login-contrasena`, `login-otp`, `login-ingresar`, `registro-valor`, `registro-enviar`, `registro-resultado`, `chat-entrada`, `chat-enviar`, mensajes de error, etc.); README de `mobile/` (variables, cómo apuntar a la PC, conectado vs simulado, `testID`, cómo probar con Expo Go y el compose); README raíz si hace falta.
+  - _Verify_: `grep -rn "SIMULADO" mobile/src/screens` lista las once pantallas de design.md; los `testID` del README existen en el código; `npx tsc --noEmit` y `npx expo export` en verde; `git status` solo con cambios bajo `mobile/`, design.md, tasks.md, CONTEXT.md y README.
 
 ## Phase 6: Tests y Validación
 *Goal*: Verificar que el sistema cumple los NFR y que el flujo completo funciona de punta a punta.
 
+  - _Hecho (2026-10-26)_: `grep -rl "SIMULADO:" mobile/src/screens` → exactamente las 11 pantallas simuladas; los 51 `testID` del README existen en el código (los de selector de periodo, de momento y de mensajes se generan por plantilla); README de `mobile/` con variables, cómo apuntar a la PC, conectado vs simulado, `testID`, pruebas y Expo Go; `npx tsc --noEmit` y `npx expo export --platform android` (857 módulos) en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+- [x] **TASK-034** [REQ-001, NFR-001]: Configuración y errores de la capa de servicios (Fase Móvil 2).
+  - _Refs rationale_: hallazgo de Móvil 1 (URL con `/api` → 404 oculto); design.md § Fase Móvil 2.
+  - _Output_: `config.ts` tolera una URL base terminada en `/api`; `mobile/.env.example` y README con el ejemplo correcto; `http.ts` distingue "ruta no encontrada" (error de configuración) de "recurso no encontrado" sin filtrar detalles; en `__DEV__` registra solo método, ruta, estado y milisegundos. Timeout de login sin cambios (15 s).
+  - _Verify_: pruebas de `config.ts` (con y sin `/api`, barras finales, vacío), del 404 de ruta vs recurso y de que el registro de desarrollo no incluye cuerpos, contraseñas, OTP ni correos.
+  - _Hecho (2026-10-27)_: `config.ts` (`normalizarBase`) quita `/api` y barras finales; `.env.example` y README con el ejemplo correcto; `http.ts` devuelve el código `ruta` para el 404 de FastAPI y mensajes propios o del backend para el 404 de recurso; registro `[http] MÉTODO ruta -> estado (N ms)` solo con `__DEV__`. Pruebas: 8 casos de `normalizarBase`, 404 ruta vs recurso, registro de desarrollo sin cuerpos, contraseñas, OTP ni correos, y sin salida en producción. Real: con `EXPO_PUBLIC_API_URL=http://localhost:8000/api` la URL efectiva queda `http://localhost:8000`, y una ruta inexistente devuelve "No se encontró el servicio solicitado…" (`ruta`, 404).
+- [x] **TASK-035** [REQ-001]: Perfil del paciente en la sesión: nombre real tras el login.
+  - _Output_: `services/paciente.ts` (`obtenerPerfil`, `obtenerSemanasEmbarazo`, `actualizarPaciente`), `App.tsx` carga el perfil tras el login de un paciente y lo usa en Inicio y Perfil; si falla, nombre genérico sin romper la sesión.
+  - _Verify_: pruebas con `fetch` simulado (rutas y normalización del contrato real, 404 `{message}`, 500 sin filtrar); el almacenamiento seguro sigue guardando solo `id_usuario`, `id_rol` y `rol`.
+  - _Hecho (2026-10-27)_: `paciente.ts` (`obtenerPerfil`, `normalizarPerfil`, `obtenerSemanasEmbarazo`, `actualizarPaciente`); `App.tsx` carga el perfil tras el login (y al restaurar la sesión) y construye el perfil de pantalla con nombre, correo, teléfono y foto reales; si falla, queda el nombre genérico. Pruebas: ruta y normalización, campos ausentes, 404 `{message}`, 500 sin filtrar. El almacenamiento seguro sigue limitado a `id_usuario`, `id_rol` y `rol`. **Sin verificar con un perfil real** (no se leyeron datos de pacientes).
+- [~] **TASK-036** [REQ-003, REQ-007]: `InicioPaciente` con datos reales.
+  - _Output_: última toma, lecturas anteriores, tomas y promedio de hoy, aviso preventivo, médico asignado y fecha real, con estados de carga, vacío y error; funciones puras de resumen en `services/historial.ts`.
+  - _Verify_: pruebas de las funciones de resumen (hoy, "hace cuánto", aviso, lista vacía). Lo sin fuente real queda marcado como simulado en design.md.
+  - _Hecho (2026-10-27)_: `InicioPaciente` y sus tarjetas con datos reales (última toma, hace cuánto, lecturas anteriores, tomas y promedio de hoy sobre 3 momentos, aviso preventivo, médico y fecha), con carga, vacío y error; `resumenInicio`, `haceCuanto`, `etiquetaFechaHora`, `fechaLarga` con pruebas. Simulado: solo el punto de notificaciones del encabezado (en modo simulado). **Pendiente de verificar con celular y datos reales.**
+- [~] **TASK-037** [REQ-002]: Perfil, ficha clínica y edición de datos del paciente.
+  - _Output_: `PerfilUsuario` y `FichaClinicaCard` con datos reales (semanas de embarazo si aplica); pantalla `EditarPaciente` con validaciones, confirmación y `PUT actualizarPaciente` (siempre los siete campos requeridos; embarazo solo si cambió).
+  - _Verify_: pruebas de validación y del cuerpo exacto del PUT (campos requeridos presentes, sin campos de embarazo si no cambió, `fecha_terminacion` al terminar). **No verificable aquí:** el PUT real (escribe en el Supabase del equipo).
+  - _Hecho (2026-10-27)_: `PerfilUsuario`/`FichaClinicaCard` con datos reales (condiciones, tratamientos, médico, actividad, semanas de embarazo, tiempo en rango de 7 días) y foto; pantalla `EditarPaciente` con validaciones, confirmación y resultado; `edicionPaciente.ts`. Pruebas: validaciones, "sin cambios", PUT con cuerpo exacto (siete campos, coma decimal → punto, sin embarazo si no cambió), embarazo empieza/termina, 400/404/500 sin filtrar `details`. **Hallazgo:** "enviar solo los campos modificados" no es posible, el backend exige los siete campos. **No verificable aquí:** el PUT real (escribe en el Supabase del equipo; no se ejecutó).
+- [~] **TASK-038** [REQ-002]: Solicitud de registro de paciente conectada.
+  - _Output_: formulario con catálogos reales (niveles, enfermedades, tratamientos, médicos), foto con `expo-image-picker` y `POST registrarPaciente` multipart; validación de todos los campos obligatorios del backend antes de enviar; la rama de médico sigue simulada.
+  - _Verify_: pruebas de la validación y del `FormData` (nombres de campos, booleanos como texto, foto como `{uri, name, type}`) y lecturas reales de los cuatro catálogos. **No verificable aquí:** el POST real.
+  - _Hecho (2026-10-27)_: `SolicitudPacienteForm` (secciones, catálogos reales, `expo-image-picker ~58.0.10`, foto JPG/PNG con vista previa), `registroPaciente.ts` (validación de todos los obligatorios, `FormData`) y `catalogos.ts`; la rama de médico sigue simulada. Pruebas: validación de campos y fechas, nombres exactos del multipart, booleanos como texto, rol fijo `paciente`, 400 y 500 seguros. **Lecturas reales** con los contenedores: `/general/niveles` (2 filas), `/enfermedades` (3), `/tratamientos` (2) y `/medicos/ver` (17), con las claves esperadas y todas las filas normalizadas. **Hallazgo:** la foto es obligatoria y el backend la sube antes de validar. **Corrección de la altura (2026-10-27):** la base la guarda en metros (`numeric(4,2)`); la app la pide en cm (50 a 250), la envía en metros con dos decimales y la convierte de vuelta en la edición; el 500 `numeric field overflow` (22003) se debía a enviar 170 en vez de 1.70. Pruebas: conversión (170→1.70, 155→1.55, 199→1.99), redondeo, límites, round-trip de todo el rango, perfil→edición sin cambio y cuerpo del PUT/FormData en metros (99 pruebas en verde). **Sin verificar: el envío real.** Peso: el tipo de columna no está documentado (ver design.md).
+  - **Corrección (2026-10-27):** el envío fallaba al instante con "no se pudo conectar" porque `expo/fetch` (el `fetch` global de SDK 58) no admite `{uri, name, type}` en un `FormData`; los `FormData` van ahora por `XMLHttpRequest`, con registro de desarrollo y sonda sin archivo. Pruebas con un XHR simulado (cabeceras sin `Content-Type`, 200/400/500/429, red, timeout, sonda, registro sin datos personales): 75 en total en verde. Sonda real contra el backend: 400 "Archivo de perfil faltante" (llega). **No verificable aquí:** el POST real con foto ni el selector de fotos (requieren celular y escriben en Supabase).
+- [x] **TASK-039** [REQ-002, REQ-003]: `testID`, marcado de lo simulado y documentación de la Fase Móvil 2.
+  - _Output_: `testID` en español (`inicio-*`, `perfil-*`, `editar-*`, `registro-paciente-*`) listados en `mobile/README.md`; comentarios `SIMULADO:` actualizados; README de mobile (variables, URL sin `/api`, conectado vs simulado).
+  - _Verify_: los `testID` del README existen en el código; `grep -rl "SIMULADO:" mobile/src/screens` lista las 10 pantallas de design.md; `npx tsc --noEmit`, `npm test` y `npx expo export --platform android` en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+  - _Hecho (2026-10-27)_: 121 `testID` listados en `mobile/README.md` (los generados por plantilla, como `editar-correo-error` o `registro-paciente-medico-<id>`, vienen de `InputField` y `OpcionesChips`); `grep -rl "SIMULADO:" mobile/src/screens` → exactamente las 10 pantallas de design.md; `npx tsc --noEmit` sin errores; `npm test`: 67 pruebas en verde; `npx expo export --platform android` compila (870 módulos); `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+- [x] **TASK-040** [REQ-001, REQ-002]: Servicios del médico y nombre real tras el login (Fase Móvil 3).
+  - _Refs rationale_: design.md § Fase Móvil 3; `id_rol` = `id_medico`, `id_usuario` solo para el perfil.
+  - _Output_: `services/medico.ts` (perfil, pacientes, alertas activas y resueltas, responder, actualizar), `services/catalogos.ts` con especialidades; `App.tsx` carga el perfil del médico tras el login y lo usa en Perfil; si falla, texto genérico sin romper la sesión.
+  - _Verify_: pruebas con `fetch` simulado (rutas con el id correcto, normalización del contrato real, textos de relleno tratados como vacíos, 404 `{message}`, 500 sin filtrar); el almacenamiento seguro sigue guardando solo `id_usuario`, `id_rol` y `rol`.
+  - _Hecho (2026-10-28)_: `medico.ts` (perfil, pacientes, alertas, responder, actualizar), `catalogos.ts` (especialidades) y `App.tsx` (perfil del médico por `id_usuario`; pacientes por `id_rol`). Si el perfil falla queda el texto genérico. Pruebas (125 en total): rutas con el id correcto, normalización, relleno del backend tratado como vacío, 404/500 sin filtrar. **Sin verificar con datos reales de un médico** (no se leyeron pacientes ni alertas reales).
+- [~] **TASK-041** [REQ-002, REQ-005]: Lista de pacientes del médico con datos reales.
+  - _Output_: `PacientesMedico` con carga, vacío y error; búsqueda por nombre o id; filtros Todos / En riesgo / Estables según las alertas activas; métricas reales; pacientes compartidos con Alertas y Reportes.
+  - _Verify_: pruebas de la combinación pacientes + alertas activas (estado, valor y hora de la alerta más reciente, conteos) y del filtrado.
+  - _Hecho (2026-10-28)_: `PacientesMedico` con carga, vacío, error, búsqueda, filtros y métricas reales; estado por alertas activas (`estadoPacientes`, `filtrarPacientes`, `resumenPacientes`, probados). **Pendiente de verificar con celular y un médico real.**
+- [~] **TASK-042** [REQ-002, REQ-007]: Detalle del paciente (vista del médico).
+  - _Output_: `DetallePaciente` con datos del paciente y su historial real (`GET pacientes/registros/{id}`): última telemetría, curva semanal/mensual, registros recientes y tratamientos; reutiliza `historial.ts`.
+  - _Verify_: pruebas de edad desde `dd/mm/aaaa` y de los resúmenes; carga, vacío y error.
+  - _Hecho (2026-10-28)_: `DetallePaciente` con datos de `misPacientes` y el historial real (`GET pacientes/registros`): cabecera con edad, última telemetría, curva semanal/mensual, registros recientes y tratamientos. Se retiraron los textos inventados de la maqueta. **Pendiente de verificar con celular y datos reales.**
+- [~] **TASK-043** [REQ-005]: Alertas activas y resueltas con respuesta del médico.
+  - _Output_: `AlertasMedico` con pestañas, filtros Hipo/Hiper, modal de detalle y respuesta (3 a 500 caracteres) con confirmación; `POST responder/alerta` con `{id_medico, fecha_registro, mensaje, alertas_id_alerta}`; sin doble envío; recarga al terminar.
+  - _Verify_: pruebas del cuerpo exacto (enteros, fecha local), errores 400/404/5xx sin filtrar datos y bloqueo del doble envío. **No verificable aquí:** el POST real (escribe en el Supabase del equipo).
+  - _Hecho (2026-10-28)_: `AlertasMedico` con pestañas, filtros, banner, modal de detalle y respuesta con confirmación (3 a 500 caracteres) y bloqueo del doble envío. Pruebas: cuerpo exacto del `POST` (enteros, fecha local), 400/500 sin filtrar, límites de la respuesta. **No verificable aquí:** el POST real.
+- [~] **TASK-044** [REQ-008]: Reportes con datos reales (sin PDF).
+  - _Output_: `ReportesMedico` con selector de paciente asignado y rango (7/30 días), promedio, TIR 70-180, hipo/hiper y distribución; el botón de PDF queda deshabilitado con aviso (decisión del usuario: PDF para después).
+  - _Verify_: pruebas de las métricas (límites 70 y 180, lista vacía, rangos).
+  - _Hecho (2026-10-28)_: `ReportesMedico` con selector de paciente y de rango (7/30 días) y métricas reales (`metricasReporte`, probada en los límites 70 y 180 y con lista vacía); el PDF queda deshabilitado con aviso (decisión del usuario). **Pendiente de verificar con celular y datos reales.** El PDF diferido se resolvió en TASK-056 (Fase Móvil 5).
+- [~] **TASK-045** [REQ-002]: Perfil y edición del médico.
+  - _Output_: ficha real (especialidad, departamento, matrícula, carnet) y `EditarMedico` con `PUT actualizar/{id_medico}` multipart (teléfono, correo, departamento y carnet JPG/PNG ≤ 2 MB), solo campos cambiados y no vacíos, validación y confirmación.
+  - _Verify_: pruebas del cuerpo (campos presentes solo si cambiaron, sin cadenas vacías), del multipart por XHR sin `Content-Type` y de los límites del carnet. **No verificable aquí:** el PUT real.
+  - _Hecho (2026-10-28)_: ficha real y `EditarMedico` (teléfono de 8 dígitos, correo, departamento, carnet JPG/PNG ≤ 2 MB), solo campos cambiados y no vacíos, confirmación y resultado. Pruebas con `XMLHttpRequest` simulado: método `PUT`, ruta con `id_medico`, sin `Content-Type`, solo los campos enviados, 404 y 500 sin filtrar. **No verificable aquí:** el PUT real ni el selector de imágenes.
+- [~] **TASK-046** [REQ-002]: Solicitud de registro de médico conectada.
+  - _Output_: `SolicitudMedicoForm` con especialidades reales, matrícula PDF (≤ 5 MB, `expo-document-picker`) y carnet JPG/PNG (≤ 2 MB); validación completa antes de enviar; `POST registrar` multipart por XHR. La app no envía `estado` ni `fecha_solicitud`.
+  - _Verify_: pruebas de validación, de los nombres exactos del multipart (`matriculaProfesional`, `carnetProfesional`) y de los límites; lectura real de `/general/especialidades`. **No verificable aquí:** el POST real ni el selector de documentos.
+  - _Hecho (2026-10-28)_: `SolicitudMedicoForm` (especialidades reales, matrícula PDF ≤ 5 MB con `expo-document-picker ~58.0.4`, carnet JPG/PNG ≤ 2 MB), validación completa previa y `POST registrar` por XHR sin `Content-Type`; sin `estado` ni `fecha_solicitud`. Pruebas: validación, límites exactos de 5 MB y 2 MB, nombres `matriculaProfesional`/`carnetProfesional`. Lectura real de `/general/especialidades`. **No verificable aquí:** el POST real ni los selectores.
+- [x] **TASK-047** [REQ-002, REQ-005]: `testID`, marcado de lo simulado y documentación de la Fase Móvil 3.
+  - _Output_: `testID` en español (`medico-*`, `alertas-*`, `detalle-*`, `registro-medico-*`) listados en `mobile/README.md`; `SIMULADO:` solo en las pantallas del administrador; README (conectado vs simulado, advertencia de datos de pacientes sin autenticación, RB-01).
+  - _Verify_: los `testID` del README existen en el código; `grep -rl "SIMULADO:" mobile/src/screens` lista las 5 pantallas de design.md; `npx tsc --noEmit`, `npm test` y `npx expo export --platform android` en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+  - _Hecho (2026-10-28)_: `testID` (`medico-*`, `detalle-*`, `alertas-*`, `reportes-*`, `perfil-medico-*`, `registro-medico-*`) listados en `mobile/README.md`; `grep -rl "SIMULADO:" mobile/src/screens` → exactamente las 5 pantallas de design.md; advertencia de RB-01 en el README; `npx tsc --noEmit`, `npm test` (125) y `npx expo export --platform android` en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+- [x] **TASK-048** [REQ-001, REQ-002]: Servicios del administrador y nombre real tras el login (Fase Móvil 4).
+  - _Refs rationale_: design.md § Fase Móvil 4; `id_rol` = `id_admin`, `id_usuario` solo para `perfilAdmin`.
+  - _Output_: `services/administrador.ts` (perfil, solicitantes y activos de médicos y pacientes, administradores, activar, auditoría), `services/administradorVista.ts` (filtros, normalización, enmascarado); `App.tsx` carga el perfil del administrador tras el login; si falla, texto genérico sin romper la sesión.
+  - _Verify_: pruebas con `fetch` simulado (rutas con el id correcto, normalización de las formas reales, relleno tratado como vacío, fechas normalizadas, 404/500 sin filtrar); el almacenamiento seguro sigue guardando solo `id_usuario`, `id_rol` y `rol`.
+  - _Hecho (2026-10-29)_: `administrador.ts` (perfil, listas, activar, auditoría) y `administradorVista.ts`; `App.tsx` carga `perfilAdmin` por `id_usuario` y usa el nombre, correo, teléfono y cargo reales (si falla, texto genérico). Pruebas (144 en total): rutas con el id correcto, normalización de las formas reales, relleno como vacío, fechas normalizadas a dd/mm/aaaa, 404 y 500 sin filtrar. **Sin verificar con un administrador real** (no se llamó a `perfilAdmin` ni a `obtenerAdmins`: escriben una fila de auditoría).
+- [~] **TASK-049** [REQ-002]: Solicitudes de registro (pacientes y médicos) con datos reales.
+  - _Output_: `SolicitudesAdmin` con lista unificada, filtros Todos / Pacientes / Médicos, carga, vacío y error.
+  - _Verify_: pruebas de unificación y filtros; lectura real de los solicitantes imprimiendo solo claves, tipos y conteos.
+  - _Hecho (2026-10-29)_: `SolicitudesAdmin` con lista unificada de pacientes y médicos, filtros y estados. Lectura real (solo claves, tipos y conteos): `medicos/solicitantes` 3 filas, `pacientes/solicitantes` 2 filas, todas normalizadas y con `activo=false`. **Pendiente de verificar en un celular.**
+- [~] **TASK-050** [REQ-002]: Detalle de solicitud y activación de cuentas.
+  - _Output_: `DetalleSolicitudAdmin` con datos del solicitante, matrícula y carnet (URL de Storage; carnet con vista previa y apertura con `Linking`), y **Activar** con confirmación, bloqueo del doble envío y recarga; **Rechazar** deshabilitado con aviso.
+  - _Verify_: pruebas del cuerpo exacto (`{idAdmin}` numérico, PUT, ruta de médico y de paciente), 400/404/500 sin filtrar, y que solo se abran URL `http(s)`. **No verificable aquí:** la activación real (cambia cuentas reales).
+  - _Hecho (2026-10-29)_: `DetalleSolicitudAdmin` con datos del solicitante, matrícula y carnet (URL de Storage; vista previa y apertura con `Linking`, solo `http(s)`), **Activar** con confirmación y bloqueo del doble envío, y **Rechazar** deshabilitado con aviso. Pruebas: `PUT` con `{idAdmin}` numérico en la ruta del médico y del paciente, sin red si el id es inválido, 400/404/500 sin filtrar el texto de `detalles`, URL abribles. **No verificable aquí:** la activación real (cambia cuentas reales).
+- [~] **TASK-051** [REQ-002]: Usuarios (activos e inactivos) con datos reales.
+  - _Output_: `UsuariosAdmin` con médicos, pacientes y administradores activos, inactivos (= solicitantes), búsqueda y filtro de estado; modal de solo lectura con "Activar cuenta" para inactivos; cambio de rol y de estado deshabilitado con aviso.
+  - _Verify_: pruebas de búsqueda, filtros, claves por rol (los ids se solapan) y conteos.
+  - _Hecho (2026-10-29)_: `UsuariosAdmin` con médicos, pacientes y administradores activos e inactivos (= pendientes), búsqueda por nombre, correo o rol y filtro de estado; modal de solo lectura con "Activar cuenta" para pendientes y cambio de rol y estado deshabilitado con aviso. Lectura real: `medicos/activos` 15 filas y `pacientes/activos` 34, todas normalizadas. **Pendiente de verificar en un celular.**
+- [~] **TASK-052** [NFR-001]: Auditoría con datos reales.
+  - _Output_: `AuditoriaAdmin` con `GET /general/auditoria`, orden por fecha, páginas de 20 en el cliente, filtros, KPIs reales, IP enmascarada y sin nombres; exportación deshabilitada con aviso.
+  - _Verify_: pruebas de enmascarado de IP y de rutas, clasificación, paginación, KPIs y fechas inválidas; lectura real imprimiendo solo claves, tipos y conteos.
+  - _Hecho (2026-10-29)_: `AuditoriaAdmin` con orden por fecha, páginas de 20 en el cliente, filtros, KPIs reales, IP enmascarada, rutas con `{id}` y sin nombres; exportación deshabilitada. Lectura real: **1000 filas** (tope del servidor, sin orden, fechas hasta mayo de 2026; la app lo avisa), 1000 normalizadas, IP enmascaradas (incluidas las IPv4 mapeadas en IPv6, que una primera versión del enmascarado dejaba pasar) y sin nombres. **Pendiente de verificar en un celular.**
+- [x] **TASK-053** [REQ-002]: Perfil y ficha del administrador.
+  - _Output_: `PerfilUsuario` y su ficha con datos reales de `perfilAdmin` (cargo, fecha de ingreso, admitido por).
+  - _Verify_: prueba de normalización de `perfilAdmin`; `grep -rl "SIMULADO:" mobile/src/screens` sin resultados.
+  - _Hecho (2026-10-29)_: `PerfilUsuario` y su ficha con datos reales de `perfilAdmin` (cargo, ingreso, admitido por) y sin marca `SIMULADO:`. `grep -rl "SIMULADO:" mobile/src/screens` → ninguna pantalla.
+- [x] **TASK-054** [REQ-002, NFR-001]: `testID`, documentación completa de la app y advertencia de RB-01.
+  - _Output_: `testID` en español (`admin-*`, `solicitud-*`, `auditoria-*`) listados en `mobile/README.md`; README completo (qué está conectado en toda la app, qué queda deshabilitado y por qué, advertencia de que se pueden activar cuentas sin autenticación real).
+  - _Verify_: los `testID` del README existen en el código; `npx tsc --noEmit`, `npm test` y `npx expo export --platform android` en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+  - _Hecho (2026-10-29)_: `testID` (`solicitud-*`, `admin-*`, `auditoria-*`, `perfil-admin-*`) listados en `mobile/README.md`; README completo con lo conectado en toda la app, las acciones deshabilitadas y por qué, y la advertencia de activar cuentas sin autenticación real (RB-01); `npx tsc --noEmit`, `npm test` (144) y `npx expo export --platform android` en verde; `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md.
+- [x] **TASK-055** [REQ-007, REQ-008]: Umbrales clínicos centralizados (design.md § Fase Móvil 5).
+  - _Output_: `mobile/src/services/umbrales.ts` con hipoglucemia (< 70), rango meta **70-180**, límites de captura 20-600 y lecturas diarias esperadas (3), con el origen de cada valor; historial, inicio, perfil, gráficos, reporte y textos leen de ahí.
+  - _Verify_: pruebas de los límites; `grep` sin `140` ni `70-140` literales fuera del port de `clasificacionGlucosa.ts` y de las pruebas; las pruebas existentes se actualizan solo en lo que dependía de 140.
+  - _Hecho (2026-10-30)_: `umbrales.ts` con hipoglucemia (< 70), rango meta **70-180** (decisión del usuario), captura 20-600, objetivo de TIR (70 %) y 3 tomas diarias, cada uno con su origen; historial, inicio, perfil, gráficos (la banda y las etiquetas salen de las constantes), reporte, PDF y textos leen de ahí. `grep` sin `140`/`70-140` fuera del port de `clasificacionGlucosa.ts`, las pruebas y la geometría de los gráficos. Pruebas (`umbrales.test.ts`): límites 69/70/180/181, porcentaje y coincidencia entre historial, reporte y PDF; dos pruebas existentes pasaron de 150 a 190 (fuera de 70-180). No cambian las alertas.
+- [~] **TASK-056** [REQ-008]: PDF del reporte del médico en el dispositivo (cierra la parte diferida de TASK-044).
+  - _Output_: `reportePdf.ts` (resumen y HTML puros) y botón "Descargar PDF" con `expo-print` y `expo-sharing`: cargando, error con reintento, sin lecturas no genera, hoja del sistema.
+  - _Verify_: pruebas del resumen (promedio, mínimo, máximo, % en rango con la constante central, n.º de lecturas) y del HTML (escape, leyenda, sin teléfono ni correo). **No verificable aquí:** el PDF compartido en un celular.
+  - _Hecho (2026-10-30)_: `reportePdf.ts` (resumen y HTML puros) y `shared/compartirPdf.ts` (`expo-print` + `expo-sharing`, instalados con `npx expo install`; el plugin `expo-sharing` quedó en `app.json`). Botón «Descargar PDF» con generando, error con «Reintentar PDF», deshabilitado sin lecturas y hoja del sistema. 9 pruebas del resumen y del HTML (promedio, mínimo, máximo, % en rango con la constante central, n.º de lecturas, escape, sin teléfono, correo ni observaciones, leyenda). **Lecturas reales (solo GET, claves y conteos):** con la fecha de la última lectura como «hoy», 2 pacientes × 7 y 30 días coinciden con las métricas de la pantalla y el HTML no contiene correo, teléfono ni observaciones; con la fecha real ningún paciente de la base tiene lecturas en los últimos 30 días (no se genera PDF). **No verificable aquí:** el PDF compartido en un celular.
+- [x] **TASK-057**: Restos estáticos o simulados.
+  - _Output_: `ConfiguracionMenu`, banner de protocolo, exportar del historial, "Cambiar" de la hora y campana sin acción retirados; versión desde `app.json`; nota legal sin afirmaciones; informe del `grep` de textos hardcodeados.
+  - _Verify_: con `EXPO_PUBLIC_USE_MOCK` apagado no se usa ningún dato simulado (revisión de imports y prueba).
+  - _Hecho (2026-10-30)_: Retirados `ConfiguracionMenu`, el banner de protocolo, exportar del historial, «Cambiar» de la hora y la campana sin acción; versión desde `app.json` (antes «v1.0.4»); nota legal sin afirmaciones; «Conexión cifrada de grado clínico» del login retirada; «Atención Urge...» corregido a «Atención urgente». `mockData.ts` queda con solo los perfiles de ejemplo y con el modo simulado apagado no se carga (`require` dentro de `USE_MOCK`); prueba estática `aislamientoMock.test.ts`. Quedan fuera por la regla del chatbot: «Guía de carbohidratos» y dictado por voz (se reportan).
+- [~] **TASK-058** [NFR-004]: Medidas, escalado y ajuste de vistas.
+  - _Output_: `mobile/src/utils/medidas.ts` (tokens y funciones puras), ancho máximo de contenido, zona segura inferior, límite de escala de fuente, cifras grandes acotadas, `numberOfLines` en textos largos; cuadro de pantallas.
+  - _Verify_: pruebas de `factorEscala`/`escalar`; `tsc`; capturas web en 360x640, 390x844 y 412x915 (si es posible); lista de pantallas a revisar en un celular.
+  - _Hecho (2026-10-30)_: `medidas.ts` (tokens y escalado puros, probados) y `useMedidas.ts`; contenido centrado con ancho máximo de 600 dp; zona segura inferior en la barra y en las subpantallas; límite de 1,3× a la fuente del sistema (`textoGlobal.ts`); cifras de 40-56 pt reducidas a 40 y ajustadas al ancho; títulos de 26-28 a 24; modales con ancho máximo; `numberOfLines`, filas que pasan a otra línea y botones que ya no ocupan el 100 % dentro de filas (los de archivo del registro de médico aplastaban el texto). Capturas web en 360x640, 390x844 y 412x915 (121 imágenes en `docs/integracion/capturas/`, 6,2 MB): la detección de desbordes horizontales pasó de 10 hallazgos a ninguno. **Pendiente:** el aspecto real en un celular.
+- [~] **TASK-059** [NFR-001, NFR-004]: Robustez y experiencia de uso (sesión, red, estados, doble envío, teclado, accesibilidad, registro parcial).
+  - _Output_: cierre de sesión que reinicia la navegación; sesión guardada con rol que ya no coincide se cierra; reintento en las pantallas que cargan; guarda contra doble envío; `accessibilityLabel` en botones de solo icono; aviso de registro con fallo parcial.
+  - _Verify_: pruebas de la guarda de doble envío, del cierre por 404 y del aviso de fallo parcial; `tsc`, `npm test` y `npx expo export --platform android`.
+  - _Hecho (2026-10-30)_: Cierre de sesión reinicia pestaña y subpantallas y borra el almacenamiento seguro; un 404 al cargar el perfil del rol guardado cierra la sesión y avisa en el login (con el backend actual el id inexistente responde 500, así que no se activa: hallazgo); perfil con «cargando» y «Reintentar»; guarda síncrona contra el doble toque en 9 envíos (`turno.ts`); aviso de registro con fallo parcial (`registroAviso.ts`); `accessibilityLabel` y rol en botones de solo icono, de la barra, del encabezado y del campo de contraseña; contraste: `textMuted` pasa a #5F6F86 y los textos de error y estado usan los tonos oscuros (prueba AA 4,5:1); teclado numérico con signos en las fechas y mayúsculas en los nombres; el modal de respuesta de alerta sube con el teclado. 6 pruebas nuevas. **Pendiente en un celular:** teclado, sesión restaurada y lectores de pantalla. El chatbot no se tocó (botones de solo icono sin etiqueta, se reporta).
+- [x] **TASK-060**: Hallazgos para Adrian y verificación de la fase.
+  - _Output_: CONTEXT.md § Hallazgos para Adrian, ordenados por gravedad (Móvil 2 a 5); lista de lo no verificable sin celular.
+  - _Verify_: `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md; sin `.env` ni IP; solo GET reales con claves, tipos y conteos.
+  - _Hecho (2026-10-30)_: CONTEXT.md § Hallazgos para Adrian (18 hallazgos ordenados por gravedad, Móvil 2 a 5); `git status` solo con `mobile/`, design.md, tasks.md, CONTEXT.md y `docs/integracion/` (capturas); `.env` ignorado, sin IP real; solo GET reales con claves, tipos y conteos.
+- [~] **TASK-061** [REQ-006]: Efecto de escritura del chatbot (design.md § Fase Chatbot-Front).
+  - _Output_: `services/revelado.ts` (troceo, plan con tope de 4 s, separar aviso, modo), `CHAT_ANIMACION` + `EXPO_PUBLIC_CHAT_ANIMACION`, indicador «escribiendo…», revelado por palabras, tocar completa, solo el último mensaje, scroll condicionado, reducir movimiento, temporizadores limpios.
+  - _Verify_: pruebas de palabras, saltos de línea, acentos, emojis, tope, modo inmediato y texto vacío; errores sin «escribiendo…».
+  - _Hecho (2026-10-31)_: `revelado.ts` (troceo por palabras sin partir emojis ni acentos, plan con tope de 4 s, `separarAviso`, modos), `CHAT_ANIMACION` + `EXPO_PUBLIC_CHAT_ANIMACION` (documentado en README y `.env.example`), indicador «escribiendo…», revelado por palabras, tocar completa, solo se anima la última respuesta, aviso médico completo al terminar, scroll que no se fuerza si el usuario subió, reducir movimiento, temporizadores limpios y sin estado tras desmontar; con error no hay «escribiendo…». Pruebas en `revelado.test.ts` (15 en total con las de testID, post comida y burbuja). Captura web (modo simulado): a los 250 ms se ven 17 de 134 caracteres y el aviso aparece solo al terminar. **Pendiente en un celular:** la animación real y el scroll.
+- [x] **TASK-062** [REQ-006]: Retirar lo falso o sin respaldo de la pantalla del chatbot.
+  - _Output_: sin tarjeta de guía ni dictado; sin «leído»; textos corregidos; sugerencias que envían preguntas reales; leyenda informativa conservada.
+  - _Verify_: revisión estática y capturas.
+  - _Hecho (2026-10-31)_: Retiradas la tarjeta «Guía de carbohidratos», el dictado y las marcas de «leído»; «IA Activa» → «Asistente de IA»; «personalizada» → «general»; las sugerencias envían una pregunta completa al servicio; leyenda informativa conservada. Se reportan sin cambiar el título «Asistente Clínico» y el saludo inicial fijo.
+- [~] **TASK-063** [NFR-004]: Accesibilidad y vistas del chat.
+  - _Output_: etiquetas y roles, envío deshabilitado con guarda síncrona, teclado, burbujas con `useMedidas` (360 y 412 dp).
+  - _Verify_: pruebas de `anchoBurbuja`; capturas web.
+  - _Hecho (2026-10-31)_: Rol y etiqueta en enviar y en las sugerencias; envío deshabilitado con texto vacío o envío en curso y guarda síncrona; burbujas con `useMedidas`/`anchoBurbuja` (85 %, tope 480) y fuente escalada; las cadenas largas se parten en web (`overflowWrap`). Capturas a 360x640, 390x844 y 412x915. **Pendiente en un celular:** el teclado (en Android `behavior="height"` sin verificar) y el lector de pantalla.
+- [x] **TASK-064**: `testID` normalizados y nuevos del chat.
+  - _Output_: `normalizarTestId`; `solicitud-medico-1` / `solicitud-paciente-1`; `chat-escribiendo`, `chat-aviso-medico`; README actualizado.
+  - _Verify_: pruebas de la función y búsqueda de otros `testID` dinámicos.
+  - _Hecho (2026-10-31)_: `normalizarTestId`; `solicitud-medico-1`, `solicitud-paciente-1` y `admin-usuario-medico-1` (antes con tilde y mayúsculas); el resto de `testID` dinámicos ya eran minúsculas sin tildes. Nuevos: `chat-escribiendo`, `chat-respuesta`, `chat-aviso-medico`, `chat-sugerencia-<n>`; `chat-entrada`, `chat-enviar`, `chat-aviso` y `chat-mensaje-<rol>-<n>` ya existían. README actualizado.
+- [x] **TASK-065** [REQ-005]: Recomendación «2 horas exactas» solo después de comer (decisión del usuario).
+  - _Output_: la tarjeta depende de la clave del momento del catálogo real.
+  - _Verify_: prueba de la función con las tres claves y sin selección.
+  - _Hecho (2026-10-31)_: La tarjeta «2 horas exactas» solo se muestra si la clave del momento seleccionado (derivada del catálogo real `GET /api/general/momentos`) es `despues` (`esMomentoPostComida`); prueba con los tres momentos y sin selección.
+- [~] **TASK-066**: Verificación de la fase.
+  - _Output_: `tsc`, pruebas, `expo export`, consulta de humo al NLP con proveedor falso, capturas.
+  - _Verify_: salidas reales; lista de lo no verificable sin celular.
+  - _Hecho (2026-10-31)_: `tsc` 0 errores; 186 pruebas (15 nuevas); `expo export` android 903 módulos. Consulta de humo al NLP con proveedor falso (contenedor aparte en el puerto 8011; el servicio en marcha usa un proveedor real y NO se llamó): HTTP 200, claves `[respuesta]`, tipo texto, 175 caracteres, último párrafo = aviso médico; con esa respuesta la app separa el aviso y planifica 35 pasos en 1,6 s. Capturas web fuera del commit. **No verificable sin celular:** animación, scroll, teclado, lector de pantalla y servicio NLP con proveedor real.
+- [~] **TASK-067** [REQ-003, REQ-005]: Registro de glucosa por el médico (design.md § Registro de glucosa por el médico).
+  - _Output_: `registrarGlucosaMedico` (`POST /api/medicos/registrar/glucosa`, con modo simulado), `registroTomaMedico.ts` (validación, cuerpo, clasificación, alerta solo si no es NORMAL, textos para el médico, mensajes de fallo) y la pantalla `RegistroTomaMedico` con botón en `DetallePaciente` solo para pacientes de `misPacientes`.
+  - _Verify_: pruebas del cuerpo exacto, formato de fecha y hora, validaciones (0, vacío, no numérico, 19 y 601), alerta solo si no es NORMAL, `PARAM_INVALIDO` sin alerta, alerta que falla sin repetir la lectura y errores; `tsc`, `npm test` y `npx expo export`. **No verificable aquí:** el registro real (escribe en Supabase) y el aspecto en un celular.
+  - _Hecho (2026-11-01)_: `registrarGlucosaMedico` (en `glucosa.ts`, con modo simulado), `registroTomaMedico.ts` (validación 20-600 sin 0 ni decimales, observaciones ≤ 200, cuerpo con `id_medico` y fecha y hora locales, clasificación con edad y tipo del paciente, alerta con el médico asignado, textos para el médico, aviso de lectura posiblemente guardada) y la pantalla `RegistroTomaMedico` con botón en `DetallePaciente` solo para pacientes de `misPacientes`; al guardar vuelve al detalle y recarga. 13 pruebas nuevas (199 en total), `tsc` sin errores, `expo export` android 905 módulos y captura web en modo simulado (360x640, 390x844, 412x915: botón, validación de vacío y 0, confirmación, resultado y regreso al detalle). **Sin GET ni POST reales** (escribe en Supabase). **Pendiente en un celular:** aspecto, teclado y el registro real.
 - [ ] **TASK-025** [NFR-001]: Auditoría de seguridad — confirmar hash de contraseñas y HTTPS forzado en todos los endpoints.
   - _Refs rationale_: NFR-001.
   - _Output_: Reporte de auditoría manual o automatizada.
   - _Verify_: Ningún endpoint acepta HTTP plano; intento de conexión HTTP es rechazado o redirigido.
+- [ ] **TASK-025a** [NFR-001]: Incluir el servicio NLP en la auditoría de seguridad: HTTPS forzado, límites de longitud y tasa, autenticación activa (`CHATBOT_REQUIRE_AUTH=true`) y ausencia del texto de las consultas en logs. No bloquea las tareas TASK-013.
+  - _Refs rationale_: NFR-001; ADR-0006 (superficie expuesta); design.md § Security Design — Servicio NLP; docs/risks.md RT-03.
+  - _Output_: Sección del reporte de auditoría dedicada al servicio NLP.
+  - _Verify_: Una petición HTTP plana a la URL del servicio NLP es rechazada o redirigida; una petición sin token se rechaza; superar `CHATBOT_RATE_LIMIT_PER_MINUTE` devuelve 429; los logs del despliegue muestran solo metadatos tras una consulta de prueba.
+- [ ] **TASK-025b** [NFR-001]: Incluir el servicio de ML en la auditoría de seguridad: sin ingreso público, solo el backend lo alcanza, sin valores clínicos (glucosa ni perfil) en logs ni en errores, y verificación de huella y versiones del artefacto. No bloquea las tareas del modelo.
+  - _Refs rationale_: NFR-001; ADR-0008 (sin autenticación propia en v1, riesgo de exposición accidental); design.md § Security Design — Servicio de ML; docs/risks.md RT-06.
+  - _Output_: Sección del reporte de auditoría dedicada al servicio de ML, que incluye el estado de la Open Question de autenticación entre servicios.
+  - _Verify_: Un intento de conexión desde fuera de la red interna falla. Una petición inválida devuelve 422 sin la glucosa en el cuerpo. Los logs del despliegue tras una predicción de prueba no contienen valores clínicos. Con un `.pkl` cuya huella no coincide con el JSON de metadatos, el servicio responde 503.
 - [ ] **TASK-026** [NFR-002]: Prueba de disponibilidad — monitoreo configurado en Azure con alertas de caída.
   - _Refs rationale_: NFR-002.
   - _Output_: Dashboard de monitoreo de uptime activo.
   - _Verify_: Simulación de caída del servicio dispara una alerta de monitoreo.
-- [ ] **TASK-027** [NFR-003]: Prueba de carga sobre el endpoint de clasificación ML.
+- [ ] **TASK-026a** [NFR-002]: Monitoreo de uptime propio del servicio NLP en Azure, sobre `GET /health`, con alertas de caída independientes de las del backend. No bloquea las tareas TASK-013.
+  - _Refs rationale_: NFR-002; ADR-0006 (despliegue y observabilidad separados); docs/risks.md RT-04.
+  - _Output_: Monitor de uptime del servicio NLP activo en el mismo dashboard que el backend.
+  - _Verify_: Detener el servicio NLP dispara una alerta de monitoreo sin afectar la del backend.
+- [ ] **TASK-026b** [NFR-002]: Monitoreo de uptime propio del servicio de ML sobre `GET /health`, que indica también si el modelo está cargado, sondeado desde dentro de la red interna, con alertas independientes. No bloquea las tareas del modelo.
+  - _Refs rationale_: NFR-002; ADR-0008 (tercer despliegue). Como la probabilidad no es bloqueante, una caída del servicio de ML pasaría inadvertida en el flujo del backend.
+  - _Output_: Monitor de uptime del servicio de ML en el mismo dashboard que el backend y el servicio NLP.
+  - _Verify_: Detener el servicio de ML, o arrancarlo sin el artefacto, dispara una alerta de monitoreo sin afectar las del backend ni las del NLP.
+- [ ] **TASK-027** [NFR-003]: Prueba de carga sobre `POST /api/riesgo/hipoglucemia` del servicio de ML, en la llamada backend → servicio de ML.
   - _Refs rationale_: NFR-003.
   - _Output_: Reporte de latencia bajo carga simulada (ej. con Locust o k6).
   - _Verify_: p95 de latencia < 2000ms bajo carga esperada.

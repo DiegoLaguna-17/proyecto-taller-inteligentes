@@ -1,0 +1,62 @@
+{
+  "version_modelo": "1.1.0",
+  "fecha_entrenamiento": "2026-10-25T20:29:00+00:00",
+  "sha256_pkl": "4e3873affef68f92cd9bff6dd6ef60b0bdedb1603cc27157b0f66bac5f04ba1a",
+  "versiones": {
+    "python": "3.13.3",
+    "scikit-learn": "1.5.2",
+    "imbalanced-learn": "0.14.2",
+    "numpy": "2.4.6",
+    "scipy": "1.15.3",
+    "pandas": "2.2.3",
+    "joblib": "1.6.0",
+    "openpyxl": "3.1.5"
+  },
+  "metricas": {
+    "modelo": "regresion_logistica_demo_sintetico",
+    "auc_roc": 0.7857,
+    "precision_hipo": 0.8125,
+    "recall_hipo": 0.197,
+    "f1_hipo": 0.3171,
+    "matriz_confusion": {
+      "orden": [
+        "real_no",
+        "real_hipo"
+      ],
+      "valores": [
+        [
+          339,
+          3
+        ],
+        [
+          53,
+          13
+        ]
+      ]
+    },
+    "n_train": 1592,
+    "n_test": 408,
+    "positivos_test": 66,
+    "random_state": 42,
+    "rotulo": "validacion sintetica, no clinica: NO es desempeno clinico"
+  },
+  "random_state": 42,
+  "dataset": {
+    "archivo": "dataset_sintetico.csv",
+    "sha256": "6d90d85d45130b2ddee0939e2e732d8941801be3b63b98b1fa61e8795556988c"
+  },
+  "conteos": {
+    "filas": 2000,
+    "filas_positivas": 300,
+    "pacientes": 1773,
+    "filas_train": 1592,
+    "filas_positivas_train": 234,
+    "filas_test": 408,
+    "filas_positivas_test": 66
+  },
+  "entrenado_con": "sintetico",
+  "version_reglas": "1.0.0-reglas",
+  "semilla_dataset": 20261024,
+  "usa_smote_nc": false,
+  "advertencia": "Modelo de DEMOSTRACION entrenado con datos SINTETICOS generados por reglas clinicas del equipo (pendientes de revision). Aprende esas reglas, no la realidad: sus metricas NO son desempeno clinico y sus probabilidades no son una estimacion clinica."
+}

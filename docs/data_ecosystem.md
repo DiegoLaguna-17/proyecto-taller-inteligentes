@@ -10,8 +10,9 @@ Este documento cubre el inventario de fuentes de datos, la política de privacid
 | Publicación asociada | Zhao, Zhu, Shen, Lin et al. (2023). *Chinese diabetes datasets for data-driven machine learning*. Scientific Data — DOI [10.1038/s41597-023-01940-7](https://doi.org/10.1038/s41597-023-01940-7) |
 | Autores / institución | Tongji University (School of Software Engineering) y Shanghai Fourth People's Hospital (Departamento de Endocrinología y Metabolismo); autor de correspondencia: Congrong Wang |
 | Licencia | CC BY 4.0 |
-| Tamaño | 109 pacientes con diabetes tipo 2 |
-| Contenido usado | Summary clínico por paciente (33 columnas: demografía, comorbilidades, medicación, labs, y la columna real `Hypoglycemia (yes/no)`) |
+| Tamaño | 109 **registros** (visitas) de **100 pacientes** distintos con diabetes tipo 2: 8 pacientes tienen más de un registro (máximo 3). El paciente se identifica por el prefijo de `Patient Number` antes del primer `_` (`id_paciente_real`) |
+| Contenido usado | Summary clínico por registro (33 columnas: demografía, comorbilidades, medicación, labs, y la columna real `Hypoglycemia (yes/no)`) |
+| Unidad de análisis | El **registro** (una visita del estudio). Al expandir a lecturas, cada registro aporta hasta 2 filas (ayunas y postprandial) y la **evaluación se agrupa por paciente**, nunca por fila (ver §3 y `docs/model_baseline.md` §3) |
 | Contenido NO usado | Series crudas de CGM por paciente (se evaluaron pero se descartaron del scope — ver §3) |
 
 **Cómo se obtuvo:** descarga directa desde el repositorio en Figshare (el paper de *Scientific Data* remite ahí como fuente oficial de los datos, no a PhysioNet), bajo los términos de la licencia CC BY 4.0, que permite uso, adaptación y redistribución con atribución. El dataset ya llega **de-identificado** por los autores originales — GlucoTracker no realiza ningún proceso adicional de anonimización porque no lo necesita, pero tampoco introduce un paso de anonimización propio: la responsabilidad de esa garantía es de los autores del dataset, y se documenta aquí como tal.
@@ -19,7 +20,7 @@ Este documento cubre el inventario de fuentes de datos, la política de privacid
 ## 2. Privacidad y gobierno de datos
 
 - **Ningún dato real de paciente de ShanghaiT2DM se expone a los usuarios finales de la app.** El dataset se usa exclusivamente para entrenar el modelo *offline*; el artefacto que llega a producción es el modelo entrenado (`modelo_hipoglucemia.pkl`, un conjunto de coeficientes), no los datos originales.
-- **El aumento de datos (SMOTE-NC) no es una técnica de privacidad, es una técnica de balance de clases.** Es importante no confundir ambas cosas: SMOTE-NC genera filas sintéticas interpolando entre pacientes reales del *conjunto de entrenamiento* para compensar que solo 17 de 109 pacientes (~9%) tienen hipoglucemia registrada — el objetivo es que el modelo no ignore la clase minoritaria, no ocultar datos reales. El conjunto de test nunca recibe estos datos sintéticos (ver §4 de `docs/model_baseline.md`).
+- **El aumento de datos (SMOTE-NC) no es una técnica de privacidad, es una técnica de balance de clases.** Es importante no confundir ambas cosas: SMOTE-NC genera filas sintéticas interpolando entre pacientes reales del *conjunto de entrenamiento* para compensar que solo 10 de 109 registros (~9.2%) tienen hipoglucemia registrada (17 de 193 filas a nivel de lectura) — el objetivo es que el modelo no ignore la clase minoritaria, no ocultar datos reales. El conjunto de test nunca recibe estos datos sintéticos (ver §4 de `docs/model_baseline.md`).
 - **Los datos que sí produce la app** (registros de glucosa de sus propios usuarios) son un ecosistema de datos separado, no cubierto por este documento — se rige por la política de privacidad propia de GlucoTracker, no por la licencia de ShanghaiT2DM.
 
 ## 3. Resumen del EDA (Análisis Exploratorio)
@@ -30,19 +31,31 @@ Hallazgos principales que justifican las decisiones de diseño del pipeline:
 
 - **Valores faltantes:** el dataset usa el texto `"/"` como marcador de nulo en vez de dejar la celda vacía — se detectó y normalizó a `NaN` antes de cualquier análisis (de lo contrario, columnas numéricas se leían como texto).
 - **Columnas de varianza cero:** `Type of Diabetes`, `Acute Diabetic Complications` y `Alcohol Drinking History` tienen el mismo valor en (casi) todos los pacientes — se descartaron por no aportar poder predictivo.
-- **Balance de clases:** 99 pacientes sin hipoglucemia registrada vs. 17 con hipoglucemia (~9.2% positivos) — un desbalance severo que motivó el uso de SMOTE-NC únicamente sobre el conjunto de entrenamiento.
+- **Balance de clases** (verificado el 2026-10-24 contra `backend/data/raw/ShanghaiT2DM_Summary.xlsx`):
+
+  | Nivel | Total | Con hipoglucemia | % |
+  |---|---|---|---|
+  | Registros (visitas) | 109 | 10 | 9.2% |
+  | Pacientes distintos | 100 | 10 con al menos un registro positivo | 10% |
+  | Filas a nivel de lectura (tras expandir) | 193 | 17 | 8.8% |
+
+  4 pacientes (2001, 2014, 2069, 2074) tienen visitas con etiquetas distintas. 3 registros sin glucosa en ayunas ni postprandial (pacientes 2066, 2067 y 2081, todos negativos) no generan filas, así que el dataset de entrenamiento cubre 97 pacientes. Es un desbalance severo que motivó el uso de SMOTE-NC únicamente sobre el conjunto de entrenamiento.
 - **Completitud por columna:** varias variables de laboratorio (HbA1c, eGFR, C-péptido, insulina) tienen porcentajes de faltantes altos — se decidió mantener solo HbA1c como campo *opcional* del perfil (con bandera de faltante + imputación), y descartar el resto por no ser realista pedírselos a un usuario de la app.
-- **Evidencia contra "umbral disfrazado de ML":** al expandir el dataset a nivel de lectura (una fila por cada medición real de glucosa, en ayunas y postprandial), se observa que un mismo paciente puede tener una lectura baja y una alta compartiendo la misma etiqueta de riesgo — la etiqueta describe al paciente (su historial real de episodios), no la lectura puntual, lo que obliga al modelo a usar el perfil clínico y no solo el valor de glucosa.
+- **Evidencia contra "umbral disfrazado de ML":** al expandir el dataset a nivel de lectura (una fila por cada medición real de glucosa, en ayunas y postprandial), se observa que un mismo registro puede tener una lectura baja y una alta compartiendo la misma etiqueta. La etiqueta describe **el registro** (si se observó hipoglucemia durante esa visita del estudio), no la lectura puntual ni al paciente en general: 4 pacientes tienen visitas con etiquetas distintas. Esto obliga al modelo a usar el perfil clínico y no solo el valor de glucosa.
 
 ## 4. Definición del target — precisión importante
 
-El target `riesgo_hipoglucemia_paciente` (o `Hypoglycemia (yes/no)` en el dataset original) es un **hecho clínico observado**, calculado por los autores del dataset a partir de su propio monitoreo continuo de glucosa (CGM) durante el estudio — **no es una etiqueta generada por reglas de la ADA ni por ningún criterio nuestro**. Esto es intencional: entrenar contra un desenlace real evita que el modelo termine aprendiendo a reproducir un umbral que nosotros mismos definimos (lo que sería "if-else disfrazado de ML").
+El target es **"hipoglucemia observada en el registro"** (ML-D6): la columna `Hypoglycemia (yes/no)` del dataset original, que en el código se llama `riesgo_hipoglucemia_paciente`. Es un nombre heredado: describe el registro (la visita), no al paciente. Es un **hecho clínico observado**, calculado por los autores del dataset a partir de su propio monitoreo continuo de glucosa (CGM) durante el estudio. **No es una etiqueta generada por reglas de la ADA ni por ningún criterio nuestro.** Esto es intencional: entrenar contra un desenlace real evita que el modelo termine aprendiendo a reproducir un umbral que nosotros mismos definimos (lo que sería "if-else disfrazado de ML").
 
-El motor de reglas ADA (clasificación instantánea Normal/Hipo/Hiper de cualquier lectura, ver `app/ml/riesgo.py` y el motor de reglas del backend) es un componente **separado y paralelo** al modelo de ML — no interviene en el entrenamiento ni en el etiquetado del dataset.
+Consecuencias de que la etiqueta sea por registro:
+- Un mismo paciente puede aportar registros positivos y negativos (4 casos). Por eso la evaluación se agrupa por paciente, para que sus visitas no queden repartidas entre train y test.
+- Lo que el modelo estima es la probabilidad de que en un registro con ese perfil y esa lectura se observe hipoglucemia (REQ-004). No es un diagnóstico del paciente.
+
+La clasificación instantánea Normal/Hipo/Hiper de cada lectura con umbrales ADA **no es parte del modelo de ML**: la hace la lógica de negocio del backend (ver `design.md` § Servicio de ML y la clasificación ADA). No interviene en el entrenamiento ni en el etiquetado del dataset. Ese componente todavía no existe en el código (TASK-012a); el endpoint del modelo de ML vive aparte, en `backend/ml_service/`.
 
 ## 5. Justificación de la estrategia frente a la escasez de datos
 
-Con solo 109 pacientes (17 positivos), dos decisiones metodológicas abordan directamente esta limitación:
+Con solo 100 pacientes, 109 registros y 10 registros positivos (17 filas positivas a nivel de lectura), dos decisiones metodológicas abordan directamente esta limitación:
 
 1. **SMOTE-NC** (`imblearn.over_sampling.SMOTENC`) genera datos sintéticos respetando la naturaleza mixta de las variables (numéricas y categóricas) — aplicado únicamente sobre el conjunto de entrenamiento, dentro de un `Pipeline` que garantiza que nunca toca el conjunto de test.
 2. **Regresión Logística como modelo base**, en vez de un modelo de mayor capacidad: con pocos eventos positivos reales, un modelo con menos parámetros es más robusto frente al sobreajuste (ver `docs/model_baseline.md` para la justificación completa y las métricas).

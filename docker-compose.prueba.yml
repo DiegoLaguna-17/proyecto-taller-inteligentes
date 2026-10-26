@@ -1,0 +1,15 @@
+# Override SIN SECRETOS para probar el chatbot sin gastar la clave del proveedor (ADR-0010):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prueba.yml up -d
+#
+# El servicio NLP usa FakeProvider (no llama a ninguna API real) y no exige autenticacion (hasta TASK-014).
+# NO usar fuera de desarrollo. Lo que se define aqui tiene prioridad sobre el .env del servicio.
+services:
+  # Con la prueba tambien se puede ver el riesgo de ML en el registro de glucosa del medico (modelo sintetico, sin claves).
+  backend:
+    environment:
+      ML_ENABLED: "true"
+  nlp_service:
+    environment:
+      NLP_PROVIDER: fake
+      CHATBOT_REQUIRE_AUTH: "false"

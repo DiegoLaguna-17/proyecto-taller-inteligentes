@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "allowImportingTsExtensions": true
+  },
+  "exclude": [
+    "${configDir}/node_modules",
+    "${configDir}/android",
+    "${configDir}/ios",
+    "**/*.test.ts"
+  ]
+}
