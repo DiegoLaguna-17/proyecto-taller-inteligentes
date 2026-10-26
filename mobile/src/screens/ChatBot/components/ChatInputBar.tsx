@@ -13,7 +13,6 @@ interface ChatInputBarProps {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  onMicPress?: () => void;
   maxLength?: number;
   /** Bloquea el envío mientras llega la respuesta. */
   disabled?: boolean;
@@ -23,10 +22,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   value,
   onChangeText,
   onSend,
-  onMicPress,
   maxLength,
   disabled = false,
 }) => {
+  // Enviar solo con texto y sin otro envío en curso
+  const puedeEnviar = !disabled && value.trim().length > 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.inputBox}>
@@ -39,25 +40,19 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           multiline
           maxLength={maxLength}
           testID="chat-entrada"
+          accessibilityLabel="Escribe tu consulta"
         />
-        <TouchableOpacity
-          style={styles.micBtn}
-          onPress={onMicPress}
-          activeOpacity={0.7}
-        >
-          <Icon name="mic" size={18} color={COLORS.textSecondary} />
-        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
-        style={[
-          styles.sendBtn,
-          { opacity: value.trim().length > 0 ? 1 : 0.7 },
-        ]}
+        style={[styles.sendBtn, { opacity: puedeEnviar ? 1 : 0.5 }]}
         onPress={onSend}
         activeOpacity={0.8}
-        disabled={disabled || value.trim().length === 0}
+        disabled={!puedeEnviar}
         testID="chat-enviar"
+        accessibilityRole="button"
+        accessibilityLabel="Enviar consulta"
+        accessibilityState={{ disabled: !puedeEnviar, busy: disabled }}
       >
         <Icon name="send" size={18} color="#FFFFFF" />
       </TouchableOpacity>
@@ -93,10 +88,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     maxHeight: 90,
   },
-  micBtn: {
-    padding: 6,
-    marginLeft: 6,
-  },
   sendBtn: {
     width: 44,
     height: 44,
@@ -106,4 +97,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

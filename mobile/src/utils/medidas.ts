@@ -63,5 +63,10 @@ export function posicionY(valor: number, dominio: { min: number; max: number }, 
   return yAbajo - t * (yAbajo - yArriba);
 }
 
+/** Ancho máximo de una burbuja del chat: 85 % del contenido, sin pasar de 480 dp. */
+export function anchoBurbuja(ancho: number): number {
+  return Math.min(Math.round(anchoContenido(ancho) * 0.85), 480);
+}
+
 /** Dominio vertical de los gráficos de glucosa (mg/dL): deja visibles los límites 70 y 180 con margen a ambos lados. */
 export const DOMINIO_GRAFICO_GLUCOSA = { min: 40, max: 240 } as const;

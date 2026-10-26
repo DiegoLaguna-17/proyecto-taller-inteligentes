@@ -4,6 +4,7 @@ import { Icon } from '../../../shared/Icon';
 import { UsuarioAdmin } from '../../../services/administrador';
 import { iniciales } from '../../../services/medicoVista';
 import { COLORS } from '../../../utils/colors';
+import { normalizarTestId } from '../../../utils/testId';
 import { FONTS } from '../../../utils/typography';
 
 interface SolicitudCardProps {
@@ -23,7 +24,7 @@ export const SolicitudCard: React.FC<SolicitudCardProps> = ({
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
-      testID={`solicitud-${request.clave}`}
+      testID={`solicitud-${normalizarTestId(request.clave)}`}
     >
       <View style={styles.avatarCircle}>
         <Text style={styles.initialsText}>{iniciales(request.nombre)}</Text>

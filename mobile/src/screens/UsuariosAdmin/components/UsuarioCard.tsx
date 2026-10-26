@@ -4,6 +4,7 @@ import { Icon } from '../../../shared/Icon';
 import { UsuarioAdmin } from '../../../services/administrador';
 import { iniciales } from '../../../services/medicoVista';
 import { COLORS } from '../../../utils/colors';
+import { normalizarTestId } from '../../../utils/testId';
 import { FONTS } from '../../../utils/typography';
 
 interface UsuarioCardProps {
@@ -19,7 +20,7 @@ export const UsuarioCard: React.FC<UsuarioCardProps> = ({ user, onPress }) => {
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
-      testID={`admin-usuario-${user.clave}`}
+      testID={`admin-usuario-${normalizarTestId(user.clave)}`}
     >
       <View style={styles.avatarCircle}>
         <Text style={styles.initialsText}>{iniciales(user.nombre)}</Text>

@@ -536,6 +536,30 @@
   - _Output_: CONTEXT.md § Hallazgos para Adrian, ordenados por gravedad (Móvil 2 a 5); lista de lo no verificable sin celular.
   - _Verify_: `git status` solo con `mobile/`, design.md, tasks.md y CONTEXT.md; sin `.env` ni IP; solo GET reales con claves, tipos y conteos.
   - _Hecho (2026-10-30)_: CONTEXT.md § Hallazgos para Adrian (18 hallazgos ordenados por gravedad, Móvil 2 a 5); `git status` solo con `mobile/`, design.md, tasks.md, CONTEXT.md y `docs/integracion/` (capturas); `.env` ignorado, sin IP real; solo GET reales con claves, tipos y conteos.
+- [~] **TASK-061** [REQ-006]: Efecto de escritura del chatbot (design.md § Fase Chatbot-Front).
+  - _Output_: `services/revelado.ts` (troceo, plan con tope de 4 s, separar aviso, modo), `CHAT_ANIMACION` + `EXPO_PUBLIC_CHAT_ANIMACION`, indicador «escribiendo…», revelado por palabras, tocar completa, solo el último mensaje, scroll condicionado, reducir movimiento, temporizadores limpios.
+  - _Verify_: pruebas de palabras, saltos de línea, acentos, emojis, tope, modo inmediato y texto vacío; errores sin «escribiendo…».
+  - _Hecho (2026-10-31)_: `revelado.ts` (troceo por palabras sin partir emojis ni acentos, plan con tope de 4 s, `separarAviso`, modos), `CHAT_ANIMACION` + `EXPO_PUBLIC_CHAT_ANIMACION` (documentado en README y `.env.example`), indicador «escribiendo…», revelado por palabras, tocar completa, solo se anima la última respuesta, aviso médico completo al terminar, scroll que no se fuerza si el usuario subió, reducir movimiento, temporizadores limpios y sin estado tras desmontar; con error no hay «escribiendo…». Pruebas en `revelado.test.ts` (15 en total con las de testID, post comida y burbuja). Captura web (modo simulado): a los 250 ms se ven 17 de 134 caracteres y el aviso aparece solo al terminar. **Pendiente en un celular:** la animación real y el scroll.
+- [x] **TASK-062** [REQ-006]: Retirar lo falso o sin respaldo de la pantalla del chatbot.
+  - _Output_: sin tarjeta de guía ni dictado; sin «leído»; textos corregidos; sugerencias que envían preguntas reales; leyenda informativa conservada.
+  - _Verify_: revisión estática y capturas.
+  - _Hecho (2026-10-31)_: Retiradas la tarjeta «Guía de carbohidratos», el dictado y las marcas de «leído»; «IA Activa» → «Asistente de IA»; «personalizada» → «general»; las sugerencias envían una pregunta completa al servicio; leyenda informativa conservada. Se reportan sin cambiar el título «Asistente Clínico» y el saludo inicial fijo.
+- [~] **TASK-063** [NFR-004]: Accesibilidad y vistas del chat.
+  - _Output_: etiquetas y roles, envío deshabilitado con guarda síncrona, teclado, burbujas con `useMedidas` (360 y 412 dp).
+  - _Verify_: pruebas de `anchoBurbuja`; capturas web.
+  - _Hecho (2026-10-31)_: Rol y etiqueta en enviar y en las sugerencias; envío deshabilitado con texto vacío o envío en curso y guarda síncrona; burbujas con `useMedidas`/`anchoBurbuja` (85 %, tope 480) y fuente escalada; las cadenas largas se parten en web (`overflowWrap`). Capturas a 360x640, 390x844 y 412x915. **Pendiente en un celular:** el teclado (en Android `behavior="height"` sin verificar) y el lector de pantalla.
+- [x] **TASK-064**: `testID` normalizados y nuevos del chat.
+  - _Output_: `normalizarTestId`; `solicitud-medico-1` / `solicitud-paciente-1`; `chat-escribiendo`, `chat-aviso-medico`; README actualizado.
+  - _Verify_: pruebas de la función y búsqueda de otros `testID` dinámicos.
+  - _Hecho (2026-10-31)_: `normalizarTestId`; `solicitud-medico-1`, `solicitud-paciente-1` y `admin-usuario-medico-1` (antes con tilde y mayúsculas); el resto de `testID` dinámicos ya eran minúsculas sin tildes. Nuevos: `chat-escribiendo`, `chat-respuesta`, `chat-aviso-medico`, `chat-sugerencia-<n>`; `chat-entrada`, `chat-enviar`, `chat-aviso` y `chat-mensaje-<rol>-<n>` ya existían. README actualizado.
+- [x] **TASK-065** [REQ-005]: Recomendación «2 horas exactas» solo después de comer (decisión del usuario).
+  - _Output_: la tarjeta depende de la clave del momento del catálogo real.
+  - _Verify_: prueba de la función con las tres claves y sin selección.
+  - _Hecho (2026-10-31)_: La tarjeta «2 horas exactas» solo se muestra si la clave del momento seleccionado (derivada del catálogo real `GET /api/general/momentos`) es `despues` (`esMomentoPostComida`); prueba con los tres momentos y sin selección.
+- [~] **TASK-066**: Verificación de la fase.
+  - _Output_: `tsc`, pruebas, `expo export`, consulta de humo al NLP con proveedor falso, capturas.
+  - _Verify_: salidas reales; lista de lo no verificable sin celular.
+  - _Hecho (2026-10-31)_: `tsc` 0 errores; 186 pruebas (15 nuevas); `expo export` android 903 módulos. Consulta de humo al NLP con proveedor falso (contenedor aparte en el puerto 8011; el servicio en marcha usa un proveedor real y NO se llamó): HTTP 200, claves `[respuesta]`, tipo texto, 175 caracteres, último párrafo = aviso médico; con esa respuesta la app separa el aviso y planifica 35 pasos en 1,6 s. Capturas web fuera del commit. **No verificable sin celular:** animación, scroll, teclado, lector de pantalla y servicio NLP con proveedor real.
 - [ ] **TASK-025** [NFR-001]: Auditoría de seguridad — confirmar hash de contraseñas y HTTPS forzado en todos los endpoints.
   - _Refs rationale_: NFR-001.
   - _Output_: Reporte de auditoría manual o automatizada.

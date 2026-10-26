@@ -133,6 +133,11 @@ export function momentoDeId(idMomento: number): Momento | undefined {
   return undefined;
 }
 
+/** La recomendación de medir «2 horas después» solo aplica cuando el momento es posterior a una comida. */
+export function esMomentoPostComida(clave: string | undefined | null): boolean {
+  return clave === 'despues';
+}
+
 /** 1 = hipoglucemia, 2 = hiperglucemia (POST /api/registro/registrarAlerta); undefined si no hay alerta. */
 export function idTipoAlerta(estado: Estado): 1 | 2 | undefined {
   if (estado === 'HIPOGLUCEMIA') return 1;

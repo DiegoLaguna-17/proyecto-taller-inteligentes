@@ -87,6 +87,7 @@ cp .env.example .env        # en Windows: copy .env.example .env
 | `EXPO_PUBLIC_API_URL` | Backend de negocio (login, glucosa, historial, perfil). **Sin sufijo `/api`** | `http://TU-IP-LOCAL:8000` |
 | `EXPO_PUBLIC_NLP_URL` | Servicio NLP (chatbot), URL **propia** | `http://TU-IP-LOCAL:8001` |
 | `EXPO_PUBLIC_USE_MOCK` | `true` = modo simulado (ver abajo); cualquier otro valor = backend real | `false` |
+| `EXPO_PUBLIC_CHAT_ANIMACION` | `escritura` = la respuesta del chatbot se revela por palabras (máx. 4 s) con «escribiendo…»; `inmediato` = todo de golpe y sin esperas. Siempre inmediato si el teléfono tiene «reducir movimiento» | `escritura` |
 
 **La URL va SIN `/api`** (la app ya agrega `/api/...`). Ejemplo correcto: `EXPO_PUBLIC_API_URL=http://192.168.1.50:8000`; incorrecto: `http://192.168.1.50:8000/api` (formato del front web). Con el sufijo, la app pediría `/api/api/login` y el servidor respondería 404; `config.ts` lo quita solo, pero escríbela bien. Si ves "No se encontró el servicio solicitado… revisa la dirección del servidor", casi siempre es la URL base.
 
@@ -144,10 +145,13 @@ En el celular `localhost` es el propio celular. Pon la **IP local de la PC** que
 | Exportar la auditoría (CSV/PDF) | No hay endpoint |
 | Agregar administradores | Existe `POST /administradores/agregar`, pero la app no tiene esa pantalla |
 
-Tras la Fase Móvil 5 se **retiraron** los elementos estáticos que parecían funcionar y no hacían nada: el menú «Configuración y Seguridad» del perfil (notificaciones, biometría y portal médico no tienen servicio), el banner «Protocolo de Glucemia Activo / Ver Guía» del médico, el botón de exportar del historial del paciente, el botón «Cambiar» de la hora de la toma (siempre se usa la hora del dispositivo) y la campana del encabezado (no tiene destino). Siguen estáticos, y se reportan, la tarjeta «Guía de carbohidratos» y el botón de dictado del chatbot (esta fase no toca el chatbot).
+Tras la Fase Móvil 5 se **retiraron** los elementos estáticos que parecían funcionar y no hacían nada: el menú «Configuración y Seguridad» del perfil (notificaciones, biometría y portal médico no tienen servicio), el banner «Protocolo de Glucemia Activo / Ver Guía» del médico, el botón de exportar del historial del paciente, el botón «Cambiar» de la hora de la toma (siempre se usa la hora del dispositivo) y la campana del encabezado (no tiene destino). En la Fase Chatbot-Front también se retiraron del chatbot la tarjeta «Guía de carbohidratos», el botón de dictado y las marcas de «leído».
 
 > [!WARNING]
 > El backend **no emite ni exige token** (riesgo RB-01 en `docs/risks.md`): la app guarda solo `id_usuario`, `id_rol` y `rol` en el almacenamiento seguro del dispositivo y los borra al cerrar sesión. No lo expongas fuera de tu red con datos reales.
+
+### Chatbot: efecto de escritura
+El servicio NLP responde completo (no hay streaming): el efecto es solo de presentación. Mientras se espera aparece «escribiendo…» (tres puntos) y, al llegar la respuesta, se revela por palabras con un tope de **4 s** en total aunque el texto sea largo; tocar la respuesta la completa. Solo se anima la última respuesta recibida. El aviso médico («Consulta siempre a tu médico tratante…») se muestra siempre completo al terminar. Se desactiva con `EXPO_PUBLIC_CHAT_ANIMACION=inmediato` y es inmediato si el sistema tiene «reducir movimiento». La lógica está en `src/services/revelado.ts` (pura, con pruebas en `revelado.test.ts`). **No verificable sin celular:** la animación real, el scroll y el teclado.
 
 ### PDF del reporte del médico
 Pantalla **Reportes** → **Descargar PDF**. Se genera en el dispositivo con `expo-print` (HTML → PDF) y se comparte o guarda con `expo-sharing` (hoja del sistema). Contiene nombre, edad y condición del paciente, periodo (7 o 30 días), resumen (promedio, mínimo, máximo, % en rango, hipoglucemias, hiperglucemias y n.º de lecturas), tabla de lecturas, alertas, fecha de generación y la leyenda de que es informativo y no reemplaza el criterio clínico. **No** incluye teléfono, correo, documento ni observaciones. Sin lecturas en el periodo el botón queda deshabilitado (no se genera un PDF vacío). No usa `POST /api/paciente/pdf` (motivos en design.md § Fase Móvil 5). El contenido se prueba con `src/services/reportePdf.test.ts`; **compartirlo en un celular no se pudo verificar sin dispositivo**.
@@ -303,14 +307,14 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `registro-medico-matricula`, `registro-medico-matricula-nombre`, `registro-medico-matricula-error`, `registro-medico-carnet`, `registro-medico-carnet-nombre`, `registro-medico-carnet-error` | Archivos |
 | | `registro-medico-error`, `registro-medico-enviar` | Error general y botón "Enviar solicitud" |
 | Solicitudes (administrador) | `solicitud-banner`, `solicitud-pendientes`, `solicitud-filtro-todos`, `solicitud-filtro-pacientes`, `solicitud-filtro-medicos` | Aviso y filtros |
-| | `solicitud-<rol>-<id>` (p. ej. `solicitud-Médico-4`) | Tarjeta de cada solicitud |
+| | `solicitud-<rol>-<id>` (p. ej. `solicitud-medico-4`, `solicitud-paciente-2`; en minúsculas y sin tildes, con `normalizarTestId`) | Tarjeta de cada solicitud |
 | | `solicitud-cargando`, `solicitud-vacio`, `solicitud-error`, `solicitud-reintentar` | Estados |
 | Detalle de solicitud | `solicitud-volver`, `solicitud-datos`, `solicitud-nombre` | Cabecera y datos |
 | | `solicitud-documentos`, `solicitud-abrir-matricula`, `solicitud-sin-matricula`, `solicitud-carnet-vista`, `solicitud-abrir-carnet`, `solicitud-sin-carnet`, `solicitud-doc-error` | Documentos del médico |
 | | `solicitud-activar`, `solicitud-rechazar`, `solicitud-rechazar-aviso` | Acciones (rechazar deshabilitado) |
 | | `solicitud-confirmacion` (`-mensaje`, `-confirmar`, `-cancelar`), `solicitud-resultado` (`-mensaje`, `-confirmar`) | Modales de confirmación y resultado |
 | Usuarios (administrador) | `admin-buscar`, `admin-filtro-todos`, `admin-filtro-activos`, `admin-filtro-inactivos` | Búsqueda y filtros |
-| | `admin-usuario-<rol>-<id>` | Tarjeta de cada usuario |
+| | `admin-usuario-<rol>-<id>` (p. ej. `admin-usuario-medico-4`, normalizado) | Tarjeta de cada usuario |
 | | `admin-cargando`, `admin-vacio`, `admin-error`, `admin-reintentar`, `admin-parcial` | Estados |
 | | `admin-modal`, `admin-modal-nombre`, `admin-modal-aviso`, `admin-modal-error`, `admin-modal-cerrar`, `admin-cerrar` | Modal de gestión |
 | | `admin-activar`, `admin-activar-confirmar`, `admin-activar-cancelar` | Activar una cuenta pendiente |
@@ -322,7 +326,9 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | Chatbot | `chat-entrada` | Campo de la consulta |
 | | `chat-enviar` | Botón de envío |
 | | `chat-mensaje-usuario-<n>`, `chat-mensaje-asistente-<n>` | Mensajes del chat (`<n>` = posición en la conversación, desde 0) |
-| | `chat-cargando` | "El asistente está escribiendo..." |
+| | `chat-cargando`, `chat-escribiendo` | Contenedor y indicador «escribiendo…» (solo mientras se espera la respuesta) |
+| | `chat-respuesta`, `chat-aviso-medico` | Texto de la respuesta del asistente y aviso médico final (siempre completo al terminar) |
+| | `chat-sugerencia-<1..3>` | Consultas sugeridas: envían una pregunta completa al servicio |
 | | `chat-error` | Mensaje de error (422, 429, red, servicio no disponible) |
 | | `chat-aviso` | Aviso fijo de que el asistente no reemplaza al médico |
 

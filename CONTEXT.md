@@ -1,10 +1,10 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-10-30 — Session 25
+> Last updated: 2026-10-31 — Session 26
 
 ## ⚡ Resume from here
 
-**Active task:** Fase Móvil 5 — cierre de pendientes de la app antes de integrar ML y chatbot (TASK-055 a TASK-060): umbrales centralizados (70-180), PDF del reporte del médico en el dispositivo, restos estáticos, medidas y escalado, robustez. Spec en design.md § Fase Móvil 5.
+**Active task:** Fase Chatbot-Front (TASK-061 a TASK-066): pantalla del chatbot terminada (efecto de escritura, sin elementos falsos, accesible, `testID` estables). Spec en design.md § Fase Chatbot-Front.
 **Phase:** Phase 3-4: Lógica de Negocio y API (backend de Adrian fusionado; ML y NLP como servicios aparte)
 **Status:** in progress — backend fusionado y verificado (87 + 237 + 90 pruebas); contrato y esquema del backend por reconciliar con design.md (TASK-029)
 **Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
@@ -19,6 +19,7 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 26 | 2026-10-31 | Fase Chatbot-Front (TASK-061 a TASK-066), solo `mobile/`: efecto de escritura de presentación, retiro de lo falso del chat, accesibilidad, `testID` normalizados y recomendación «2 horas» solo después de comer. 186 pruebas (15 nuevas), `tsc` y `expo export` (903 módulos) en verde; humo del NLP con proveedor falso. | design.md 1.13.0, tasks.md, CONTEXT.md, `mobile/` |
 | 25 | 2026-10-30 | Fase Móvil 5: cierre de pendientes de la app antes de ML y chatbot (TASK-055 a TASK-060). Umbrales en `umbrales.ts` (70-180 oficial, decisión del usuario), PDF del reporte del médico en el dispositivo (`expo-print` + `expo-sharing`), retirada de restos estáticos, `medidas.ts` y ajuste de vistas con capturas web (`react-native-web`, solo revisión), robustez (guarda de doble envío, aviso de registro parcial, perfil con reintento, contraste y accesibilidad) y § Hallazgos para Adrian. 171 pruebas (27 nuevas); `tsc` y `expo export` en verde. | design.md 1.12.0, tasks.md, CONTEXT.md, `mobile/`, `docs/integracion/capturas/` |
 | 24 | 2026-10-29 | Fase Móvil 4: servicios del administrador (`administrador.ts`, `administradorVista.ts`), solicitudes, detalle con documentos y activación, usuarios, auditoría (enmascarada, carga parcial) y perfil; 144 pruebas, `tsc` y `expo export` en verde; ninguna pantalla simulada; acciones sin endpoint deshabilitadas con aviso. Hallazgo: la auditoría devuelve 1000 filas sin orden. TASK-048, 053 y 054 hechas; 049 a 052 `[~]` a falta de celular y activación real. Spec previa: design.md 1.11.0 § Fase Móvil 4 (contrato real del administrador y de la auditoría, qué hace realmente activar, acciones sin endpoint, hallazgos del backend, decisiones), tasks.md TASK-048 a TASK-054, Open Question nueva. | design.md, tasks.md, CONTEXT.md |
 | 23 | 2026-10-28 | Fase Móvil 3: servicios del médico (`medico.ts`, `medicoVista.ts`, `edicionMedico.ts`, `registroMedico.ts`, `archivos.ts`), pantallas de pacientes, detalle, alertas (con respuesta), reportes (sin PDF), perfil y edición y solicitud de médico (`expo-document-picker`); 125 pruebas, `tsc` y `expo export` en verde. TASK-040 y TASK-047 hechas; TASK-041 a TASK-046 `[~]` a falta de celular y escritura real. Spec previa: design.md 1.10.0 § Fase Móvil 3 (contrato real del médico, unidades y formatos, diferencias con el front web, hallazgos del backend, decisiones, lista de simuladas), tasks.md TASK-040 a TASK-047, Open Question nueva. | design.md, tasks.md, CONTEXT.md |

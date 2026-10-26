@@ -19,7 +19,7 @@ import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
 import { tomarTurno, liberarTurno } from '../../utils/turno';
 import { obtenerMomentos, obtenerDatosPaciente, DatosPaciente } from '../../services/glucosa';
-import { momentoDeId } from '../../services/clasificacionGlucosa';
+import { esMomentoPostComida, momentoDeId } from '../../services/clasificacionGlucosa';
 import { registrarToma, ResultadoToma } from '../../services/registroToma';
 import { etiquetaMomento } from '../../services/historial';
 import { mensajeDeError } from '../../services/http';
@@ -179,7 +179,8 @@ export const RegistroToma: React.FC<RegistroTomaProps> = ({
               onSelectMomento={setMomentoId}
             />
 
-            <RecomendacionCard />
+            {/* Solo si el momento (catálogo real) es posterior a una comida; decisión del usuario */}
+            {esMomentoPostComida(momentos.find((m) => m.id === momentoId)?.clave) ? <RecomendacionCard /> : null}
 
             {errorMessage ? (
               <View style={styles.errorBox}>

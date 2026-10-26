@@ -1,43 +1,78 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE, anchoBurbuja } from '../../../utils/medidas';
+import { useMedidas } from '../../../utils/useMedidas';
+import { ModoAnimacion, planRevelado, separarAviso, textoEnPaso } from '../../../services/revelado';
 
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
   time: string;
-  cardItems?: { icon: string; text: string }[];
-  subtext?: string;
+  /** true solo en la respuesta recién recibida: se revela por palabras. El historial nunca se anima. */
+  animar?: boolean;
 }
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
   /** Identificador de prueba del mensaje (p. ej. chat-mensaje-usuario-0). */
   testID?: string;
+  modo?: ModoAnimacion;
+  /** Se llama una vez cuando el mensaje animado ya se muestra completo (terminó o se tocó). */
+  onTerminar?: (id: string) => void;
 }
 
 export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   message,
   testID,
+  modo = 'escritura',
+  onTerminar,
 }) => {
+  const { ancho, esc } = useMedidas();
+  const maxAncho = anchoBurbuja(ancho);
+  const tamano = esc(FUENTE.cuerpo, 1.15);
   const isUser = message.sender === 'user';
+
+  // El aviso médico se separa del cuerpo: solo el cuerpo se anima y el aviso aparece completo al terminar
+  const { cuerpo, aviso } = useMemo(() => separarAviso(message.text), [message.text]);
+  const plan = useMemo(() => planRevelado(cuerpo, { modo }), [cuerpo, modo]);
+  const total = plan.partes.length;
+  const [paso, setPaso] = useState(1);
+  const avisado = useRef(false);
+
+  const enCurso = !isUser && !!message.animar && total > 1 && paso < total;
+
+  // Temporizador del revelado: se limpia al desmontar, al terminar o cuando ChatBot quita `animar` (nuevo envío)
+  useEffect(() => {
+    if (isUser || !message.animar || total <= 1) return;
+    const id = setInterval(() => setPaso((p) => (p >= total ? p : p + 1)), plan.intervaloMs);
+    return () => clearInterval(id);
+  }, [isUser, message.animar, total, plan.intervaloMs]);
+
+  // Avisa una sola vez que el mensaje ya está completo
+  useEffect(() => {
+    if (isUser || !message.animar || avisado.current) return;
+    if (total <= 1 || paso >= total) {
+      avisado.current = true;
+      onTerminar?.(message.id);
+    }
+  }, [isUser, message.animar, message.id, onTerminar, paso, total]);
 
   if (isUser) {
     return (
-      <View style={styles.userWrapper} testID={testID}>
+      <View style={[styles.userWrapper, { maxWidth: maxAncho }]} testID={testID}>
         <View style={styles.userBubble}>
-          <Text style={styles.userText}>{message.text}</Text>
+          <Text style={[styles.userText, ROMPER_LARGAS, { fontSize: tamano, lineHeight: Math.round(tamano * 1.45) }]}>{message.text}</Text>
         </View>
-        <View style={styles.userMeta}>
-          <Text style={styles.metaTime}>{message.time}</Text>
-          <Icon name="doubleCheck" size={13} color={COLORS.primary} />
-        </View>
+        <Text style={styles.metaTime}>{message.time}</Text>
       </View>
     );
   }
+
+  const visible = enCurso ? textoEnPaso(plan, paso) : cuerpo;
 
   return (
     <View style={styles.assistantWrapper} testID={testID}>
@@ -45,25 +80,22 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
         <Icon name="bot" size={16} color={COLORS.primary} />
       </View>
 
-      <View style={styles.assistantCol}>
-        <View style={styles.assistantBubble}>
-          <Text style={styles.assistantText}>{message.text}</Text>
-
-          {message.cardItems && message.cardItems.length > 0 && (
-            <View style={styles.innerCard}>
-              {message.cardItems.map((item, idx) => (
-                <View key={idx} style={styles.innerItemRow}>
-                  <Icon name={item.icon} size={15} color={COLORS.primary} />
-                  <Text style={styles.innerItemText}>{item.text}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {message.subtext && (
-            <Text style={styles.subtext}>{message.subtext}</Text>
-          )}
-        </View>
+      <View style={[styles.assistantCol, { maxWidth: maxAncho }]}>
+        <Pressable
+          disabled={!enCurso}
+          onPress={() => setPaso(total)}
+          accessibilityHint={enCurso ? 'Toca para mostrar la respuesta completa' : undefined}
+          style={styles.assistantBubble}
+        >
+          <Text style={[styles.assistantText, ROMPER_LARGAS, { fontSize: tamano, lineHeight: Math.round(tamano * 1.5) }]} testID="chat-respuesta">
+            {visible}
+          </Text>
+          {aviso && !enCurso ? (
+            <Text style={[styles.aviso, { fontSize: esc(FUENTE.caption, 1.15) }]} testID="chat-aviso-medico">
+              {aviso}
+            </Text>
+          ) : null}
+        </Pressable>
 
         <Text style={styles.metaTime}>{message.time} · Asistente</Text>
       </View>
@@ -71,11 +103,13 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   );
 };
 
+// En web una cadena sin espacios (URL) no se parte sola; en Android e iOS el texto ya parte las palabras largas
+const ROMPER_LARGAS = Platform.OS === 'web' ? ({ overflowWrap: 'anywhere' } as object) : null;
+
 const styles = StyleSheet.create({
   userWrapper: {
     alignItems: 'flex-end',
     marginBottom: 16,
-    maxWidth: '85%',
     alignSelf: 'flex-end',
   },
   userBubble: {
@@ -84,24 +118,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 18,
     borderBottomRightRadius: 4,
+    flexShrink: 1,
   },
   userText: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
     color: '#FFFFFF',
-    lineHeight: 20,
-  },
-  userMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
+    flexShrink: 1,
   },
   assistantWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 16,
-    maxWidth: '90%',
   },
   botAvatar: {
     width: 32,
@@ -116,7 +143,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   assistantCol: {
-    flex: 1,
+    flexShrink: 1,
   },
   assistantBubble: {
     backgroundColor: COLORS.surfaceLight,
@@ -129,33 +156,17 @@ const styles = StyleSheet.create({
   },
   assistantText: {
     fontFamily: FONTS.regular,
-    fontSize: 14,
-    lineHeight: 21,
     color: COLORS.textPrimary,
+    flexShrink: 1,
   },
-  innerCard: {
-    backgroundColor: COLORS.backgroundWhite,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 10,
-    gap: 8,
-  },
-  innerItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  innerItemText: {
+  aviso: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: COLORS.textPrimary,
-  },
-  subtext: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 17,
     color: COLORS.textSecondary,
     marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.primaryBorder,
   },
   metaTime: {
     fontFamily: FONTS.regular,
@@ -165,4 +176,3 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
-

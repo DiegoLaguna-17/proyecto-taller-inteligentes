@@ -11,17 +11,20 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface ConsultasSugeridasProps {
-  onSelectPrompt: (prompt: string) => void;
+  /** Recibe la PREGUNTA completa; ChatBot la envía al servicio (no hay respuestas fijas). */
+  onSelectPrompt: (pregunta: string) => void;
+  disabled?: boolean;
 }
 
 const PROMPTS = [
-  { id: '1', label: 'Glucosa baja y colaciones', icon: 'utensils' },
-  { id: '2', label: 'Rango en ayunas', icon: 'chart' },
-  { id: '3', label: 'Picos postprandiales', icon: 'clock' },
+  { id: '1', label: 'Glucosa baja y colaciones', pregunta: '¿Qué debo hacer si mi glucosa está baja y qué colaciones me convienen?', icon: 'utensils' },
+  { id: '2', label: 'Rango en ayunas', pregunta: '¿Cuál es el rango de glucosa recomendado en ayunas?', icon: 'chart' },
+  { id: '3', label: 'Picos postprandiales', pregunta: '¿Cómo puedo evitar los picos de glucosa después de comer?', icon: 'clock' },
 ];
 
 export const ConsultasSugeridas: React.FC<ConsultasSugeridasProps> = ({
   onSelectPrompt,
+  disabled = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -34,9 +37,14 @@ export const ConsultasSugeridas: React.FC<ConsultasSugeridasProps> = ({
         {PROMPTS.map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={styles.pill}
-            onPress={() => onSelectPrompt(item.label)}
+            style={[styles.pill, disabled && styles.pillDisabled]}
+            onPress={() => onSelectPrompt(item.pregunta)}
             activeOpacity={0.7}
+            disabled={disabled}
+            testID={`chat-sugerencia-${item.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Preguntar: ${item.pregunta}`}
+            accessibilityState={{ disabled }}
           >
             <Icon name={item.icon} size={15} color={COLORS.primary} />
             <Text style={styles.pillText}>{item.label}</Text>
@@ -71,6 +79,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.borderCard,
     gap: 6,
+  },
+  pillDisabled: {
+    opacity: 0.5,
   },
   pillText: {
     fontFamily: FONTS.medium,
