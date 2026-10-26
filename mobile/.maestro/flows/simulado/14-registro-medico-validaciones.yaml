@@ -33,4 +33,12 @@ tags:
     id: 'registro-medico-error'
     text: 'Revisa los campos marcados en rojo.'
 - takeScreenshot: .maestro/screenshots/a14-registro-medico-errores
-- runFlow: ../../subflows/preparar.yaml
+- scrollUntilVisible:
+    element:
+      text: 'Volver a Iniciar sesión'
+- tapOn:
+    text: 'Volver a Iniciar sesión'
+- extendedWaitUntil:
+    visible:
+      id: 'login-correo'
+    timeout: 10000

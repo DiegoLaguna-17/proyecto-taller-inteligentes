@@ -28,4 +28,12 @@ tags:
     id: 'registro-paciente-error'
     text: 'Revisa los campos marcados en rojo.'
 - takeScreenshot: .maestro/screenshots/a13-registro-paciente-errores
-- runFlow: ../../subflows/preparar.yaml
+- scrollUntilVisible:
+    element:
+      text: 'Volver a Iniciar sesión'
+- tapOn:
+    text: 'Volver a Iniciar sesión'
+- extendedWaitUntil:
+    visible:
+      id: 'login-correo'
+    timeout: 10000
