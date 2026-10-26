@@ -24,6 +24,7 @@ interface CustomButtonProps {
   loading?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  testID?: string;
 }
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
@@ -37,6 +38,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   loading = false,
   style,
   textStyle,
+  testID,
 }) => {
   let buttonBg = COLORS.primary;
   let textColor = '#FFFFFF';
@@ -68,7 +70,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         styles.button,
         {
           backgroundColor: buttonBg,
-          height,
+          minHeight: height,
           borderColor,
           borderWidth,
           opacity: disabled ? 0.6 : 1,
@@ -76,8 +78,12 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         style,
       ]}
       onPress={onPress}
+      testID={testID}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator color={textColor} size="small" />
@@ -119,6 +125,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
+    paddingVertical: 6,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
@@ -131,6 +138,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
+    flexShrink: 1,
     fontFamily: FONTS.bold,
     textAlign: 'center',
     letterSpacing: -0.2,

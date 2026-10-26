@@ -3,36 +3,35 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { Tratamiento } from '../../../services/paciente';
 
-export const TratamientoVinculadoCard: React.FC = () => {
+interface TratamientoVinculadoCardProps {
+  tratamientos: Tratamiento[];
+}
+
+// La vía de administración ("Oral", "Subcutánea") de la maqueta no existe en el backend y se retiró.
+export const TratamientoVinculadoCard: React.FC<TratamientoVinculadoCardProps> = ({ tratamientos }) => {
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="detalle-tratamientos">
       <View style={styles.headerRow}>
         <Text style={styles.title}>Tratamiento Vinculado</Text>
         <Icon name="pill" size={16} color={COLORS.textSecondary} />
       </View>
 
-      {/* Pill 1 */}
-      <View style={styles.medRow}>
-        <View style={styles.medInfo}>
-          <Text style={styles.medName}>Metformina</Text>
-          <Text style={styles.medDose}>850 mg · Comida y Cena</Text>
-        </View>
-        <View style={styles.routeTag}>
-          <Text style={styles.routeTagText}>Oral</Text>
-        </View>
-      </View>
-
-      {/* Pill 2 */}
-      <View style={styles.medRow}>
-        <View style={styles.medInfo}>
-          <Text style={styles.medName}>Insulina Glargina</Text>
-          <Text style={styles.medDose}>14 UI · Noche (22:00)</Text>
-        </View>
-        <View style={styles.routeTag}>
-          <Text style={styles.routeTagText}>Subcutánea</Text>
-        </View>
-      </View>
+      {tratamientos.length === 0 ? (
+        <Text style={styles.medDose}>Sin tratamientos registrados.</Text>
+      ) : (
+        tratamientos.map((t, i) => (
+          <View key={`${t.titulo}-${i}`} style={styles.medRow}>
+            <View style={styles.medInfo}>
+              <Text style={styles.medName}>{t.titulo}</Text>
+              <Text style={styles.medDose}>
+                {t.dosis ? `Dosis: ${t.dosis}` : t.descripcion || 'Sin dosis registrada'}
+              </Text>
+            </View>
+          </View>
+        ))
+      )}
     </View>
   );
 };

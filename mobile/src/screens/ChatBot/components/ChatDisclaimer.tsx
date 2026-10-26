@@ -6,7 +6,7 @@ import { FONTS } from '../../../utils/typography';
 
 export const ChatDisclaimer: React.FC = () => {
   return (
-    <View style={styles.banner}>
+    <View style={styles.banner} testID="chat-aviso">
       <Icon name="info" size={16} color={COLORS.primary} style={styles.icon} />
       <Text style={styles.text}>
         Este asistente no reemplaza el consejo médico directo. En emergencias, llama a

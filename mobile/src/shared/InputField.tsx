@@ -26,6 +26,11 @@ interface InputFieldProps {
   keyboardType?: KeyboardTypeOptions;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   editable?: boolean;
+  maxLength?: number;
+  /** Identificador de prueba del campo; el mensaje de error usa `${testID}-error`. */
+  testID?: string;
+  /** Identificador del mensaje de error (por defecto `${testID}-error`). */
+  errorTestID?: string;
 }
 
 export const InputField: React.FC<InputFieldProps> = ({
@@ -42,6 +47,9 @@ export const InputField: React.FC<InputFieldProps> = ({
   keyboardType = 'default',
   autoCapitalize = 'none',
   editable = true,
+  maxLength,
+  testID,
+  errorTestID,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -51,7 +59,7 @@ export const InputField: React.FC<InputFieldProps> = ({
         <View style={styles.labelRow}>
           {label ? <Text style={styles.label}>{label}</Text> : <View />}
           {rightLabelText && (
-            <TouchableOpacity onPress={onRightLabelPress} activeOpacity={0.7}>
+            <TouchableOpacity onPress={onRightLabelPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={rightLabelText}>
               <Text style={styles.rightLabel}>{rightLabelText}</Text>
             </TouchableOpacity>
           )}
@@ -81,6 +89,9 @@ export const InputField: React.FC<InputFieldProps> = ({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           editable={editable}
+          maxLength={maxLength}
+          testID={testID}
+          accessibilityLabel={label || placeholder}
         />
 
         {isPassword && (
@@ -88,6 +99,8 @@ export const InputField: React.FC<InputFieldProps> = ({
             style={styles.rightIconContainer}
             onPress={() => setShowPassword(!showPassword)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           >
             <Icon
               name={showPassword ? 'eyeOff' : 'eye'}
@@ -99,7 +112,9 @@ export const InputField: React.FC<InputFieldProps> = ({
       </View>
 
       {error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText} testID={errorTestID ?? (testID ? `${testID}-error` : undefined)}>
+          {error}
+        </Text>
       ) : helperText ? (
         <Text style={styles.helperText}>{helperText}</Text>
       ) : null}
@@ -124,6 +139,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   rightLabel: {
+    flexShrink: 1,
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.primary,
@@ -165,7 +181,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: FONTS.regular,
     fontSize: 12,
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
     marginTop: 4,
     marginLeft: 4,
   },

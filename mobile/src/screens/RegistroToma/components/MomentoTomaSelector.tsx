@@ -4,26 +4,23 @@ import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
-export type MomentoType =
-  | 'Ayunas'
-  | 'Antes de comer'
-  | 'Postprandial'
-  | 'Antes de dormir';
-
-interface MomentoTomaSelectorProps {
-  selectedMomento: MomentoType;
-  onSelectMomento: (m: MomentoType) => void;
+/** Momento de la base (GET /api/general/momentos): id 1 ayunas, 2 después de comer, 3 antes de dormir. */
+export interface OpcionMomento {
+  id: number;
+  /** Clave estable para pruebas: ayunas | despues | dormir */
+  clave: string;
+  etiqueta: string;
 }
 
-const MOMENTOS: MomentoType[] = [
-  'Ayunas',
-  'Antes de comer',
-  'Postprandial',
-  'Antes de dormir',
-];
+interface MomentoTomaSelectorProps {
+  opciones: OpcionMomento[];
+  selectedId: number | null;
+  onSelectMomento: (id: number) => void;
+}
 
 export const MomentoTomaSelector: React.FC<MomentoTomaSelectorProps> = ({
-  selectedMomento,
+  opciones,
+  selectedId,
   onSelectMomento,
 }) => {
   return (
@@ -36,17 +33,18 @@ export const MomentoTomaSelector: React.FC<MomentoTomaSelectorProps> = ({
       </View>
 
       <View style={styles.grid}>
-        {MOMENTOS.map((momento) => {
-          const isSelected = selectedMomento === momento;
+        {opciones.map((opcion) => {
+          const isSelected = selectedId === opcion.id;
           return (
             <TouchableOpacity
-              key={momento}
+              key={opcion.id}
               style={[
                 styles.optionBtn,
                 isSelected && styles.optionBtnSelected,
               ]}
-              onPress={() => onSelectMomento(momento)}
+              onPress={() => onSelectMomento(opcion.id)}
               activeOpacity={0.8}
+              testID={`registro-momento-${opcion.clave}`}
             >
               {isSelected && (
                 <Icon
@@ -62,7 +60,7 @@ export const MomentoTomaSelector: React.FC<MomentoTomaSelectorProps> = ({
                   isSelected && styles.optionTextSelected,
                 ]}
               >
-                {momento}
+                {opcion.etiqueta}
               </Text>
             </TouchableOpacity>
           );
@@ -98,7 +96,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   requiredStar: {
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
   },
   subText: {
     fontFamily: FONTS.regular,

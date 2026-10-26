@@ -3,90 +3,56 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { RegistroHistorial } from '../../../services/glucosa';
+import { clasificacionDeRegistro, etiquetaFechaHora, etiquetaMomento } from '../../../services/historial';
 
-const REGISTROS = [
-  {
-    id: '1',
-    title: 'Antes del almuerzo',
-    subtitle: 'Hoy · 13:10',
-    value: 62,
-    badgeText: 'Riesgo Hipo',
-    badgeBg: COLORS.riesgoHipoBg,
-    badgeColor: COLORS.riesgoHipoText,
-    icon: 'arrowTrendingDown',
-    iconBg: COLORS.riesgoHipoBg,
-    iconColor: COLORS.riesgoHipo,
-  },
-  {
-    id: '2',
-    title: 'En ayunas',
-    subtitle: 'Hoy · 08:05',
-    value: 104,
-    badgeText: 'Objetivo',
-    badgeBg: COLORS.normalBg,
-    badgeColor: COLORS.normalText,
-    icon: 'check',
-    iconBg: COLORS.normalBg,
-    iconColor: COLORS.normal,
-  },
-  {
-    id: '3',
-    title: '2h Post-cena',
-    subtitle: 'Ayer · 22:45',
-    value: 132,
-    badgeText: 'Objetivo',
-    badgeBg: COLORS.normalBg,
-    badgeColor: COLORS.normalText,
-    icon: 'check',
-    iconBg: COLORS.normalBg,
-    iconColor: COLORS.normal,
-  },
-  {
-    id: '4',
-    title: 'Post-almuerzo',
-    subtitle: 'Ayer · 15:30',
-    value: 168,
-    badgeText: 'Elevado',
-    badgeBg: COLORS.riesgoHiperBg,
-    badgeColor: COLORS.riesgoHiperText,
-    icon: 'arrowTrendingUp',
-    iconBg: COLORS.riesgoHiperBg,
-    iconColor: COLORS.riesgoHiper,
-  },
-];
+interface RegistrosRecientesMedicoProps {
+  /** Lecturas del paciente, más recientes primero. */
+  registros: RegistroHistorial[];
+  hoy: Date;
+  /** Tomas registradas hoy. */
+  tomasHoy: number;
+}
 
-export const RegistrosRecientesMedico: React.FC = () => {
+const ESTILO = {
+  Normal: { texto: 'Objetivo', bg: COLORS.normalBg, color: COLORS.normalText, icono: 'check', iconoColor: COLORS.normal },
+  'Riesgo Hipo': { texto: 'Riesgo Hipo', bg: COLORS.riesgoHipoBg, color: COLORS.riesgoHipoText, icono: 'arrowTrendingDown', iconoColor: COLORS.riesgoHipo },
+  'Riesgo Hiper': { texto: 'Elevado', bg: COLORS.riesgoHiperBg, color: COLORS.riesgoHiperText, icono: 'arrowTrendingUp', iconoColor: COLORS.riesgoHiper },
+} as const;
+
+export const RegistrosRecientesMedico: React.FC<RegistrosRecientesMedicoProps> = ({ registros, hoy, tomasHoy }) => {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="detalle-registros">
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Registros Recientes</Text>
-        <Text style={styles.countText}>3 tomas hoy</Text>
+        <Text style={styles.countText}>{tomasHoy === 1 ? '1 toma hoy' : `${tomasHoy} tomas hoy`}</Text>
       </View>
 
       <View style={styles.list}>
-        {REGISTROS.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: item.iconBg }]}>
-              <Icon name={item.icon} size={16} color={item.iconColor} />
-            </View>
+        {registros.slice(0, 4).map((r) => {
+          const e = ESTILO[clasificacionDeRegistro(r)];
+          return (
+            <View key={r.id} style={styles.card} testID={`detalle-registro-${r.id}`}>
+              <View style={[styles.iconCircle, { backgroundColor: e.bg }]}>
+                <Icon name={e.icono} size={16} color={e.iconoColor} />
+              </View>
 
-            <View style={styles.infoCol}>
-              <Text style={styles.titleText}>{item.title}</Text>
-              <Text style={styles.subtitleText}>{item.subtitle}</Text>
-            </View>
+              <View style={styles.infoCol}>
+                <Text style={styles.titleText}>{etiquetaMomento(r.momentoDia)}</Text>
+                <Text style={styles.subtitleText}>{etiquetaFechaHora(r.fecha, r.hora, hoy)}</Text>
+              </View>
 
-            <View style={styles.valueCol}>
-              <Text style={styles.valueText}>
-                {item.value} <Text style={styles.unitText}>mg/dL</Text>
-              </Text>
-              <View style={[styles.badge, { backgroundColor: item.badgeBg }]}>
-                <Text style={[styles.badgeText, { color: item.badgeColor }]}>
-                  {item.badgeText}
+              <View style={styles.valueCol}>
+                <Text style={styles.valueText}>
+                  {r.nivelGlucosa} <Text style={styles.unitText}>mg/dL</Text>
                 </Text>
+                <View style={[styles.badge, { backgroundColor: e.bg }]}>
+                  <Text style={[styles.badgeText, { color: e.color }]}>{e.texto}</Text>
+                </View>
               </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
     </View>
   );

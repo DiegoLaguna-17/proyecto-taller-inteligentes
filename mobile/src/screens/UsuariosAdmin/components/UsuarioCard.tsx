@@ -1,40 +1,42 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from '../../../shared/Icon';
-import { AdminUser } from '../../../utils/mockData';
+import { UsuarioAdmin } from '../../../services/administrador';
+import { iniciales } from '../../../services/medicoVista';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface UsuarioCardProps {
-  user: AdminUser;
+  user: UsuarioAdmin;
   onPress: () => void;
 }
 
 export const UsuarioCard: React.FC<UsuarioCardProps> = ({ user, onPress }) => {
-  const isActive = user.status === 'Activo';
+  const isActive = user.activo;
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={`admin-usuario-${user.clave}`}
     >
       <View style={styles.avatarCircle}>
-        <Text style={styles.initialsText}>{user.initials}</Text>
+        <Text style={styles.initialsText}>{iniciales(user.nombre)}</Text>
       </View>
 
       <View style={styles.infoCol}>
-        <View style={styles.nameRow}>
-          <Text style={styles.nameText} numberOfLines={1}>
-            {user.name}
-          </Text>
-          <View style={styles.rolePill}>
-            <Text style={styles.roleText}>{user.role}</Text>
-          </View>
-        </View>
-        <Text style={styles.emailText} numberOfLines={1}>
-          {user.email}
+        <Text style={styles.nameText} numberOfLines={1}>
+          {user.nombre}
         </Text>
+        <View style={styles.nameRow}>
+          <View style={styles.rolePill}>
+            <Text style={styles.roleText}>{user.rol}</Text>
+          </View>
+          <Text style={styles.emailText} numberOfLines={1}>
+            {user.correo ?? 'Sin correo'}
+          </Text>
+        </View>
       </View>
 
       <View
@@ -55,7 +57,7 @@ export const UsuarioCard: React.FC<UsuarioCardProps> = ({ user, onPress }) => {
             { color: isActive ? COLORS.normalText : COLORS.textSecondary },
           ]}
         >
-          {user.status}
+          {isActive ? 'Activo' : 'Pendiente'}
         </Text>
       </View>
 
@@ -102,13 +104,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 2,
+    marginTop: 2,
   },
   nameText: {
     fontFamily: FONTS.bold,
     fontSize: 15,
     color: COLORS.textPrimary,
-    maxWidth: '65%',
   },
   rolePill: {
     backgroundColor: COLORS.surfaceLight,
@@ -122,6 +123,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   emailText: {
+    flex: 1,
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textSecondary,

@@ -14,6 +14,9 @@ interface ChatInputBarProps {
   onChangeText: (text: string) => void;
   onSend: () => void;
   onMicPress?: () => void;
+  maxLength?: number;
+  /** Bloquea el envío mientras llega la respuesta. */
+  disabled?: boolean;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
@@ -21,6 +24,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onChangeText,
   onSend,
   onMicPress,
+  maxLength,
+  disabled = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -32,6 +37,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           placeholder="Escribe tu consulta aquí..."
           placeholderTextColor={COLORS.textMuted}
           multiline
+          maxLength={maxLength}
+          testID="chat-entrada"
         />
         <TouchableOpacity
           style={styles.micBtn}
@@ -49,7 +56,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         ]}
         onPress={onSend}
         activeOpacity={0.8}
-        disabled={value.trim().length === 0}
+        disabled={disabled || value.trim().length === 0}
+        testID="chat-enviar"
       >
         <Icon name="send" size={18} color="#FFFFFF" />
       </TouchableOpacity>

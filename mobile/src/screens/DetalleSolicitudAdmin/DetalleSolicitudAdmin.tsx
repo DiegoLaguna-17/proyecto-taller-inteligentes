@@ -1,76 +1,91 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
 import { Icon } from '../../shared/Icon';
-import { SolicitanteInfoCard } from './components/SolicitanteInfoCard';
+import { ModalMensaje } from '../../shared/ModalMensaje';
+import { SolicitanteInfoCard, CampoSolicitante } from './components/SolicitanteInfoCard';
 import { AcreditacionMedicaCard } from './components/AcreditacionMedicaCard';
 import { AlcancePermisosCard } from './components/AlcancePermisosCard';
 import { AccionesSolicitud } from './components/AccionesSolicitud';
-import { AdminRequest } from '../../utils/mockData';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { tomarTurno, liberarTurno } from '../../utils/turno';
+import { UsuarioAdmin, activarUsuario } from '../../services/administrador';
+import { iniciales } from '../../services/medicoVista';
+import { mensajeDeError } from '../../services/http';
 
 interface DetalleSolicitudAdminProps {
-  request?: AdminRequest;
+  request: UsuarioAdmin;
+  /** id_admin de la sesión (id_rol): lo exige el backend al activar. */
+  idAdmin: number;
   onBack: () => void;
+  /** Se llama tras activar con éxito, para volver a la lista (que se recarga). */
   onFinishAction: () => void;
   onNavigatePerfil?: () => void;
 }
 
+const dato = (v: string | null | undefined) => (v && v.trim() ? v : 'No registrado');
+
+function camposDe(u: UsuarioAdmin): CampoSolicitante[] {
+  const comunes: CampoSolicitante[] = [
+    { etiqueta: 'Correo electrónico', valor: dato(u.correo) },
+    { etiqueta: 'Teléfono', valor: dato(u.telefono) },
+    { etiqueta: 'Fecha de nacimiento', valor: dato(u.fechaNac) },
+  ];
+  if (u.rol === 'Médico') return [...comunes, { etiqueta: 'Departamento', valor: dato(u.departamento) }];
+  return [
+    ...comunes,
+    { etiqueta: 'Género', valor: dato(u.genero) },
+    { etiqueta: 'Médico asignado', valor: dato(u.medico) },
+    { etiqueta: 'Afecciones', valor: u.afecciones.length > 0 ? u.afecciones.join(', ') : 'No registradas' },
+    {
+      etiqueta: 'Tratamientos',
+      valor: u.tratamientos.length > 0 ? u.tratamientos.map((t) => (t.dosis ? `${t.titulo} (${t.dosis})` : t.titulo)).join(', ') : 'No registrados',
+    },
+    { etiqueta: 'Contacto de emergencia', valor: u.nombreEmergencia ? `${u.nombreEmergencia}${u.numeroEmergencia ? ` · ${u.numeroEmergencia}` : ''}` : 'No registrado' },
+    ...(u.embarazo ? [{ etiqueta: 'Embarazo', valor: u.semanas !== null ? `${u.semanas} semanas` : 'En curso' }] : []),
+  ];
+}
+
 export const DetalleSolicitudAdmin: React.FC<DetalleSolicitudAdminProps> = ({
   request,
+  idAdmin,
   onBack,
   onFinishAction,
   onNavigatePerfil,
 }) => {
-  const req = request || {
-    id: 'req1',
-    name: 'Dr. Alejandro Morales',
-    role: 'Médico',
-    specialtyOrDiagnosis: 'Médico Endocrinólogo',
-    licenseNumber: 'MN 142.890',
-    institution: 'Hospital Central Metropolitano · Diabetología',
-    email: 'alejandro.morales@hospitalcentral.org',
-    date: '24 de Octubre, 2024 · 10:15 AM',
-    timeAgo: 'Recibido hace 1 hora',
-    initials: 'AM',
-    status: 'Pendiente',
-  };
+  const [confirmar, setConfirmar] = useState(false);
+  const [activando, setActivando] = useState(false);
+  const turno = useRef(false); // guarda síncrona contra el doble toque
+  const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
 
-  const handleAccept = () => {
-    Alert.alert(
-      'Solicitud Aprobada',
-      `Se ha autorizado el acceso al sistema para ${req.name}. Se le ha enviado un correo con sus credenciales.`,
-      [{ text: 'Entendido', onPress: onFinishAction }]
-    );
-  };
-
-  const handleReject = () => {
-    Alert.alert(
-      'Rechazar Solicitud',
-      `¿Confirmas el rechazo de la solicitud de ${req.name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar Rechazo',
-          style: 'destructive',
-          onPress: onFinishAction,
-        },
-      ]
-    );
+  const activar = async () => {
+    if (activando) return; // sin doble envío
+    if (!tomarTurno(turno)) return;
+    setActivando(true);
+    try {
+      await activarUsuario(request.rol === 'Médico' ? 'Médico' : 'Paciente', request.id, idAdmin);
+      setConfirmar(false);
+      setResultado({ ok: true, mensaje: `La cuenta de ${request.nombre} quedó activa.` });
+    } catch (e) {
+      setConfirmar(false);
+      setResultado({ ok: false, mensaje: mensajeDeError(e) });
+    } finally {
+      setActivando(false);
+      liberarTurno(turno);
+    }
   };
 
   return (
     <View style={styles.container}>
       <TopHeader
-        title="Detalle De Paciente"
+        title={`Detalle De ${request.rol}`}
         showBack
         onBack={onBack}
         onProfilePress={onNavigatePerfil}
@@ -86,40 +101,62 @@ export const DetalleSolicitudAdmin: React.FC<DetalleSolicitudAdminProps> = ({
             style={styles.backPill}
             onPress={onBack}
             activeOpacity={0.7}
+            testID="solicitud-volver"
           >
             <Icon name="arrowLeft" size={14} color={COLORS.primary} />
             <Text style={styles.backPillText}>Solicitudes</Text>
           </TouchableOpacity>
 
           <View style={styles.statusPill}>
-            <Text style={styles.statusPillText}>PENDIENTE DE REVISIÓN</Text>
+            <Text style={styles.statusPillText}>PENDIENTE DE ACTIVACIÓN</Text>
           </View>
         </View>
 
         <Text style={styles.mainTitle}>Validación de Solicitud</Text>
         <Text style={styles.subtitle}>
-          Revisa los datos profesionales antes de autorizar el acceso clínico.
+          Revisa los datos {request.rol === 'Médico' ? 'y los documentos ' : ''}antes de activar la cuenta.
         </Text>
 
         <SolicitanteInfoCard
-          initials={req.initials}
-          name={req.name}
-          roleSubtitle={req.specialtyOrDiagnosis}
-          email={req.email}
-          date={req.date}
-          institution={req.institution || 'Hospital Central Metropolitano'}
+          initials={iniciales(request.nombre)}
+          name={request.nombre}
+          roleSubtitle={request.rol === 'Médico' ? 'Médico' : request.resumen}
+          campos={camposDe(request)}
         />
 
-        {req.role === 'Médico' && (
-          <AcreditacionMedicaCard
-            license={req.licenseNumber || 'MN 142.890'}
-          />
+        {request.rol === 'Médico' && (
+          <AcreditacionMedicaCard matriculaUrl={request.matriculaUrl} carnetUrl={request.carnetUrl} />
         )}
 
         <AlcancePermisosCard />
 
-        <AccionesSolicitud onAccept={handleAccept} onReject={handleReject} />
+        <AccionesSolicitud onAccept={() => setConfirmar(true)} loading={activando} />
       </ScrollView>
+
+      <ModalMensaje
+        visible={confirmar}
+        titulo="¿Activar esta cuenta?"
+        mensaje={`Se activará la cuenta de ${request.nombre} (${request.rol}). No se puede deshacer desde la app.`}
+        textoConfirmar="Activar"
+        onConfirm={activar}
+        textoCancelar="Cancelar"
+        onCancel={() => setConfirmar(false)}
+        loading={activando}
+        testIDPrefix="solicitud-confirmacion"
+      />
+
+      <ModalMensaje
+        visible={resultado !== null}
+        titulo={resultado?.ok ? 'Cuenta activada' : 'No se pudo activar'}
+        mensaje={resultado?.mensaje ?? ''}
+        textoConfirmar={resultado?.ok ? 'Volver a solicitudes' : 'Cerrar'}
+        onConfirm={() => {
+          const ok = resultado?.ok;
+          setResultado(null);
+          if (ok) onFinishAction();
+        }}
+        testIDPrefix="solicitud-resultado"
+      />
     </View>
   );
 };

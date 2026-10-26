@@ -2,23 +2,31 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
 
-export const AuditoriaKpiCards: React.FC = () => {
+interface AuditoriaKpiCardsProps {
+  hoy: number;
+  erroresHoy: number;
+  total: number;
+}
+
+// Cifras calculadas con los registros reales (la "integridad 100 %" de la maqueta no tiene fuente).
+export const AuditoriaKpiCards: React.FC<AuditoriaKpiCardsProps> = ({ hoy, erroresHoy, total }) => {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="auditoria-kpis">
       <View style={styles.card}>
-        <Text style={styles.number}>6</Text>
+        <Text style={styles.number} numberOfLines={1} adjustsFontSizeToFit testID="auditoria-kpi-hoy">{hoy}</Text>
         <Text style={styles.label}>Registros Hoy</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.number}>1</Text>
-        <Text style={styles.label}>Alerta Crítica</Text>
+        <Text style={styles.number} testID="auditoria-kpi-errores">{erroresHoy}</Text>
+        <Text style={styles.label}>Con Error Hoy</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.number}>100%</Text>
-        <Text style={styles.label}>Integridad</Text>
+        <Text style={styles.number} testID="auditoria-kpi-total">{total}</Text>
+        <Text style={styles.label}>Total</Text>
       </View>
     </View>
   );
@@ -42,7 +50,7 @@ const styles = StyleSheet.create({
   },
   number: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: FUENTE.tituloGrande,
     color: COLORS.primary,
     marginBottom: 4,
   },

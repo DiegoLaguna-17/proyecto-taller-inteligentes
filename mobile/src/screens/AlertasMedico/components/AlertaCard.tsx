@@ -2,24 +2,33 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { Icon } from '../../../shared/Icon';
-import { DoctorAlert } from '../../../utils/mockData';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { AlertaMedico } from '../../../services/medico';
+import { clasificacionDeAlerta } from '../../../services/medicoVista';
+import { etiquetaFechaHora, etiquetaMomento } from '../../../services/historial';
 
 interface AlertaCardProps {
-  alert: DoctorAlert;
+  alert: AlertaMedico;
+  hoy: Date;
   onPress: () => void;
 }
 
-export const AlertaCard: React.FC<AlertaCardProps> = ({ alert, onPress }) => {
-  const isHiper = alert.classification === 'Riesgo Hiper';
+export const AlertaCard: React.FC<AlertaCardProps> = ({ alert, hoy, onPress }) => {
+  const clasificacion = clasificacionDeAlerta(alert);
+  const isHiper = clasificacion === 'Riesgo Hiper';
   const valColor = isHiper ? COLORS.riesgoHiper : COLORS.primary;
+  // Resuelta: se muestra la respuesta del médico; activa: las observaciones o el momento de la toma
+  const descripcion = alert.mensaje
+    ? `Respuesta: ${alert.mensaje}`
+    : alert.observaciones || etiquetaMomento(alert.momento);
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={`alertas-alerta-${alert.id}`}
     >
       <View style={styles.topRow}>
         <View style={styles.avatarCircle}>
@@ -27,14 +36,11 @@ export const AlertaCard: React.FC<AlertaCardProps> = ({ alert, onPress }) => {
         </View>
 
         <View style={styles.infoCol}>
-          <Text style={styles.patientName}>{alert.patientName}</Text>
-          <Text style={styles.timeText}>{alert.time}</Text>
+          <Text style={styles.patientName}>{alert.paciente}</Text>
+          <Text style={styles.timeText}>{etiquetaFechaHora(alert.fecha, alert.hora, hoy)}</Text>
         </View>
 
-        <ClassificationBadge
-          classification={alert.classification}
-          size="sm"
-        />
+        <ClassificationBadge classification={clasificacion} size="sm" />
 
         <Icon
           name="chevronRight"
@@ -46,12 +52,14 @@ export const AlertaCard: React.FC<AlertaCardProps> = ({ alert, onPress }) => {
 
       <View style={styles.detailBox}>
         <Text style={styles.descriptionText} numberOfLines={1}>
-          {alert.description}
+          {descripcion}
         </Text>
-        <Text style={[styles.valText, { color: valColor }]}>
-          {alert.value}{' '}
-          <Text style={styles.unitText}>mg/dL</Text>
-        </Text>
+        {alert.glucosa !== null && (
+          <Text style={[styles.valText, { color: valColor }]}>
+            {alert.glucosa}{' '}
+            <Text style={styles.unitText}>mg/dL</Text>
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );

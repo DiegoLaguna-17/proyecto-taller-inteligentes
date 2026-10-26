@@ -6,20 +6,20 @@ import { FONTS } from '../../../utils/typography';
 
 interface SelectorPacienteReporteProps {
   patientName: string;
-  patientInfo?: string;
+  patientInfo: string;
   onChangePress?: () => void;
 }
 
 export const SelectorPacienteReporte: React.FC<SelectorPacienteReporteProps> = ({
   patientName,
-  patientInfo = 'ID: #4092 • DM Tipo 1',
+  patientInfo,
   onChangePress,
 }) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.sectionLabel}>PACIENTE ASIGNADO</Text>
-        <TouchableOpacity onPress={onChangePress} activeOpacity={0.7}>
+        <TouchableOpacity onPress={onChangePress} activeOpacity={0.7} testID="reportes-cambiar-paciente">
           <Text style={styles.changeLink}>Cambiar</Text>
         </TouchableOpacity>
       </View>
@@ -30,7 +30,7 @@ export const SelectorPacienteReporte: React.FC<SelectorPacienteReporteProps> = (
         </View>
 
         <View style={styles.infoCol}>
-          <Text style={styles.nameText}>{patientName}</Text>
+          <Text style={styles.nameText} testID="reportes-paciente">{patientName}</Text>
           <Text style={styles.infoText}>{patientInfo}</Text>
         </View>
 

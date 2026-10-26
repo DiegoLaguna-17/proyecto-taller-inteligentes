@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
-import { Icon } from '../../shared/Icon';
+import { CustomButton } from '../../shared/CustomButton';
 import { HistorialResumenCards } from './components/HistorialResumenCards';
 import {
   PeriodoSelector,
@@ -20,20 +19,55 @@ import { TomasList } from './components/TomasList';
 import { ConsejoClinicoCard } from './components/ConsejoClinicoCard';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { obtenerRegistros, RegistroHistorial } from '../../services/glucosa';
+import {
+  desviacion,
+  etiquetaRango,
+  filtrarPorPeriodo,
+  porcentajeEnRango,
+  promedio,
+} from '../../services/historial';
+import { mensajeDeError } from '../../services/http';
 
 interface HistorialPacienteProps {
+  /** id_paciente de la sesión (id_rol devuelto por POST /api/verify-otp). */
+  idPaciente: number;
   onNavigatePerfil?: () => void;
 }
 
 export const HistorialPaciente: React.FC<HistorialPacienteProps> = ({
+  idPaciente,
   onNavigatePerfil,
 }) => {
   const [periodo, setPeriodo] = useState<PeriodoType>('Semanal');
   const [viewMode, setViewMode] = useState<ViewMode>('grafico');
+  const [registros, setRegistros] = useState<RegistroHistorial[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleExport = () => {
-    Alert.alert('Exportar registros', 'Generando exportación de datos clínicos...');
-  };
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    try {
+      setRegistros(await obtenerRegistros(idPaciente));
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }, [idPaciente]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const hoy = useMemo(() => new Date(), []);
+  const delPeriodo = useMemo(() => filtrarPorPeriodo(registros, periodo, hoy), [registros, periodo, hoy]);
+  // El gráfico va en orden cronológico y muestra, como máximo, las últimas 7 lecturas
+  const puntos = useMemo(
+    () => delPeriodo.filter((r) => r.nivelGlucosa !== null).slice(0, 7).reverse(),
+    [delPeriodo],
+  );
 
   return (
     <View style={styles.container}>
@@ -55,17 +89,16 @@ export const HistorialPaciente: React.FC<HistorialPacienteProps> = ({
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={handleExport}
-            activeOpacity={0.7}
-          >
-            <Icon name="download" size={18} color={COLORS.primary} />
-          </TouchableOpacity>
         </View>
 
         {/* Resumen Cards */}
-        <HistorialResumenCards />
+        <HistorialResumenCards
+          periodo={periodo}
+          promedio={promedio(delPeriodo)}
+          desviacion={desviacion(delPeriodo)}
+          enRango={porcentajeEnRango(delPeriodo)}
+          total={delPeriodo.length}
+        />
 
         {/* Period Selector & Mode Switch */}
         <PeriodoSelector
@@ -73,12 +106,34 @@ export const HistorialPaciente: React.FC<HistorialPacienteProps> = ({
           onSelectPeriodo={setPeriodo}
           viewMode={viewMode}
           onToggleViewMode={setViewMode}
+          rangoTexto={etiquetaRango(periodo, hoy)}
         />
 
-        {/* Chart or List */}
-        {viewMode === 'grafico' && <GraficoTendencia />}
+        {cargando ? (
+          <View style={styles.estadoBox} testID="historial-cargando">
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : error ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="historial-error">{error}</Text>
+            <CustomButton title="Reintentar" onPress={cargar} testID="historial-reintentar" />
+          </View>
+        ) : delPeriodo.length === 0 ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="historial-vacio">
+              No hay registros en este periodo.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Chart or List */}
+            {viewMode === 'grafico' && puntos.length > 0 && (
+              <GraficoTendencia puntos={puntos} tir={porcentajeEnRango(delPeriodo)} />
+            )}
 
-        <TomasList />
+            <TomasList tomas={delPeriodo} />
+          </>
+        )}
 
         <ConsejoClinicoCard />
       </ScrollView>
@@ -90,6 +145,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  estadoBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    gap: 12,
+  },
+  estadoText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -118,16 +184,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: COLORS.textSecondary,
-  },
-  exportBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primaryBorder,
   },
 });
 

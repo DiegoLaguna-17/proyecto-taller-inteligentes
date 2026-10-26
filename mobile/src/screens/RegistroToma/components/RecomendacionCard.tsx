@@ -9,7 +9,7 @@ interface RecomendacionCardProps {
 }
 
 export const RecomendacionCard: React.FC<RecomendacionCardProps> = ({
-  text = 'Una lectura postprandial debe realizarse 2 horas exactas tras iniciar la primera ingesta.',
+  text = 'La lectura después de comer debe realizarse 2 horas exactas tras iniciar la primera ingesta.',
 }) => {
   return (
     <View style={styles.card}>

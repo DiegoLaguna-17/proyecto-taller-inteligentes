@@ -5,16 +5,20 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface AvisoPreventivoCardProps {
+  /** Lecturas con alerta o hipoglucemia en los últimos 3 días. */
+  cantidad: number;
   onPress?: () => void;
 }
 
-export const AvisoPreventivoCard: React.FC<AvisoPreventivoCardProps> = ({ onPress }) => {
+export const AvisoPreventivoCard: React.FC<AvisoPreventivoCardProps> = ({ cantidad, onPress }) => {
+  if (cantidad <= 0) return null;
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.8}
       disabled={!onPress}
+      testID="inicio-aviso"
     >
       <View style={styles.iconCircle}>
         <Icon name="info" size={20} color={COLORS.primary} />
@@ -22,8 +26,10 @@ export const AvisoPreventivoCard: React.FC<AvisoPreventivoCardProps> = ({ onPres
       <View style={styles.textContainer}>
         <Text style={styles.title}>Aviso preventivo</Text>
         <Text style={styles.body}>
-          Has presentado 2 valores cercanos al límite postprandial en los últimos 3
-          días. Mantén tu hidratación y horario habitual de comidas.
+          {cantidad === 1
+            ? 'Tuviste 1 lectura fuera de rango en los últimos 3 días.'
+            : `Tuviste ${cantidad} lecturas fuera de rango en los últimos 3 días.`}{' '}
+          Revisa el historial y consulta a tu médico si se repite.
         </Text>
       </View>
     </TouchableOpacity>

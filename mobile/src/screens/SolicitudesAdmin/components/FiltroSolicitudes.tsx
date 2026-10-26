@@ -25,6 +25,7 @@ export const FiltroSolicitudes: React.FC<FiltroSolicitudesProps> = ({
         ]}
         onPress={() => onSelectFilter('todos')}
         activeOpacity={0.8}
+        testID="solicitud-filtro-todos"
       >
         <Text
           style={[
@@ -43,6 +44,7 @@ export const FiltroSolicitudes: React.FC<FiltroSolicitudesProps> = ({
         ]}
         onPress={() => onSelectFilter('pacientes')}
         activeOpacity={0.8}
+        testID="solicitud-filtro-pacientes"
       >
         <Text
           style={[
@@ -61,6 +63,7 @@ export const FiltroSolicitudes: React.FC<FiltroSolicitudesProps> = ({
         ]}
         onPress={() => onSelectFilter('medicos')}
         activeOpacity={0.8}
+        testID="solicitud-filtro-medicos"
       >
         <Text
           style={[
@@ -78,6 +81,7 @@ export const FiltroSolicitudes: React.FC<FiltroSolicitudesProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },

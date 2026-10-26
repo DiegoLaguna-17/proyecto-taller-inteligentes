@@ -1,29 +1,36 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../../../shared/Icon';
-import { AuditEvent } from '../../../utils/mockData';
+import { EventoAuditoria } from '../../../services/administrador';
+import { clasificarEvento, etiquetaFechaEvento } from '../../../services/administradorVista';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface EventoAuditoriaCardProps {
-  event: AuditEvent;
+  event: EventoAuditoria;
+  hoy: Date;
 }
 
+const ROL: Record<string, string> = { login: 'Acceso', paciente: 'Paciente', medico: 'Médico', administrador: 'Administrador' };
+
+// Sin nombres de usuario; IP enmascarada y números de la ruta sustituidos por {id} (ver normalizarAuditoria).
 export const EventoAuditoriaCard: React.FC<EventoAuditoriaCardProps> = ({
   event,
+  hoy,
 }) => {
-  const isAlert = event.statusBadge === 'Prioridad Alta';
-  const isNormal = event.statusBadge === 'Normal';
+  const isAlert = !event.exito;
+  const isNormal = event.exito;
+  const tipo = clasificarEvento(event);
 
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID={`auditoria-evento-${event.id}`}>
       <View style={styles.headerRow}>
         <View style={styles.metaRow}>
           <View style={styles.timePill}>
-            <Text style={styles.timeText}>{event.time}</Text>
+            <Text style={styles.timeText}>{etiquetaFechaEvento(event, hoy)}</Text>
           </View>
           <View style={styles.badgePill}>
-            <Text style={styles.badgeText}>{event.badge}</Text>
+            <Text style={styles.badgeText}>{ROL[event.rol] ?? (event.rol || 'Sistema')}</Text>
           </View>
         </View>
 
@@ -31,44 +38,40 @@ export const EventoAuditoriaCard: React.FC<EventoAuditoriaCardProps> = ({
           name={
             isAlert
               ? 'alertTriangle'
-              : event.type === 'clinical'
-              ? 'chart'
-              : event.type === 'access'
+              : tipo === 'acceso'
               ? 'shieldCheck'
-              : 'fileText'
+              : tipo === 'modificacion'
+              ? 'fileText'
+              : 'chart'
           }
           size={16}
           color={isAlert ? COLORS.riesgoHiper : COLORS.textMuted}
         />
       </View>
 
-      <Text style={styles.titleText}>{event.title}</Text>
-      <Text style={styles.descriptionText}>{event.description}</Text>
+      <Text style={styles.titleText} numberOfLines={2}>{event.operacion} {event.endpoint}</Text>
+      <Text style={styles.descriptionText}>
+        Respuesta {event.codigo ?? 'sin código'}
+      </Text>
 
       <View style={styles.footerRow}>
-        <Text style={styles.detailText}>{event.detail}</Text>
+        <Text style={styles.detailText} numberOfLines={1}>
+          IP {event.ip}{event.idUsuario !== null ? ` · Usuario #${event.idUsuario}` : ''}
+        </Text>
         <View
           style={[
             styles.statusPill,
-            isAlert
-              ? styles.statusAlert
-              : isNormal
-              ? styles.statusNormal
-              : styles.statusDefault,
+            isAlert ? styles.statusAlert : styles.statusNormal,
           ]}
         >
           {isNormal && <View style={styles.greenDot} />}
           <Text
             style={[
               styles.statusText,
-              isAlert
-                ? styles.statusTextAlert
-                : isNormal
-                ? styles.statusTextNormal
-                : styles.statusTextDefault,
+              isAlert ? styles.statusTextAlert : styles.statusTextNormal,
             ]}
           >
-            {event.statusBadge}
+            {isAlert ? 'Con error' : 'Correcto'}
           </Text>
         </View>
       </View>
@@ -93,6 +96,8 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    flexShrink: 1,
     alignItems: 'center',
     gap: 8,
   },
@@ -139,6 +144,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   detailText: {
+    flex: 1,
+    marginRight: 8,
     fontFamily: FONTS.regular,
     fontSize: 11,
     color: COLORS.textMuted,

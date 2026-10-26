@@ -3,21 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { AlertaMedico } from '../../../services/medico';
+import { clasificacionDeAlerta } from '../../../services/medicoVista';
+import { haceCuanto } from '../../../services/historial';
 
 interface AlertaPushBannerProps {
+  /** Alerta activa más reciente; sin alertas activas no se muestra. */
+  alerta: AlertaMedico | null;
+  hoy: Date;
   onPress?: () => void;
 }
 
-export const AlertaPushBanner: React.FC<AlertaPushBannerProps> = ({ onPress }) => {
-  const [visible, setVisible] = useState(true);
+export const AlertaPushBanner: React.FC<AlertaPushBannerProps> = ({ alerta, hoy, onPress }) => {
+  const [oculta, setOculta] = useState<number | null>(null);
 
-  if (!visible) return null;
+  if (!alerta || oculta === alerta.id) return null;
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.8}
+      testID="alertas-banner"
     >
       <View style={styles.iconCircle}>
         <Icon name="bell" size={18} color={COLORS.primary} />
@@ -25,19 +32,26 @@ export const AlertaPushBanner: React.FC<AlertaPushBannerProps> = ({ onPress }) =
 
       <View style={styles.textCol}>
         <View style={styles.headerRow}>
-          <Text style={styles.categoryText}>ALERTA DEL SISTEMA • Hace 15 min</Text>
+          <Text style={styles.categoryText}>
+            ALERTA ACTIVA • {haceCuanto(alerta.fecha, alerta.hora, hoy)}
+          </Text>
         </View>
         <Text style={styles.bodyText}>
-          <Text style={styles.boldText}>Elena Soto</Text> registró un nivel
-          crítico (
-          <Text style={styles.criticalText}>62 mg/dL</Text> · Riesgo Hipo).
+          <Text style={styles.boldText}>{alerta.paciente}</Text> registró{' '}
+          {alerta.glucosa !== null ? (
+            <>
+              <Text style={styles.criticalText}>{alerta.glucosa} mg/dL</Text> ·{' '}
+            </>
+          ) : null}
+          {clasificacionDeAlerta(alerta)}.
         </Text>
       </View>
 
       <TouchableOpacity
         style={styles.closeBtn}
-        onPress={() => setVisible(false)}
+        onPress={() => setOculta(alerta.id)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        testID="alertas-banner-cerrar"
       >
         <Icon name="close" size={14} color={COLORS.textSecondary} />
       </TouchableOpacity>
@@ -96,7 +110,7 @@ const styles = StyleSheet.create({
   },
   criticalText: {
     fontFamily: FONTS.bold,
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
   },
   closeBtn: {
     padding: 4,

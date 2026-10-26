@@ -32,6 +32,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             onPress={onBack}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
           >
             <Icon name="arrowLeft" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
@@ -43,18 +45,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
         <View style={styles.titleColumn}>
           {!showBack && (
-            <Text style={styles.brandSubtitle}>{subtitle}</Text>
+            <Text style={styles.brandSubtitle} numberOfLines={1}>{subtitle}</Text>
           )}
-          <Text style={styles.titleText}>{title}</Text>
+          <Text style={styles.titleText} numberOfLines={1}>{title}</Text>
         </View>
       </View>
 
       <View style={styles.rightContainer}>
-        {!showBack && (
+        {!showBack && onNotificationPress && (
           <TouchableOpacity
             style={styles.iconButton}
             onPress={onNotificationPress}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Notificaciones"
           >
             <Icon name="bell" size={22} color={COLORS.textPrimary} />
             {hasUnreadNotifications && <View style={styles.notificationDot} />}
@@ -65,6 +69,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           style={styles.avatarButton}
           onPress={onProfilePress}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Mi perfil"
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
         >
           <View style={styles.avatarCircle}>
             <Icon name="user" size={18} color="#FFFFFF" />
@@ -80,6 +87,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
     backgroundColor: COLORS.backgroundWhite,
@@ -100,6 +108,7 @@ const styles = StyleSheet.create({
   },
   titleColumn: {
     justifyContent: 'center',
+    flexShrink: 1,
   },
   brandSubtitle: {
     fontFamily: FONTS.bold,
@@ -117,6 +126,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flexShrink: 0,
   },
   iconButton: {
     width: 38,

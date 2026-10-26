@@ -1,18 +1,33 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
+import { GLUCOSA_CAPTURA_MAX, GLUCOSA_CAPTURA_MIN, textoRangoMeta } from '../../../services/umbrales';
 
 interface ValorGlucosaCardProps {
-  value: number;
-  onChangeValue: (val: number) => void;
+  /** Texto del campo (solo dígitos); vacío si aún no se ingresó. */
+  value: string;
+  onChangeValue: (val: string) => void;
 }
+
+/** Rango aceptado al guardar (validado también en RegistroToma). */
+export const VALOR_MIN = GLUCOSA_CAPTURA_MIN;
+export const VALOR_MAX = GLUCOSA_CAPTURA_MAX;
+const LIMITE_INFERIOR = VALOR_MIN;
+const LIMITE_SUPERIOR = VALOR_MAX;
 
 export const ValorGlucosaCard: React.FC<ValorGlucosaCardProps> = ({
   value,
   onChangeValue,
 }) => {
+  const numero = parseInt(value, 10);
+  const paso = (delta: number) => {
+    const base = Number.isNaN(numero) ? 100 : numero;
+    onChangeValue(String(Math.min(LIMITE_SUPERIOR, Math.max(LIMITE_INFERIOR, base + delta))));
+  };
+
   return (
     <View style={styles.card}>
       <Text style={styles.label}>
@@ -20,27 +35,42 @@ export const ValorGlucosaCard: React.FC<ValorGlucosaCardProps> = ({
       </Text>
 
       <View style={styles.valueRow}>
-        <Text style={styles.bigNumber}>{value}</Text>
+        <TextInput
+          style={styles.bigNumber}
+          value={value}
+          onChangeText={(texto) => onChangeValue(texto.replace(/\D/g, '').slice(0, 3))}
+          keyboardType="number-pad"
+          placeholder="---"
+          placeholderTextColor={COLORS.textMuted}
+          maxLength={3}
+          testID="registro-valor"
+        />
         <Text style={styles.unitText}>mg/dL</Text>
       </View>
 
       <View style={styles.controlsRow}>
         <TouchableOpacity
           style={styles.circleBtn}
-          onPress={() => onChangeValue(Math.max(40, value - 1))}
+          onPress={() => paso(-1)}
           activeOpacity={0.7}
+          testID="registro-menos"
+          accessibilityRole="button"
+          accessibilityLabel="Disminuir el valor"
         >
           <Icon name="minus" size={20} color={COLORS.textPrimary} />
         </TouchableOpacity>
 
         <View style={styles.rangePill}>
-          <Text style={styles.rangeText}>Rango óptimo: 70 - 140 mg/dL</Text>
+          <Text style={styles.rangeText}>Rango óptimo: {textoRangoMeta(' - ')} mg/dL</Text>
         </View>
 
         <TouchableOpacity
           style={styles.circleBtn}
-          onPress={() => onChangeValue(Math.min(400, value + 1))}
+          onPress={() => paso(1)}
           activeOpacity={0.7}
+          testID="registro-mas"
+          accessibilityRole="button"
+          accessibilityLabel="Aumentar el valor"
         >
           <Icon name="plus" size={20} color={COLORS.textPrimary} />
         </TouchableOpacity>
@@ -71,7 +101,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   requiredStar: {
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
   },
   valueRow: {
     flexDirection: 'row',
@@ -80,9 +110,14 @@ const styles = StyleSheet.create({
   },
   bigNumber: {
     fontFamily: FONTS.bold,
-    fontSize: 56,
+    fontSize: FUENTE.cifraGrande,
     color: COLORS.textPrimary,
     letterSpacing: -1,
+    padding: 0,
+    minWidth: 90,
+    flexShrink: 1,
+    maxWidth: 140,
+    textAlign: 'right',
   },
   unitText: {
     fontFamily: FONTS.medium,

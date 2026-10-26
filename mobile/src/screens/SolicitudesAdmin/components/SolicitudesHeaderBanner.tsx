@@ -5,21 +5,21 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface SolicitudesHeaderBannerProps {
-  pendingCount?: number;
+  pendingCount: number;
 }
 
 export const SolicitudesHeaderBanner: React.FC<SolicitudesHeaderBannerProps> = ({
-  pendingCount = 5,
+  pendingCount,
 }) => {
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="solicitud-banner">
       <View style={styles.contentCol}>
         <View style={styles.titleRow}>
           <View style={styles.blueDot} />
           <Text style={styles.titleText}>Solicitudes de Registro</Text>
         </View>
-        <Text style={styles.subtitleText}>
-          {pendingCount} pendientes de validación clínica
+        <Text style={styles.subtitleText} testID="solicitud-pendientes">
+          {pendingCount === 1 ? '1 pendiente de activación' : `${pendingCount} pendientes de activación`}
         </Text>
       </View>
 

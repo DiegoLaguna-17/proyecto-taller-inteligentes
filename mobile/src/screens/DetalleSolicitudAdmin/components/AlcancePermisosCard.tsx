@@ -4,22 +4,22 @@ import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
-const PERMISSIONS = [
-  'Acceso a historiales glucémicos de pacientes asignados',
-  'Ajuste de dosis y configuración de rangos basales',
-  'Exportación de reportes clínicos en formato estándar',
+// Lo único que hace "activar" en el backend es poner la cuenta en estado activo (usuario.estado = true).
+const EFECTOS = [
+  'La cuenta quedará activa.',
+  'La persona podrá iniciar sesión con su correo y su contraseña.',
 ];
 
 export const AlcancePermisosCard: React.FC = () => {
   return (
     <View style={styles.card}>
-      <Text style={styles.sectionLabel}>ALCANCE Y PERMISOS A OTORGAR</Text>
-      {PERMISSIONS.map((perm, index) => (
+      <Text style={styles.sectionLabel}>AL ACTIVAR LA CUENTA</Text>
+      {EFECTOS.map((texto, index) => (
         <View key={index} style={styles.itemRow}>
           <View style={styles.iconCircle}>
             <Icon name="check" size={14} color={COLORS.primary} />
           </View>
-          <Text style={styles.itemText}>{perm}</Text>
+          <Text style={styles.itemText}>{texto}</Text>
         </View>
       ))}
     </View>

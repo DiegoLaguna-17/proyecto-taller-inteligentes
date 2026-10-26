@@ -3,21 +3,30 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { MetricasReporte, REPORTE_MAX, REPORTE_MIN } from '../../../services/medicoVista';
+import { TIR_OBJETIVO_PORCENTAJE } from '../../../services/umbrales';
 
 interface MetricasReportePreviewProps {
   patientName: string;
+  metricas: MetricasReporte;
+  dias: 7 | 30;
 }
 
 export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
   patientName,
+  metricas,
+  dias,
 }) => {
+  const cumpleMeta = metricas.tir !== null && metricas.tir >= TIR_OBJETIVO_PORCENTAJE;
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="reportes-metricas">
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>PREVISUALIZACIÓN DE MÉTRICAS</Text>
         <View style={styles.syncBadge}>
           <View style={styles.blueDot} />
-          <Text style={styles.syncText}>Sincronizado</Text>
+          <Text style={styles.syncText}>
+            {metricas.total === 1 ? '1 lectura' : `${metricas.total} lecturas`}
+          </Text>
         </View>
       </View>
 
@@ -26,11 +35,7 @@ export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
         <View style={styles.cardHeader}>
           <View>
             <Text style={styles.patientName}>{patientName}</Text>
-            <Text style={styles.calcText}>Cálculo automatizado AGP (30 días)</Text>
-          </View>
-          <View style={styles.validBadge}>
-            <Icon name="shieldCheck" size={13} color={COLORS.primary} />
-            <Text style={styles.validText}>Válido</Text>
+            <Text style={styles.calcText}>Resumen de los últimos {dias} días</Text>
           </View>
         </View>
 
@@ -40,12 +45,12 @@ export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Promedio general</Text>
             <View style={styles.valueRow}>
-              <Text style={styles.gridBigNum}>126</Text>
+              <Text style={styles.gridBigNum} testID="reportes-promedio">{metricas.promedio ?? '--'}</Text>
               <Text style={styles.gridUnit}>mg/dL</Text>
             </View>
             <View style={styles.indicatorRow}>
               <Icon name="arrowRight" size={12} color={COLORS.primary} />
-              <Text style={styles.indicatorPrimary}>Estable</Text>
+              <Text style={styles.indicatorPrimary}>Promedio de lecturas</Text>
             </View>
           </View>
 
@@ -53,12 +58,14 @@ export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Tiempo en rango (TIR)</Text>
             <View style={styles.valueRow}>
-              <Text style={styles.gridBigNum}>74%</Text>
-              <Text style={styles.gridUnit}>70-180</Text>
+              <Text style={styles.gridBigNum} testID="reportes-tir">{metricas.tir === null ? '--' : `${metricas.tir}%`}</Text>
+              <Text style={styles.gridUnit}>{REPORTE_MIN}-{REPORTE_MAX}</Text>
             </View>
             <View style={styles.indicatorRow}>
-              <Icon name="check" size={12} color={COLORS.normal} />
-              <Text style={styles.indicatorSuccess}>Meta &gt;70%</Text>
+              <Icon name="check" size={12} color={cumpleMeta ? COLORS.normal : COLORS.textMuted} />
+              <Text style={cumpleMeta ? styles.indicatorSuccess : styles.indicatorPrimary}>
+                {cumpleMeta ? `Meta >${TIR_OBJETIVO_PORCENTAJE}% cumplida` : `Meta >${TIR_OBJETIVO_PORCENTAJE}%`}
+              </Text>
             </View>
           </View>
 
@@ -69,10 +76,10 @@ export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
               <View style={[styles.grayDot, { backgroundColor: COLORS.textMuted }]} />
             </View>
             <View style={styles.valueRow}>
-              <Text style={styles.gridBigNum}>3</Text>
-              <Text style={styles.gridSubLabel}>episodios</Text>
+              <Text style={styles.gridBigNum} testID="reportes-hipo">{metricas.hipo}</Text>
+              <Text style={styles.gridSubLabel}>{metricas.hipo === 1 ? 'episodio' : 'episodios'}</Text>
             </View>
-            <Text style={styles.rangeSubtext}>&lt; 70 mg/dL (1.2%)</Text>
+            <Text style={styles.rangeSubtext}>&lt; {REPORTE_MIN} mg/dL ({metricas.pctBajo}%)</Text>
           </View>
 
           {/* Item 4 */}
@@ -82,10 +89,10 @@ export const MetricasReportePreview: React.FC<MetricasReportePreviewProps> = ({
               <View style={[styles.grayDot, { backgroundColor: COLORS.textMuted }]} />
             </View>
             <View style={styles.valueRow}>
-              <Text style={styles.gridBigNum}>2</Text>
-              <Text style={styles.gridSubLabel}>episodios</Text>
+              <Text style={styles.gridBigNum} testID="reportes-hiper">{metricas.hiper}</Text>
+              <Text style={styles.gridSubLabel}>{metricas.hiper === 1 ? 'episodio' : 'episodios'}</Text>
             </View>
-            <Text style={styles.rangeSubtext}>&gt; 180 mg/dL (2.8%)</Text>
+            <Text style={styles.rangeSubtext}>&gt; {REPORTE_MAX} mg/dL ({metricas.pctAlto}%)</Text>
           </View>
         </View>
       </View>
@@ -226,7 +233,7 @@ const styles = StyleSheet.create({
   indicatorSuccess: {
     fontFamily: FONTS.semiBold,
     fontSize: 11,
-    color: COLORS.normal,
+    color: COLORS.normalText,
   },
   rangeSubtext: {
     fontFamily: FONTS.regular,

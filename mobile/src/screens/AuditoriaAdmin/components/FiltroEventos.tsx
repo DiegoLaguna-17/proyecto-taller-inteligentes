@@ -9,24 +9,28 @@ export type EventFilterType = 'todos' | 'accesos' | 'modificaciones';
 interface FiltroEventosProps {
   filter: EventFilterType;
   onSelectFilter: (f: EventFilterType) => void;
-  onPressDate?: () => void;
+  /** true = solo los eventos de hoy. */
+  soloHoy: boolean;
+  onToggleHoy: () => void;
 }
 
 export const FiltroEventos: React.FC<FiltroEventosProps> = ({
   filter,
   onSelectFilter,
-  onPressDate,
+  soloHoy,
+  onToggleHoy,
 }) => {
   return (
     <View style={styles.container}>
       {/* Date Pill */}
       <TouchableOpacity
         style={styles.datePill}
-        onPress={onPressDate}
+        onPress={onToggleHoy}
         activeOpacity={0.7}
+        testID="auditoria-fecha"
       >
         <Icon name="calendar" size={16} color={COLORS.primary} />
-        <Text style={styles.dateText}>Hoy, 24 de Octubre</Text>
+        <Text style={styles.dateText}>{soloHoy ? 'Solo hoy' : 'Todo el historial'}</Text>
         <Icon name="chevronDown" size={14} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
@@ -39,6 +43,7 @@ export const FiltroEventos: React.FC<FiltroEventosProps> = ({
           ]}
           onPress={() => onSelectFilter('todos')}
           activeOpacity={0.8}
+          testID="auditoria-filtro-todos"
         >
           <Text
             style={[
@@ -59,6 +64,7 @@ export const FiltroEventos: React.FC<FiltroEventosProps> = ({
           ]}
           onPress={() => onSelectFilter('accesos')}
           activeOpacity={0.8}
+          testID="auditoria-filtro-accesos"
         >
           <Text
             style={[
@@ -81,6 +87,7 @@ export const FiltroEventos: React.FC<FiltroEventosProps> = ({
           ]}
           onPress={() => onSelectFilter('modificaciones')}
           activeOpacity={0.8}
+          testID="auditoria-filtro-modificaciones"
         >
           <Text
             style={[
@@ -122,6 +129,7 @@ const styles = StyleSheet.create({
   },
   pillsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   pill: {

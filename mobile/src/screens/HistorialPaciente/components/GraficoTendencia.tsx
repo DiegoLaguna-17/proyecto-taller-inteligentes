@@ -3,8 +3,39 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { RegistroHistorial } from '../../../services/glucosa';
+import { clasificacionDeRegistro, etiquetaDia } from '../../../services/historial';
+import { RANGO_META_MAX, RANGO_META_MIN, textoRangoMeta } from '../../../services/umbrales';
+import { DOMINIO_GRAFICO_GLUCOSA, posicionY } from '../../../utils/medidas';
 
-export const GraficoTendencia: React.FC = () => {
+interface GraficoTendenciaProps {
+  /** Lecturas del periodo en orden cronológico (máximo 7 puntos). */
+  puntos: RegistroHistorial[];
+  /** Porcentaje de lecturas dentro del rango meta; null si no hay datos. */
+  tir: number | null;
+}
+
+// Escala: dominio 40-240 mg/dL sobre el área del gráfico (y=10 arriba, y=130 abajo); los límites del rango meta
+// salen de umbrales.ts, así que cambiar el rango mueve la banda sin tocar este archivo.
+const ALTO_SVG = 140;
+const yDe = (valor: number) => posicionY(valor, DOMINIO_GRAFICO_GLUCOSA, 10, 130);
+const VALOR_MEDIO = Math.round((RANGO_META_MIN + RANGO_META_MAX) / 2);
+const Y_MAX = yDe(RANGO_META_MAX);
+const Y_MEDIO = yDe(VALOR_MEDIO);
+const Y_MIN = yDe(RANGO_META_MIN);
+const xDe = (i: number, n: number) => (n === 1 ? 137 : 10 + (i * 255) / (n - 1));
+const COLOR_PUNTO = { Normal: '#2563EB', 'Riesgo Hipo': '#D97706', 'Riesgo Hiper': '#EF4444' } as const;
+
+export const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({ puntos, tir }) => {
+  const n = puntos.length;
+  const coords = puntos.map((r, i) => ({
+    x: xDe(i, n),
+    y: yDe(r.nivelGlucosa ?? 0),
+    color: COLOR_PUNTO[clasificacionDeRegistro(r)],
+    etiqueta: etiquetaDia(r.fecha),
+  }));
+  const trazo = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+
   return (
     <View style={styles.card}>
       {/* Header */}
@@ -13,103 +44,66 @@ export const GraficoTendencia: React.FC = () => {
           <View style={styles.blueDot} />
           <Text style={styles.titleText}>Curva de tendencia</Text>
         </View>
-        <Text style={styles.metaLegend}>— Meta 70-140</Text>
+        <Text style={styles.metaLegend}>— Meta {textoRangoMeta()}</Text>
       </View>
 
       {/* SVG Chart area */}
       <View style={styles.chartContainer}>
         {/* Y Axis labels */}
         <View style={styles.yAxisCol}>
-          <Text style={styles.yAxisLabel}>180</Text>
-          <Text style={styles.yAxisLabel}>140</Text>
-          <Text style={styles.yAxisLabel}>100</Text>
-          <Text style={styles.yAxisLabel}>70</Text>
+          {[Y_MAX, Y_MEDIO, Y_MIN].map((y, k) => (
+            <Text key={k} style={[styles.yAxisLabel, { top: `${(y / ALTO_SVG) * 100}%` }]}>
+              {[RANGO_META_MAX, VALOR_MEDIO, RANGO_META_MIN][k]}
+            </Text>
+          ))}
         </View>
 
         <View style={styles.svgWrapper}>
           <Svg height="140" width="100%" viewBox="0 0 280 140">
-            {/* Horizontal guide lines */}
-            <Line
-              x1="0"
-              y1="10"
-              x2="280"
-              y2="10"
-              stroke="#E2E8F0"
-              strokeDasharray="4 4"
-              strokeWidth="1"
-            />
-            <Line
-              x1="0"
-              y1="40"
-              x2="280"
-              y2="40"
-              stroke="#CBD5E1"
-              strokeDasharray="3 3"
-              strokeWidth="1"
-            />
-            <Line
-              x1="0"
-              y1="80"
-              x2="280"
-              y2="80"
-              stroke="#E2E8F0"
-              strokeDasharray="4 4"
-              strokeWidth="1"
-            />
-            <Line
-              x1="0"
-              y1="110"
-              x2="280"
-              y2="110"
-              stroke="#CBD5E1"
-              strokeDasharray="3 3"
-              strokeWidth="1"
-            />
+            {/* Guías: límites del rango meta y punto medio (posiciones calculadas con umbrales.ts) */}
+            {[Y_MAX, Y_MEDIO, Y_MIN].map((y, k) => (
+              <Line
+                key={k}
+                x1="0"
+                y1={y}
+                x2="280"
+                y2={y}
+                stroke={k === 1 ? '#E2E8F0' : '#CBD5E1'}
+                strokeDasharray="4 4"
+                strokeWidth="1"
+              />
+            ))}
 
-            {/* Target Range Shaded Area (between y=40 (140) and y=110 (70)) */}
-            <Rect
-              x="0"
-              y="40"
-              width="280"
-              height="70"
-              fill="#E0F2FE"
-              opacity="0.45"
-            />
+            {/* Rango meta sombreado */}
+            <Rect x="0" y={Y_MAX} width="280" height={Y_MIN - Y_MAX} fill="#E0F2FE" opacity="0.45" />
 
-            {/* Smooth line curve */}
-            <Path
-              d="M 10 75 Q 35 70, 50 82 T 95 110 T 140 85 T 180 32 T 225 78 T 265 65"
-              fill="none"
-              stroke="#2563EB"
-              strokeWidth="3"
-            />
+            {/* Línea de tendencia */}
+            {n > 1 && <Path d={trazo} fill="none" stroke="#2563EB" strokeWidth="3" />}
 
-            {/* Data points */}
-            {/* J17 (100) */}
-            <Circle cx="10" cy="75" r="4.5" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-            {/* V18 (115) */}
-            <Circle cx="52" cy="72" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-            {/* S19 (68 - Hipo alert) */}
-            <Circle cx="95" cy="110" r="5" fill="#FFFFFF" stroke="#D97706" strokeWidth="3" />
-            {/* D20 (110) */}
-            <Circle cx="140" cy="85" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-            {/* L21 (165 - Hiper alert) */}
-            <Circle cx="180" cy="32" r="5" fill="#FFFFFF" stroke="#EF4444" strokeWidth="3" />
-            {/* M22 (120) */}
-            <Circle cx="225" cy="76" r="4" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-            {/* X23 (124 - Current) */}
-            <Circle cx="265" cy="65" r="4.5" fill="#2563EB" stroke="#2563EB" strokeWidth="2" />
+            {/* Puntos de datos (ámbar: hipoglucemia, rojo: hiperglucemia) */}
+            {coords.map((c, i) => (
+              <Circle
+                key={i}
+                cx={c.x}
+                cy={c.y}
+                r={4.5}
+                fill={i === n - 1 ? c.color : '#FFFFFF'}
+                stroke={c.color}
+                strokeWidth={c.color === '#2563EB' ? 2 : 3}
+              />
+            ))}
           </Svg>
 
           {/* X Axis labels */}
           <View style={styles.xAxisRow}>
-            <Text style={styles.xAxisLabel}>J17</Text>
-            <Text style={styles.xAxisLabel}>V18</Text>
-            <Text style={styles.xAxisLabel}>S19</Text>
-            <Text style={styles.xAxisLabel}>D20</Text>
-            <Text style={styles.xAxisLabel}>L21</Text>
-            <Text style={styles.xAxisLabel}>M22</Text>
-            <Text style={[styles.xAxisLabel, styles.xAxisLabelActive]}>X23</Text>
+            {coords.map((c, i) => (
+              <Text
+                key={i}
+                style={[styles.xAxisLabel, i === n - 1 && styles.xAxisLabelActive]}
+              >
+                {c.etiqueta}
+              </Text>
+            ))}
           </View>
         </View>
       </View>
@@ -118,9 +112,11 @@ export const GraficoTendencia: React.FC = () => {
       <View style={styles.footerRow}>
         <View style={styles.legendLeft}>
           <View style={[styles.dot, { backgroundColor: COLORS.normal }]} />
-          <Text style={styles.legendText}>Objetivo en rango: 70 - 140 mg/dL</Text>
+          <Text style={styles.legendText}>Objetivo en rango: {textoRangoMeta(' - ')} mg/dL</Text>
         </View>
-        <Text style={styles.tirText}>TIR: 88%</Text>
+        <Text style={styles.tirText} testID="historial-tir">
+          TIR: {tir === null ? '--' : `${tir}%`}
+        </Text>
       </View>
     </View>
   );
@@ -174,12 +170,14 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   yAxisCol: {
-    height: 140,
-    justifyContent: 'space-between',
+    height: ALTO_SVG,
+    width: 28,
     paddingRight: 8,
-    alignItems: 'flex-end',
   },
   yAxisLabel: {
+    position: 'absolute',
+    right: 8,
+    marginTop: -6,
     fontFamily: FONTS.regular,
     fontSize: 10,
     color: COLORS.textMuted,

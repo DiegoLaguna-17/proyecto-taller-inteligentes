@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { COLORS } from '../utils/colors';
 import { FONTS } from '../utils/typography';
-import { UserRole } from '../utils/mockData';
+import { UserRole } from '../utils/tipos';
+import { ESPACIO } from '../utils/medidas';
 
 export type NavTabId = string;
 
@@ -46,9 +48,11 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onSelectTab,
 }) => {
   const tabs = ROLE_TABS[role] || ROLE_TABS.paciente;
+  // Barra de gestos / botones de navegación del sistema: la barra queda por encima, no debajo
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(ESPACIO.xl, insets.bottom + ESPACIO.sm) }]}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const color = isActive ? COLORS.primary : COLORS.textSecondary;
@@ -59,11 +63,15 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
             style={styles.tabButton}
             onPress={() => onSelectTab(tab.id)}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: isActive }}
           >
             <View style={styles.iconContainer}>
               <Icon name={tab.iconName} size={22} color={color} />
             </View>
             <Text
+              numberOfLines={1}
               style={[
                 styles.tabLabel,
                 {

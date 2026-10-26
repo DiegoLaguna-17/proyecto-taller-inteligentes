@@ -3,63 +3,39 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
-export type AlertFilter = 'all' | 'hipo' | 'hiper';
+export type AlertFilter = 'todas' | 'hipo' | 'hiper';
 
 interface FiltroAlertasProps {
   filter: AlertFilter;
   onSelectFilter: (f: AlertFilter) => void;
+  conteos: { todas: number; hipo: number; hiper: number };
 }
 
 export const FiltroAlertas: React.FC<FiltroAlertasProps> = ({
   filter,
   onSelectFilter,
+  conteos,
 }) => {
+  const pills: { id: AlertFilter; texto: string }[] = [
+    { id: 'todas', texto: `Todas (${conteos.todas})` },
+    { id: 'hipo', texto: `Riesgo Hipo (${conteos.hipo})` },
+    { id: 'hiper', texto: `Riesgo Hiper (${conteos.hiper})` },
+  ];
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={[styles.pill, filter === 'all' ? styles.pillActive : styles.pillInactive]}
-        onPress={() => onSelectFilter('all')}
-        activeOpacity={0.8}
-      >
-        <Text
-          style={[
-            styles.pillText,
-            filter === 'all' ? styles.pillTextActive : styles.pillTextInactive,
-          ]}
+      {pills.map((p) => (
+        <TouchableOpacity
+          key={p.id}
+          style={[styles.pill, filter === p.id ? styles.pillActive : styles.pillInactive]}
+          onPress={() => onSelectFilter(p.id)}
+          activeOpacity={0.8}
+          testID={`alertas-filtro-${p.id}`}
         >
-          Todas (4)
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.pill, filter === 'hipo' ? styles.pillActive : styles.pillInactive]}
-        onPress={() => onSelectFilter('hipo')}
-        activeOpacity={0.8}
-      >
-        <Text
-          style={[
-            styles.pillText,
-            filter === 'hipo' ? styles.pillTextActive : styles.pillTextInactive,
-          ]}
-        >
-          Riesgo Hipo (2)
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.pill, filter === 'hiper' ? styles.pillActive : styles.pillInactive]}
-        onPress={() => onSelectFilter('hiper')}
-        activeOpacity={0.8}
-      >
-        <Text
-          style={[
-            styles.pillText,
-            filter === 'hiper' ? styles.pillTextActive : styles.pillTextInactive,
-          ]}
-        >
-          Riesgo Hiper (2)
-        </Text>
-      </TouchableOpacity>
+          <Text style={[styles.pillText, filter === p.id ? styles.pillTextActive : styles.pillTextInactive]}>
+            {p.texto}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 };
@@ -67,6 +43,7 @@ export const FiltroAlertas: React.FC<FiltroAlertasProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },

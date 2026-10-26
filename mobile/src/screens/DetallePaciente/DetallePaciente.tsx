@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
 import { Icon } from '../../shared/Icon';
@@ -14,24 +15,57 @@ import { UltimaTelemetriaCard } from './components/UltimaTelemetriaCard';
 import { CurvaGlucemiaMedico } from './components/CurvaGlucemiaMedico';
 import { RegistrosRecientesMedico } from './components/RegistrosRecientesMedico';
 import { TratamientoVinculadoCard } from './components/TratamientoVinculadoCard';
-import { PatientSummary } from '../../utils/mockData';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { PacienteMedico } from '../../services/medico';
+import { RegistroHistorial, obtenerRegistros } from '../../services/glucosa';
+import { etiquetaFechaHora, filtrarPorPeriodo } from '../../services/historial';
+import { edadDesdeFechaNac, iniciales } from '../../services/medicoVista';
+import { mensajeDeError } from '../../services/http';
 
 interface DetallePacienteProps {
-  patient?: PatientSummary;
+  paciente: PacienteMedico;
   onBack: () => void;
-  onGenerateReport: (patientName: string) => void;
+  onGenerateReport: (idPaciente: number) => void;
   onNavigatePerfil?: () => void;
 }
 
 export const DetallePaciente: React.FC<DetallePacienteProps> = ({
-  patient,
+  paciente,
   onBack,
   onGenerateReport,
   onNavigatePerfil,
 }) => {
-  const patientName = patient?.name || 'Elena Soto';
+  const [registros, setRegistros] = useState<RegistroHistorial[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    try {
+      setRegistros(await obtenerRegistros(paciente.id));
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }, [paciente.id]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const hoy = useMemo(() => new Date(), []);
+  const validos = useMemo(() => registros.filter((r) => r.nivelGlucosa !== null), [registros]);
+  const ultimo = validos[0] ?? null;
+  const tomasHoy = useMemo(() => filtrarPorPeriodo(validos, 'Diario', hoy).length, [validos, hoy]);
+
+  const edad = edadDesdeFechaNac(paciente.fechaNac, hoy);
+  const partes = [
+    edad !== null ? `${edad} años` : null,
+    paciente.afecciones.length > 0 ? paciente.afecciones.join(', ') : null,
+  ].filter(Boolean);
 
   return (
     <View style={styles.container}>
@@ -52,6 +86,7 @@ export const DetallePaciente: React.FC<DetallePacienteProps> = ({
             style={styles.backPill}
             onPress={onBack}
             activeOpacity={0.7}
+            testID="detalle-volver"
           >
             <Icon name="arrowLeft" size={14} color={COLORS.primary} />
             <Text style={styles.backPillText}>Pacientes</Text>
@@ -65,29 +100,51 @@ export const DetallePaciente: React.FC<DetallePacienteProps> = ({
 
         {/* Patient card */}
         <PacienteHeaderCard
-          name={patientName}
-          idCode={patient?.code ? `ID: ${patient.code}` : 'ID: #4082'}
+          name={paciente.nombre}
+          initials={iniciales(paciente.nombre)}
+          idCode={`ID: #${paciente.id}`}
+          ageAndCondition={partes.length > 0 ? partes.join(' · ') : 'Sin datos clínicos'}
+          phone={paciente.telefono ?? 'No registrado'}
+          lastReading={ultimo ? etiquetaFechaHora(ultimo.fecha, ultimo.hora, hoy) : 'Sin tomas'}
         />
 
-        {/* Telemetry card */}
-        <UltimaTelemetriaCard />
+        {cargando ? (
+          <View style={styles.estadoBox} testID="detalle-cargando">
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : error ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="detalle-error">{error}</Text>
+            <CustomButton title="Reintentar" onPress={cargar} testID="detalle-reintentar" />
+          </View>
+        ) : !ultimo ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="detalle-vacio">Este paciente aún no tiene lecturas registradas.</Text>
+          </View>
+        ) : (
+          <>
+            {/* Telemetry card */}
+            <UltimaTelemetriaCard registro={ultimo} hoy={hoy} />
 
-        {/* Glucose Curve */}
-        <CurvaGlucemiaMedico />
+            {/* Glucose Curve */}
+            <CurvaGlucemiaMedico registros={validos} hoy={hoy} />
 
-        {/* Recent Readings */}
-        <RegistrosRecientesMedico />
+            {/* Recent Readings */}
+            <RegistrosRecientesMedico registros={validos} hoy={hoy} tomasHoy={tomasHoy} />
+          </>
+        )}
 
         {/* Treatment Linked */}
-        <TratamientoVinculadoCard />
+        <TratamientoVinculadoCard tratamientos={paciente.tratamientos} />
 
         {/* Action Button: Generar reporte clínico */}
         <CustomButton
           title="Generar reporte clínico"
-          onPress={() => onGenerateReport(patientName)}
+          onPress={() => onGenerateReport(paciente.id)}
           iconLeft="fileText"
           size="lg"
           style={styles.actionBtn}
+          testID="detalle-reporte"
         />
       </ScrollView>
     </View>
@@ -95,6 +152,17 @@ export const DetallePaciente: React.FC<DetallePacienteProps> = ({
 };
 
 const styles = StyleSheet.create({
+  estadoBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    gap: 12,
+  },
+  estadoText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

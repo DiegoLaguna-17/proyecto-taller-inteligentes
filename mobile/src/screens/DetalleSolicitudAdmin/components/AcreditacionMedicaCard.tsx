@@ -1,47 +1,94 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Icon } from '../../../shared/Icon';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { CustomButton } from '../../../shared/CustomButton';
+import { abrirDocumento } from '../../../shared/documentos';
+import { esUrlAbrible } from '../../../services/administradorVista';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface AcreditacionMedicaCardProps {
-  license?: string;
-  college?: string;
+  matriculaUrl: string | null;
+  carnetUrl: string | null;
 }
 
+// Documentos subidos por el médico (URL de Storage). La "verificación en el padrón nacional" de la maqueta no existe.
 export const AcreditacionMedicaCard: React.FC<AcreditacionMedicaCardProps> = ({
-  license = 'MN 142.890',
-  college = 'Colegio Médico Nacional',
+  matriculaUrl,
+  carnetUrl,
 }) => {
+  const [error, setError] = useState('');
+
+  const abrir = async (url: string | null) => {
+    setError('');
+    const e = await abrirDocumento(url);
+    if (e) setError(e);
+  };
+
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="solicitud-documentos">
       <View style={styles.headerRow}>
-        <Text style={styles.sectionLabel}>ACREDITACIÓN MÉDICA</Text>
-        <View style={styles.officialBadge}>
-          <Text style={styles.officialText}>Oficial</Text>
-        </View>
+        <Text style={styles.sectionLabel}>DOCUMENTOS PROFESIONALES</Text>
       </View>
 
-      <Text style={styles.licenseLabel}>Matrícula profesional</Text>
-      <Text style={styles.licenseNumber}>{license}</Text>
-      <Text style={styles.collegeText}>{college}</Text>
+      <Text style={styles.licenseLabel}>Matrícula profesional (PDF)</Text>
+      {esUrlAbrible(matriculaUrl) ? (
+        <CustomButton
+          title="Abrir matrícula"
+          onPress={() => abrir(matriculaUrl)}
+          variant="secondary"
+          size="sm"
+          iconLeft="fileText"
+          style={styles.docBtn}
+          testID="solicitud-abrir-matricula"
+        />
+      ) : (
+        <Text style={styles.collegeText} testID="solicitud-sin-matricula">No se cargó la matrícula.</Text>
+      )}
 
-      <View style={styles.verifiedBox}>
-        <Icon name="checkBadge" size={20} color={COLORS.primary} />
-        <View style={styles.verifiedTextCol}>
-          <Text style={styles.verifiedTitle}>
-            Registro oficial verificado en padrón nacional
-          </Text>
-          <Text style={styles.verifiedDesc}>
-            Última conciliación automática de identidad completada hoy.
-          </Text>
-        </View>
-      </View>
+      <Text style={[styles.licenseLabel, styles.docGap]}>Carnet profesional</Text>
+      {esUrlAbrible(carnetUrl) ? (
+        <>
+          <Image source={{ uri: carnetUrl }} style={styles.preview} resizeMode="contain" testID="solicitud-carnet-vista" />
+          <CustomButton
+            title="Abrir carnet"
+            onPress={() => abrir(carnetUrl)}
+            variant="secondary"
+            size="sm"
+            iconLeft="idCard"
+            style={styles.docBtn}
+            testID="solicitud-abrir-carnet"
+          />
+        </>
+      ) : (
+        <Text style={styles.collegeText} testID="solicitud-sin-carnet">No se cargó el carnet.</Text>
+      )}
+
+      {error ? <Text style={styles.error} testID="solicitud-doc-error">{error}</Text> : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  docBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  docGap: {
+    marginTop: 16,
+  },
+  preview: {
+    width: '100%',
+    height: 170,
+    borderRadius: 12,
+    backgroundColor: COLORS.surfaceLight,
+    marginTop: 8,
+  },
+  error: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.riesgoHiperText,
+    marginTop: 10,
+  },
   card: {
     backgroundColor: COLORS.backgroundWhite,
     borderRadius: 20,

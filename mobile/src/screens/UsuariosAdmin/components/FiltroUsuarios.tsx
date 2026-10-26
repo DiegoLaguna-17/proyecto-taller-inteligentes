@@ -11,6 +11,7 @@ interface FiltroUsuariosProps {
   onChangeSearch: (t: string) => void;
   filter: UserStatusFilter;
   onSelectFilter: (f: UserStatusFilter) => void;
+  conteos: { todos: number; activos: number; inactivos: number };
 }
 
 export const FiltroUsuarios: React.FC<FiltroUsuariosProps> = ({
@@ -18,7 +19,13 @@ export const FiltroUsuarios: React.FC<FiltroUsuariosProps> = ({
   onChangeSearch,
   filter,
   onSelectFilter,
+  conteos,
 }) => {
+  const pills: { id: UserStatusFilter; texto: string }[] = [
+    { id: 'todos', texto: `Todos ${conteos.todos}` },
+    { id: 'activos', texto: `Activos ${conteos.activos}` },
+    { id: 'inactivos', texto: `Inactivos ${conteos.inactivos}` },
+  ];
   return (
     <View style={styles.container}>
       {/* Search Input */}
@@ -30,68 +37,25 @@ export const FiltroUsuarios: React.FC<FiltroUsuariosProps> = ({
           placeholderTextColor={COLORS.textMuted}
           value={searchText}
           onChangeText={onChangeSearch}
+          testID="admin-buscar"
         />
       </View>
 
       {/* Filter pills */}
       <View style={styles.pillsRow}>
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            filter === 'todos' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFilter('todos')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.pillText,
-              filter === 'todos' ? styles.pillTextActive : styles.pillTextInactive,
-            ]}
+        {pills.map((p) => (
+          <TouchableOpacity
+            key={p.id}
+            style={[styles.pill, filter === p.id ? styles.pillActive : styles.pillInactive]}
+            onPress={() => onSelectFilter(p.id)}
+            activeOpacity={0.8}
+            testID={`admin-filtro-${p.id}`}
           >
-            Todos 42
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            filter === 'activos' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFilter('activos')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.pillText,
-              filter === 'activos'
-                ? styles.pillTextActive
-                : styles.pillTextInactive,
-            ]}
-          >
-            Activos 39
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            filter === 'inactivos' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFilter('inactivos')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.pillText,
-              filter === 'inactivos'
-                ? styles.pillTextActive
-                : styles.pillTextInactive,
-            ]}
-          >
-            Inactivos 3
-          </Text>
-        </TouchableOpacity>
+            <Text style={[styles.pillText, filter === p.id ? styles.pillTextActive : styles.pillTextInactive]}>
+              {p.texto}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -121,6 +85,7 @@ const styles = StyleSheet.create({
   },
   pillsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   pill: {

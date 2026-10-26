@@ -6,6 +6,7 @@ export const COLORS = {
   surfaceBlueSubtle: '#F4F7FC',
   surfaceSoftCard: '#EFF6FF',
   surfaceMuted: '#F1F5F9',
+  grayPillBg: '#F1F5F9',
   surfaceInput: '#F0F4F9',
 
   // Primary Action
@@ -18,7 +19,8 @@ export const COLORS = {
   // Text Colors
   textPrimary: '#0F172A',
   textSecondary: '#475569',
-  textMuted: '#94A3B8',
+  // Texto atenuado (placeholders, notas): #5F6F86 llega a 4,6:1 sobre el fondo de los campos (antes #94A3B8, 2,3:1)
+  textMuted: '#5F6F86',
   textLight: '#CBD5E1',
   textWhite: '#FFFFFF',
   textBlue: '#2563EB',

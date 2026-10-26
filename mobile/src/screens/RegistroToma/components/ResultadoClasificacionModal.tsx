@@ -4,37 +4,40 @@ import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { CustomButton } from '../../../shared/CustomButton';
 import { COLORS, ClassificationType } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
+import { Estado, EstadoAlerta, mensajeResultado } from '../../../services/clasificacionGlucosa';
 
 interface ResultadoClasificacionModalProps {
   visible: boolean;
   value: number;
   moment: string;
+  /** Resultado de la clasificación hecha en el cliente (null mientras no hay toma guardada). */
+  estado: Estado | null;
+  /** Si se registró la alerta al médico (solo aplica a hipoglucemia e hiperglucemia). */
+  alerta: EstadoAlerta;
   onGoHome: () => void;
 }
+
+const CLASIFICACION: Record<Exclude<Estado, 'PARAM_INVALIDO'>, ClassificationType> = {
+  NORMAL: 'Normal',
+  HIPOGLUCEMIA: 'Riesgo Hipo',
+  HIPERGLUCEMIA: 'Riesgo Hiper',
+};
 
 export const ResultadoClasificacionModal: React.FC<ResultadoClasificacionModalProps> = ({
   visible,
   value,
   moment,
+  estado,
+  alerta,
   onGoHome,
 }) => {
-  let classification: ClassificationType = 'Normal';
-  let message =
-    'Tu nivel de glucemia se encuentra dentro de los parámetros esperados para este momento.';
-
-  if (value < 70) {
-    classification = 'Riesgo Hipo';
-    message =
-      'Se ha detectado un nivel bajo de glucosa. Consume 15g de carbohidratos rápidos y vuelve a medirte en 15 minutos.';
-  } else if (value > 140) {
-    classification = 'Riesgo Hiper';
-    message =
-      'Se ha detectado un nivel elevado de glucosa. Hidrátate con agua y sigue las indicaciones de tu médico tratante.';
-  }
+  const resultado: Estado = estado ?? 'NORMAL';
+  const message = mensajeResultado(resultado, alerta);
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
+      <View style={styles.overlay} testID="registro-resultado">
         <View style={styles.card}>
           <View style={styles.stepBadge}>
             <Text style={styles.stepBadgeText}>Paso 2 de 2 · Resultado</Text>
@@ -43,7 +46,7 @@ export const ResultadoClasificacionModal: React.FC<ResultadoClasificacionModalPr
           <Text style={styles.title}>Resultado de la clasificación</Text>
 
           <View style={styles.valueContainer}>
-            <Text style={styles.valueNumber}>{value}</Text>
+            <Text style={styles.valueNumber} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
             <Text style={styles.valueUnit}>mg/dL</Text>
           </View>
 
@@ -52,18 +55,25 @@ export const ResultadoClasificacionModal: React.FC<ResultadoClasificacionModalPr
             <Text style={styles.momentValue}>{moment}</Text>
           </View>
 
-          <View style={styles.badgeRow}>
-            <ClassificationBadge classification={classification} size="lg" />
+          <View style={styles.badgeRow} testID="registro-resultado-estado">
+            {resultado === 'PARAM_INVALIDO' ? (
+              <View style={styles.sinClasificar}>
+                <Text style={styles.sinClasificarText}>Sin clasificar</Text>
+              </View>
+            ) : (
+              <ClassificationBadge classification={CLASIFICACION[resultado]} size="lg" />
+            )}
           </View>
 
           <View style={styles.messageBox}>
-            <Text style={styles.messageText}>{message}</Text>
+            <Text style={styles.messageText} testID="registro-resultado-mensaje">{message}</Text>
           </View>
 
           <CustomButton
             title="Volver al inicio"
             onPress={onGoHome}
             style={styles.btn}
+            testID="registro-resultado-cerrar"
           />
         </View>
       </View>
@@ -85,6 +95,7 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     width: '100%',
+    maxWidth: 420,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
@@ -117,7 +128,7 @@ const styles = StyleSheet.create({
   },
   valueNumber: {
     fontFamily: FONTS.bold,
-    fontSize: 56,
+    fontSize: FUENTE.cifraGrande,
     color: COLORS.textPrimary,
     letterSpacing: -1,
   },
@@ -162,6 +173,17 @@ const styles = StyleSheet.create({
   },
   btn: {
     width: '100%',
+  },
+  sinClasificar: {
+    backgroundColor: COLORS.surfaceMuted,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  sinClasificarText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
 });
 

@@ -3,23 +3,40 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
 
-export const HistorialResumenCards: React.FC = () => {
+interface HistorialResumenCardsProps {
+  periodo: string;
+  promedio: number | null;
+  desviacion: number | null;
+  enRango: number | null;
+  total: number;
+}
+
+export const HistorialResumenCards: React.FC<HistorialResumenCardsProps> = ({
+  periodo,
+  promedio,
+  desviacion,
+  enRango,
+  total,
+}) => {
   return (
     <View style={styles.container}>
       {/* Card 1: Promedio Semanal */}
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <View style={[styles.dot, { backgroundColor: COLORS.primary }]} />
-          <Text style={styles.cardLabel}>Promedio Semanal</Text>
+          <Text style={styles.cardLabel}>Promedio {periodo}</Text>
         </View>
         <View style={styles.valueRow}>
-          <Text style={styles.bigNumber}>122</Text>
+          <Text style={styles.bigNumber} numberOfLines={1} adjustsFontSizeToFit testID="historial-promedio">{promedio ?? '--'}</Text>
           <Text style={styles.unitText}>mg/dL</Text>
         </View>
         <View style={styles.footerRow}>
           <Icon name="arrowRight" size={13} color={COLORS.primary} />
-          <Text style={styles.footerPrimary}>84% en rango</Text>
+          <Text style={styles.footerPrimary}>
+            {enRango === null ? 'Sin datos' : `${enRango}% en rango`}
+          </Text>
         </View>
       </View>
 
@@ -30,12 +47,16 @@ export const HistorialResumenCards: React.FC = () => {
           <Text style={styles.cardLabel}>Desviación Estándar</Text>
         </View>
         <View style={styles.valueRow}>
-          <Text style={styles.bigNumber}>± 28</Text>
+          <Text style={styles.bigNumber} testID="historial-desviacion">
+            {desviacion === null ? '--' : `± ${desviacion}`}
+          </Text>
           <Text style={styles.unitText}>mg/dL</Text>
         </View>
         <View style={styles.footerRow}>
           <Icon name="shieldCheck" size={13} color={COLORS.textSecondary} />
-          <Text style={styles.footerMuted}>Estabilidad alta</Text>
+          <Text style={styles.footerMuted}>
+            {total === 1 ? '1 registro' : `${total} registros`}
+          </Text>
         </View>
       </View>
     </View>
@@ -84,7 +105,7 @@ const styles = StyleSheet.create({
   },
   bigNumber: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: FUENTE.tituloGrande,
     color: COLORS.textPrimary,
   },
   unitText: {

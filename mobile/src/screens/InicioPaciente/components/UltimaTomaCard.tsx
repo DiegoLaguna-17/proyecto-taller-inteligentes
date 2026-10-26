@@ -4,6 +4,8 @@ import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
+import { textoRangoMeta } from '../../../services/umbrales';
 
 interface UltimaTomaCardProps {
   value?: number;
@@ -14,14 +16,14 @@ interface UltimaTomaCardProps {
 }
 
 export const UltimaTomaCard: React.FC<UltimaTomaCardProps> = ({
-  value = 112,
-  timeAgo = 'Hace 2 horas (08:30 AM)',
-  moment = 'Ayunas',
-  targetRange = 'Objetivo 70-130',
+  value = 0,
+  timeAgo = '',
+  moment = '',
+  targetRange = `Meta ${textoRangoMeta()} mg/dL`,
   classification = 'Normal',
 }) => {
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="inicio-ultima-toma">
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.titleLabel}>ÚLTIMA TOMA REGISTRADA</Text>
@@ -31,7 +33,7 @@ export const UltimaTomaCard: React.FC<UltimaTomaCardProps> = ({
       </View>
 
       <View style={styles.readingRow}>
-        <Text style={styles.readingValue}>{value}</Text>
+        <Text style={styles.readingValue} numberOfLines={1} adjustsFontSizeToFit testID="inicio-ultima-valor">{value}</Text>
         <Text style={styles.readingUnit}>mg/dL</Text>
       </View>
 
@@ -94,7 +96,7 @@ const styles = StyleSheet.create({
   },
   readingValue: {
     fontFamily: FONTS.bold,
-    fontSize: 54,
+    fontSize: FUENTE.cifraGrande,
     color: COLORS.textPrimary,
     letterSpacing: -1,
   },
@@ -106,8 +108,10 @@ const styles = StyleSheet.create({
   },
   footerRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: COLORS.surfaceLight,
     paddingHorizontal: 20,
     paddingVertical: 12,

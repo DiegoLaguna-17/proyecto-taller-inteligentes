@@ -1,54 +1,95 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
+import { CustomButton } from '../../shared/CustomButton';
 import {
   FiltroUsuarios,
   UserStatusFilter,
 } from './components/FiltroUsuarios';
 import { UsuarioCard } from './components/UsuarioCard';
 import { ModalEditarUsuario } from './components/ModalEditarUsuario';
-import {
-  MOCK_ADMIN_USERS,
-  AdminUser,
-} from '../../utils/mockData';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { USE_MOCK } from '../../services/config';
+import {
+  UsuarioAdmin,
+  activarUsuario,
+  obtenerAdministradores,
+  obtenerMedicosActivos,
+  obtenerMedicosSolicitantes,
+  obtenerPacientesActivos,
+  obtenerPacientesSolicitantes,
+} from '../../services/administrador';
+import { conteoUsuarios, filtrarUsuarios } from '../../services/administradorVista';
+import { mensajeDeError } from '../../services/http';
 
 interface UsuariosAdminProps {
+  /** id_admin de la sesión (id_rol). */
+  idAdmin: number;
   onNavigatePerfil?: () => void;
 }
 
+const FUENTES = ['médicos activos', 'pacientes activos', 'administradores', 'médicos pendientes', 'pacientes pendientes'];
+
 export const UsuariosAdmin: React.FC<UsuariosAdminProps> = ({
+  idAdmin,
   onNavigatePerfil,
 }) => {
-  const [users, setUsers] = useState<AdminUser[]>(MOCK_ADMIN_USERS);
+  const [users, setUsers] = useState<UsuarioAdmin[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [fallidas, setFallidas] = useState<string[]>([]);
   const [searchText, setSearchText] = useState('');
   const [filter, setFilter] = useState<UserStatusFilter>('todos');
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UsuarioAdmin | null>(null);
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchText.toLowerCase()) ||
-      u.role.toLowerCase().includes(searchText.toLowerCase());
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    const r = await Promise.allSettled([
+      obtenerMedicosActivos(),
+      obtenerPacientesActivos(),
+      obtenerAdministradores(idAdmin),
+      obtenerMedicosSolicitantes(),
+      obtenerPacientesSolicitantes(),
+    ]);
+    const lista: UsuarioAdmin[] = [];
+    const malas: string[] = [];
+    r.forEach((x, i) => {
+      if (x.status === 'fulfilled') lista.push(...x.value);
+      else malas.push(FUENTES[i]);
+    });
+    setUsers(lista);
+    setFallidas(malas);
+    if (malas.length === r.length) {
+      const primero = r.find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined;
+      setError(mensajeDeError(primero?.reason));
+    }
+    setCargando(false);
+  }, [idAdmin]);
 
-    if (!matchesSearch) return false;
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
-    if (filter === 'activos') return u.status === 'Activo';
-    if (filter === 'inactivos') return u.status === 'Inactivo';
-    return true;
-  });
+  const filteredUsers = useMemo(() => filtrarUsuarios(users, searchText, filter), [users, searchText, filter]);
+  const conteos = useMemo(() => conteoUsuarios(users), [users]);
 
-  const handleSaveUser = (updated: AdminUser) => {
-    setUsers((prev) =>
-      prev.map((item) => (item.id === updated.id ? updated : item))
-    );
+  const handleActivar = async (u: UsuarioAdmin) => {
+    try {
+      await activarUsuario(u.rol === 'Médico' ? 'Médico' : 'Paciente', u.id, idAdmin);
+    } catch (e) {
+      cargar(); // refleja el estado real aunque el servidor haya fallado a medias
+      throw e;
+    }
+    setSelectedUser(null);
+    await cargar();
   };
 
   return (
@@ -56,17 +97,18 @@ export const UsuariosAdmin: React.FC<UsuariosAdminProps> = ({
       <TopHeader
         title="Usuarios"
         onProfilePress={onNavigatePerfil}
-        hasUnreadNotifications
+        hasUnreadNotifications={USE_MOCK}
       />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.badgeTop}>PANEL DE CONTROL</Text>
         <Text style={styles.mainTitle}>Gestión de Usuarios</Text>
         <Text style={styles.subtitle}>
-          Control de accesos, roles y estados del sistema
+          Consulta de cuentas activas y pendientes. El backend solo permite activar cuentas.
         </Text>
 
         <FiltroUsuarios
@@ -74,31 +116,62 @@ export const UsuariosAdmin: React.FC<UsuariosAdminProps> = ({
           onChangeSearch={setSearchText}
           filter={filter}
           onSelectFilter={setFilter}
+          conteos={conteos}
         />
 
-        {filteredUsers.map((user) => (
-          <UsuarioCard
-            key={user.id}
-            user={user}
-            onPress={() => {
-              setSelectedUser(user);
-              setIsModalVisible(true);
-            }}
-          />
-        ))}
+        {fallidas.length > 0 && !error ? (
+          <Text style={styles.estadoText} testID="admin-parcial">
+            No se pudieron cargar: {fallidas.join(', ')}. La lista puede estar incompleta.
+          </Text>
+        ) : null}
+
+        {cargando ? (
+          <View style={styles.estadoBox} testID="admin-cargando">
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : error ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="admin-error">{error}</Text>
+            <CustomButton title="Reintentar" onPress={cargar} testID="admin-reintentar" />
+          </View>
+        ) : filteredUsers.length === 0 ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="admin-vacio">No hay usuarios que coincidan.</Text>
+          </View>
+        ) : (
+          filteredUsers.map((user) => (
+            <UsuarioCard
+              key={user.clave}
+              user={user}
+              onPress={() => setSelectedUser(user)}
+            />
+          ))
+        )}
       </ScrollView>
 
       <ModalEditarUsuario
         user={selectedUser}
-        visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        onSave={handleSaveUser}
+        visible={selectedUser !== null}
+        onClose={() => setSelectedUser(null)}
+        onActivar={handleActivar}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  estadoBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    gap: 12,
+  },
+  estadoText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

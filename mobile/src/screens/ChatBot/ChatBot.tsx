@@ -19,66 +19,61 @@ import { RecursoCard } from './components/RecursoCard';
 import { ChatInputBar } from './components/ChatInputBar';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { consultarChatbot, LIMITE_CONSULTA } from '../../services/chatbot';
+import { mensajeDeError } from '../../services/http';
 
-const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    id: 'm1',
-    sender: 'assistant',
-    text: '¡Hola, Carlos! Soy tu asistente de GlucoTracker. Puedo ayudarte con dudas sobre nutrición, pautas generales de glucemia y hábitos saludables. ¿En qué puedo orientarte hoy?',
-    time: '09:14',
-  },
-  {
-    id: 'm2',
-    sender: 'user',
-    text: '¿Qué puedo comer si tengo la glucosa baja?',
-    time: '09:15',
-  },
-  {
-    id: 'm3',
-    sender: 'assistant',
-    text: 'Si experimentas hipoglucemia (menos de 70 mg/dL), la regla general es la de los 15 gramos de hidratos rápidos:',
-    time: '09:15',
-    cardItems: [
-      { icon: 'utensils', text: 'Medio vaso de jugo de fruta (125 ml)' },
-      { icon: 'fastFood', text: '3 caramelos duros masticables' },
-      { icon: 'drop', text: '1 sobre de azúcar disuelto en agua' },
-    ],
-    subtext:
-      'Vuelve a medirte a los 15 minutos. Si los síntomas persisten, contacta a tu médico de inmediato.',
-  },
-];
+const dos = (n: number) => String(n).padStart(2, '0');
+const horaActual = () => {
+  const d = new Date();
+  return `${dos(d.getHours())}:${dos(d.getMinutes())}`;
+};
+
+// Sin historial en el servidor (el servicio NLP es stateless): la conversación vive solo en esta pantalla.
+const MENSAJE_INICIAL: ChatMessage = {
+  id: 'm1',
+  sender: 'assistant',
+  text: '¡Hola! Soy tu asistente de GlucoTracker. Puedo ayudarte con dudas sobre nutrición, pautas generales de glucemia y hábitos saludables. ¿En qué puedo orientarte hoy?',
+  time: horaActual(),
+};
 
 interface ChatBotProps {
   onNavigatePerfil?: () => void;
 }
 
 export const ChatBot: React.FC<ChatBotProps> = ({ onNavigatePerfil }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>([MENSAJE_INICIAL]);
   const [inputText, setInputText] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  const handleSend = async () => {
+    const texto = inputText.trim();
+    if (!texto || enviando) return;
+    if (texto.length > LIMITE_CONSULTA) {
+      setError(`Tu consulta es muy larga. Escribe como máximo ${LIMITE_CONSULTA} caracteres.`);
+      return;
+    }
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text: inputText.trim(),
-      time: 'Ahora',
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
+    setError('');
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString(), sender: 'user', text: texto, time: horaActual() },
+    ]);
     setInputText('');
+    setEnviando(true);
 
-    // Simulated reply
-    setTimeout(() => {
-      const botMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: 'assistant',
-        text: 'He registrado tu consulta. Recuerda mantener un registro constante de tus tomas para un mejor seguimiento clínico con tu especialista.',
-        time: 'Ahora',
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    }, 600);
+    try {
+      // Solo viaja el texto: el contrato del NLP no admite datos del usuario ni contexto clínico
+      const respuesta = await consultarChatbot(texto);
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), sender: 'assistant', text: respuesta, time: horaActual() },
+      ]);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const handleSelectPrompt = (prompt: string) => {
@@ -98,6 +93,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ onNavigatePerfil }) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <ChatDisclaimer />
 
@@ -120,11 +116,27 @@ export const ChatBot: React.FC<ChatBotProps> = ({ onNavigatePerfil }) => {
         </View>
 
         {/* Message list */}
-        {messages.map((item) => (
-          <ChatMessageBubble key={item.id} message={item} />
+        {messages.map((item, i) => (
+          <ChatMessageBubble
+            key={item.id}
+            message={item}
+            testID={`chat-mensaje-${item.sender === 'user' ? 'usuario' : 'asistente'}-${i}`}
+          />
         ))}
 
-        {/* Resource suggestion card */}
+        {enviando && (
+          <Text style={styles.typingText} testID="chat-cargando">
+            El asistente está escribiendo...
+          </Text>
+        )}
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText} testID="chat-error">{error}</Text>
+          </View>
+        ) : null}
+
+        {/* Simulado en esta pantalla: tarjeta de recurso estática (no viene del servicio) */}
         <RecursoCard
           onPress={() => {
             Alert.alert(
@@ -140,6 +152,8 @@ export const ChatBot: React.FC<ChatBotProps> = ({ onNavigatePerfil }) => {
         value={inputText}
         onChangeText={setInputText}
         onSend={handleSend}
+        maxLength={LIMITE_CONSULTA}
+        disabled={enviando}
         onMicPress={() => {
           Alert.alert('Dictado por voz', 'El dictado por voz está listo.');
         }}
@@ -152,6 +166,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  errorBox: {
+    backgroundColor: COLORS.riesgoHiperBg,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.riesgoHiperText,
+    textAlign: 'center',
+  },
+  typingText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 16,
   },
   scrollContent: {
     paddingHorizontal: 20,

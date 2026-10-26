@@ -8,24 +8,27 @@ import { FONTS } from '../../../utils/typography';
 interface SuccessModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Texto propio (por defecto, el de la solicitud de médico simulada). */
+  descripcion?: string;
 }
 
-export const SuccessModal: React.FC<SuccessModalProps> = ({ visible, onClose }) => {
+export const SuccessModal: React.FC<SuccessModalProps> = ({ visible, onClose, descripcion }) => {
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
+      <View style={styles.overlay} testID="registro-paciente-exito">
         <View style={styles.content}>
           <View style={styles.iconCircle}>
             <Icon name="check" size={32} color="#FFFFFF" />
           </View>
           <Text style={styles.title}>¡Solicitud enviada!</Text>
           <Text style={styles.description}>
-            Tu solicitud de acceso fue registrada correctamente. Un administrador la
-            revisará y recibirás una notificación cuando sea aprobada.
+            {descripcion ??
+              'Tu solicitud de acceso fue registrada correctamente. Un administrador la revisará y recibirás una notificación cuando sea aprobada.'}
           </Text>
           <CustomButton
             title="Volver a Iniciar sesión"
             onPress={onClose}
+            testID="registro-paciente-exito-cerrar"
             style={styles.btn}
           />
         </View>
@@ -48,6 +51,7 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     width: '100%',
+    maxWidth: 420,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,

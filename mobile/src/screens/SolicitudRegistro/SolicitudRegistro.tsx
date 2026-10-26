@@ -14,8 +14,11 @@ import { CustomButton } from '../../shared/CustomButton';
 import { SwitchPerfil } from './components/SwitchPerfil';
 import { MatriculaCard } from './components/MatriculaCard';
 import { SuccessModal } from './components/SuccessModal';
+import { SolicitudPacienteForm } from './components/SolicitudPacienteForm';
+import { SolicitudMedicoForm } from './components/SolicitudMedicoForm';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { FUENTE } from '../../utils/medidas';
 
 interface SolicitudRegistroProps {
   onBackToLogin: () => void;
@@ -24,7 +27,7 @@ interface SolicitudRegistroProps {
 export const SolicitudRegistro: React.FC<SolicitudRegistroProps> = ({
   onBackToLogin,
 }) => {
-  const [role, setRole] = useState<'Paciente' | 'Médico'>('Médico');
+  const [role, setRole] = useState<'Paciente' | 'Médico'>('Paciente');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,54 +79,11 @@ export const SolicitudRegistro: React.FC<SolicitudRegistroProps> = ({
         {/* Role Switcher */}
         <SwitchPerfil selectedRole={role} onSelectRole={setRole} />
 
-        {/* Inputs */}
-        <InputField
-          label="Nombre completo"
-          placeholder="Ej. Dra. Carmen Silva o Carlos Ruiz"
-          value={fullName}
-          onChangeText={setFullName}
-          leftIcon="idCard"
-          error={errors.fullName}
-        />
-
-        <InputField
-          label="Correo electrónico"
-          placeholder="nombre@ejemplo.com"
-          value={email}
-          onChangeText={setEmail}
-          leftIcon="mail"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          error={errors.email}
-        />
-
-        <InputField
-          label="Contraseña"
-          placeholder="••••••••••••"
-          value={password}
-          onChangeText={setPassword}
-          leftIcon="lock"
-          isPassword
-          helperText="Mínimo 8 caracteres alfanuméricos."
-          error={errors.password}
-        />
-
-        {/* Matricula card for Medico */}
-        {role === 'Médico' && (
-          <MatriculaCard
-            license={license}
-            setLicense={setLicense}
-            error={errors.license}
-          />
+        {role === 'Paciente' ? (
+          <SolicitudPacienteForm onSuccess={() => setIsSuccessModalVisible(true)} />
+        ) : (
+          <SolicitudMedicoForm onSuccess={() => setIsSuccessModalVisible(true)} />
         )}
-
-        {/* Submit button */}
-        <CustomButton
-          title="Enviar solicitud"
-          onPress={handleSubmit}
-          iconLeft="send"
-          style={styles.submitBtn}
-        />
 
         {/* Back Link */}
         <TouchableOpacity
@@ -139,6 +99,11 @@ export const SolicitudRegistro: React.FC<SolicitudRegistroProps> = ({
       {/* Success Modal */}
       <SuccessModal
         visible={isSuccessModalVisible}
+        descripcion={
+          role === 'Paciente'
+            ? 'Tu solicitud fue registrada correctamente. Si no puedes iniciar sesión todavía, tu cuenta puede estar pendiente de aprobación.'
+            : 'Tu solicitud fue registrada correctamente. Si aún no puedes iniciar sesión, tu cuenta puede estar pendiente de aprobación de un administrador.'
+        }
         onClose={() => {
           setIsSuccessModalVisible(false);
           onBackToLogin();
@@ -172,7 +137,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: FUENTE.tituloGrande,
     color: COLORS.textPrimary,
     letterSpacing: -0.5,
     marginBottom: 6,

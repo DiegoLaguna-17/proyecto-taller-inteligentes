@@ -12,6 +12,8 @@ interface PeriodoSelectorProps {
   onSelectPeriodo: (p: PeriodoType) => void;
   viewMode: ViewMode;
   onToggleViewMode: (mode: ViewMode) => void;
+  /** Texto del rango del periodo (p. ej. "17 Oct - 24 Oct, 2024"). */
+  rangoTexto: string;
 }
 
 export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
@@ -19,6 +21,7 @@ export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
   onSelectPeriodo,
   viewMode,
   onToggleViewMode,
+  rangoTexto,
 }) => {
   return (
     <View style={styles.container}>
@@ -32,6 +35,7 @@ export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
               style={[styles.segmentBtn, isActive && styles.segmentBtnActive]}
               onPress={() => onSelectPeriodo(tab)}
               activeOpacity={0.8}
+              testID={`historial-periodo-${tab.toLowerCase()}`}
             >
               <Text
                 style={[
@@ -50,7 +54,7 @@ export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
       <View style={styles.filterRow}>
         <TouchableOpacity style={styles.datePill} activeOpacity={0.7}>
           <Icon name="calendar" size={16} color={COLORS.primary} />
-          <Text style={styles.dateText}>17 Oct - 24 Oct, 2024</Text>
+          <Text style={styles.dateText} testID="historial-rango">{rangoTexto}</Text>
           <Icon name="chevronDown" size={14} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
@@ -62,6 +66,9 @@ export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
             ]}
             onPress={() => onToggleViewMode('grafico')}
             activeOpacity={0.8}
+            testID="historial-vista-grafico"
+          accessibilityRole="button"
+          accessibilityLabel="Ver gráfico"
           >
             <Icon
               name="chart"
@@ -77,6 +84,9 @@ export const PeriodoSelector: React.FC<PeriodoSelectorProps> = ({
             ]}
             onPress={() => onToggleViewMode('lista')}
             activeOpacity={0.8}
+            testID="historial-vista-lista"
+          accessibilityRole="button"
+          accessibilityLabel="Ver lista"
           >
             <Icon
               name="list"

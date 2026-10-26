@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Icon } from '../../../shared/Icon';
-import { UserProfile } from '../../../utils/mockData';
+import { UserProfile } from '../../../utils/tipos';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
 
 interface PerfilHeaderCardProps {
   user: UserProfile;
@@ -15,14 +16,18 @@ export const PerfilHeaderCard: React.FC<PerfilHeaderCardProps> = ({ user }) => {
       {/* Avatar with verified badge */}
       <View style={styles.avatarWrapper}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.initialsText}>{user.initials}</Text>
+          {user.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} testID="perfil-foto" />
+          ) : (
+            <Text style={styles.initialsText}>{user.initials}</Text>
+          )}
         </View>
         <View style={styles.verifiedBadge}>
           <Icon name="checkBadge" size={16} color={COLORS.primary} />
         </View>
       </View>
 
-      <Text style={styles.nameText}>{user.name}</Text>
+      <Text style={styles.nameText} testID="perfil-nombre">{user.name}</Text>
 
       <View style={styles.rolePill}>
         <Icon
@@ -44,12 +49,12 @@ export const PerfilHeaderCard: React.FC<PerfilHeaderCardProps> = ({ user }) => {
       <View style={styles.contactInfo}>
         <View style={styles.contactRow}>
           <Icon name="mail" size={14} color={COLORS.textSecondary} />
-          <Text style={styles.contactText}>{user.email}</Text>
+          <Text style={styles.contactText} testID="perfil-correo">{user.email}</Text>
         </View>
         {user.phone && (
           <View style={styles.contactRow}>
             <Icon name="phone" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.contactText}>{user.phone}</Text>
+            <Text style={styles.contactText} testID="perfil-telefono">{user.phone}</Text>
           </View>
         )}
       </View>
@@ -76,9 +81,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.primaryBorder,
   },
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+  },
   initialsText: {
     fontFamily: FONTS.bold,
-    fontSize: 28,
+    fontSize: FUENTE.tituloGrande,
     color: COLORS.primary,
   },
   verifiedBadge: {

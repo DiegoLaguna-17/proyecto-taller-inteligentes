@@ -15,16 +15,19 @@ export interface ChatMessage {
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
+  /** Identificador de prueba del mensaje (p. ej. chat-mensaje-usuario-0). */
+  testID?: string;
 }
 
 export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   message,
+  testID,
 }) => {
   const isUser = message.sender === 'user';
 
   if (isUser) {
     return (
-      <View style={styles.userWrapper}>
+      <View style={styles.userWrapper} testID={testID}>
         <View style={styles.userBubble}>
           <Text style={styles.userText}>{message.text}</Text>
         </View>
@@ -37,7 +40,7 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   }
 
   return (
-    <View style={styles.assistantWrapper}>
+    <View style={styles.assistantWrapper} testID={testID}>
       <View style={styles.botAvatar}>
         <Icon name="bot" size={16} color={COLORS.primary} />
       </View>

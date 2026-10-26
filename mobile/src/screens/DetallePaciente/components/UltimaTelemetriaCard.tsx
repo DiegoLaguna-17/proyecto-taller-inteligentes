@@ -4,38 +4,57 @@ import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
+import { RegistroHistorial } from '../../../services/glucosa';
+import { clasificacionDeRegistro, etiquetaFechaHora, etiquetaMomento } from '../../../services/historial';
 
-export const UltimaTelemetriaCard: React.FC = () => {
+interface UltimaTelemetriaCardProps {
+  registro: RegistroHistorial;
+  hoy: Date;
+}
+
+export const UltimaTelemetriaCard: React.FC<UltimaTelemetriaCardProps> = ({ registro, hoy }) => {
+  const clasificacion = clasificacionDeRegistro(registro);
+  const aviso =
+    clasificacion === 'Riesgo Hipo'
+      ? 'Valor inferior a 70 mg/dL registrado.'
+      : clasificacion === 'Riesgo Hiper'
+      ? 'Lectura registrada con alerta de hiperglucemia.'
+      : '';
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="detalle-telemetria">
       <View style={styles.topAccentBar} />
 
       <View style={styles.content}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.label}>ÚLTIMA TELEMETRÍA</Text>
-            <Text style={styles.timeText}>Antes de comer · Hoy 13:10</Text>
+            <Text style={styles.timeText}>
+              {etiquetaMomento(registro.momentoDia)} · {etiquetaFechaHora(registro.fecha, registro.hora, hoy)}
+            </Text>
           </View>
-          <ClassificationBadge classification="Riesgo Hipo" />
+          <ClassificationBadge classification={clasificacion} />
         </View>
 
         <View style={styles.readingRow}>
-          <Text style={styles.readingValue}>62</Text>
+          <Text style={styles.readingValue} numberOfLines={1} adjustsFontSizeToFit testID="detalle-ultima-valor">{registro.nivelGlucosa}</Text>
           <Text style={styles.readingUnit}>mg/dL</Text>
         </View>
 
-        <View style={styles.warningBox}>
-          <Icon
-            name="alertTriangle"
-            size={18}
-            color={COLORS.riesgoHipo}
-            style={styles.warningIcon}
-          />
-          <Text style={styles.warningText}>
-            Umbral inferior a 70 mg/dL registrado. Se notificó al paciente ingerir 15g de
-            carbohidratos simples.
-          </Text>
-        </View>
+        {aviso ? (
+          <View style={styles.warningBox}>
+            <Icon
+              name="alertTriangle"
+              size={18}
+              color={COLORS.riesgoHipo}
+              style={styles.warningIcon}
+            />
+            <Text style={styles.warningText}>
+              {aviso}
+              {registro.observaciones ? ` Observaciones: ${registro.observaciones}` : ''}
+            </Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -87,7 +106,7 @@ const styles = StyleSheet.create({
   },
   readingValue: {
     fontFamily: FONTS.bold,
-    fontSize: 48,
+    fontSize: FUENTE.cifraGrande,
     color: COLORS.textPrimary,
     letterSpacing: -1,
   },

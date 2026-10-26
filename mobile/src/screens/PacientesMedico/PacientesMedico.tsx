@@ -1,76 +1,106 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
+import { CustomButton } from '../../shared/CustomButton';
 import {
   PacientesFiltros,
   PacientesFiltroType,
 } from './components/PacientesFiltros';
 import { MetricasResumenMedico } from './components/MetricasResumenMedico';
 import { PacienteCard } from './components/PacienteCard';
-import { ProtocoloBanner } from './components/ProtocoloBanner';
-import {
-  MOCK_DOCTOR_PATIENTS,
-  PatientSummary,
-} from '../../utils/mockData';
 import { COLORS } from '../../utils/colors';
 import { FONTS } from '../../utils/typography';
+import { USE_MOCK } from '../../services/config';
+import { AlertaMedico, PacienteMedico, obtenerAlertasActivas } from '../../services/medico';
+import { estadoPacientes, filtrarPacientes, resumenPacientes } from '../../services/medicoVista';
+import { mensajeDeError } from '../../services/http';
+
+const dos = (n: number) => String(n).padStart(2, '0');
 
 interface PacientesMedicoProps {
-  onSelectPatient: (patient: PatientSummary) => void;
+  /** id_medico de la sesión (id_rol). */
+  idMedico: number;
+  /** Pacientes del médico (se cargan una vez en App y se comparten con Alertas y Reportes). */
+  pacientes: PacienteMedico[] | null;
+  cargandoPacientes: boolean;
+  errorPacientes: string;
+  onRecargarPacientes: () => void;
+  onSelectPatient: (patient: PacienteMedico) => void;
   onNavigatePerfil?: () => void;
 }
 
 export const PacientesMedico: React.FC<PacientesMedicoProps> = ({
+  idMedico,
+  pacientes,
+  cargandoPacientes,
+  errorPacientes,
+  onRecargarPacientes,
   onSelectPatient,
   onNavigatePerfil,
 }) => {
   const [searchText, setSearchText] = useState('');
   const [filtro, setFiltro] = useState<PacientesFiltroType>('todos');
+  const [alertas, setAlertas] = useState<AlertaMedico[]>([]);
+  const [errorAlertas, setErrorAlertas] = useState('');
+  const [actualizado, setActualizado] = useState<Date | null>(null);
 
-  const filteredPatients = MOCK_DOCTOR_PATIENTS.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchText.toLowerCase());
-
-    if (!matchesSearch) return false;
-
-    if (filtro === 'riesgo') {
-      return p.classification !== 'Normal';
+  const cargarAlertas = useCallback(async () => {
+    setErrorAlertas('');
+    try {
+      setAlertas(await obtenerAlertasActivas(idMedico));
+      setActualizado(new Date());
+    } catch (e) {
+      setErrorAlertas(mensajeDeError(e));
     }
-    if (filtro === 'estables') {
-      return p.classification === 'Normal';
-    }
-    return true;
-  });
+  }, [idMedico]);
+
+  useEffect(() => {
+    cargarAlertas();
+  }, [cargarAlertas]);
+
+  const hoy = useMemo(() => new Date(), [alertas]);
+  const items = useMemo(() => estadoPacientes(pacientes ?? [], alertas), [pacientes, alertas]);
+  const resumen = useMemo(() => resumenPacientes(items), [items]);
+  const visibles = useMemo(() => filtrarPacientes(items, searchText, filtro), [items, searchText, filtro]);
+
+  const recargar = () => {
+    onRecargarPacientes();
+    cargarAlertas();
+  };
 
   return (
     <View style={styles.container}>
+      {/* El punto de notificaciones sin leer no tiene fuente real: solo en modo simulado */}
       <TopHeader
         title="Pacientes"
         onProfilePress={onNavigatePerfil}
-        hasUnreadNotifications
+        hasUnreadNotifications={USE_MOCK}
       />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Title row */}
         <View style={styles.titleRow}>
           <Text style={styles.mainTitle}>Pacientes Asignados</Text>
-          <View style={styles.liveBadge}>
+          <TouchableOpacity style={styles.liveBadge} onPress={recargar} activeOpacity={0.7} testID="medico-actualizar">
             <View style={styles.liveDot} />
-            <Text style={styles.liveText}>En vivo</Text>
-          </View>
+            <Text style={styles.liveText}>
+              {actualizado ? `Actualizado ${dos(actualizado.getHours())}:${dos(actualizado.getMinutes())}` : 'Actualizar'}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.subtitle}>
-          18 pacientes en seguimiento clínico activo
+        <Text style={styles.subtitle} testID="medico-subtitulo">
+          {resumen.total === 1 ? '1 paciente' : `${resumen.total} pacientes`} en seguimiento clínico activo
         </Text>
 
         {/* Filters & Search */}
@@ -79,35 +109,65 @@ export const PacientesMedico: React.FC<PacientesMedicoProps> = ({
           onChangeSearch={setSearchText}
           selectedFiltro={filtro}
           onSelectFiltro={setFiltro}
+          conteos={{ todos: resumen.total, riesgo: resumen.enRiesgo, estables: resumen.estables }}
         />
 
         {/* Top metrics summary */}
-        <MetricasResumenMedico />
+        <MetricasResumenMedico total={resumen.total} casosUrgentes={resumen.enRiesgo} />
+
+        {errorAlertas ? (
+          <Text style={styles.estadoText} testID="medico-error-alertas">
+            No se pudieron cargar las alertas: el estado de los pacientes puede estar incompleto. {errorAlertas}
+          </Text>
+        ) : null}
 
         {/* Patient cards list */}
-        {filteredPatients.map((patient) => (
-          <PacienteCard
-            key={patient.id}
-            patient={patient}
-            onPress={() => onSelectPatient(patient)}
-          />
-        ))}
+        {cargandoPacientes ? (
+          <View style={styles.estadoBox} testID="medico-cargando">
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
+        ) : errorPacientes ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="medico-error">{errorPacientes}</Text>
+            <CustomButton title="Reintentar" onPress={recargar} testID="medico-reintentar" />
+          </View>
+        ) : resumen.total === 0 ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="medico-vacio">Aún no tienes pacientes asignados.</Text>
+          </View>
+        ) : visibles.length === 0 ? (
+          <View style={styles.estadoBox}>
+            <Text style={styles.estadoText} testID="medico-sin-resultados">Ningún paciente coincide con la búsqueda.</Text>
+          </View>
+        ) : (
+          visibles.map((item) => (
+            <PacienteCard
+              key={item.paciente.id}
+              item={item}
+              hoy={hoy}
+              onPress={() => onSelectPatient(item.paciente)}
+            />
+          ))
+        )}
 
-        {/* Clinical protocol banner */}
-        <ProtocoloBanner
-          onPressGuide={() => {
-            Alert.alert(
-              'Protocolo de Glucemia',
-              'Visualizando pautas de intervención rápida para hipo e hiperglucemia.'
-            );
-          }}
-        />
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  estadoBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    gap: 12,
+  },
+  estadoText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

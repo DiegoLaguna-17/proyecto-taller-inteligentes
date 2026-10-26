@@ -4,44 +4,44 @@ import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
-export const LecturasJornadaCard: React.FC = () => {
+export interface LecturaAnterior {
+  id: number;
+  momento: string;
+  cuando: string;
+  valor: number;
+  /** Nombre del ícono: sun | utensils | moon */
+  icono: string;
+}
+
+interface LecturasJornadaCardProps {
+  lecturas: LecturaAnterior[];
+}
+
+export const LecturasJornadaCard: React.FC<LecturasJornadaCardProps> = ({ lecturas }) => {
+  if (lecturas.length === 0) return null;
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>ÚLTIMAS LECTURAS DE LA JORNADA</Text>
+    <View style={styles.container} testID="inicio-lecturas-anteriores">
+      <Text style={styles.sectionTitle}>LECTURAS ANTERIORES</Text>
       <View style={styles.card}>
-        {/* Item 1 */}
-        <View style={styles.row}>
-          <View style={styles.iconCircle}>
-            <Icon name="moon" size={18} color={COLORS.primary} />
-          </View>
-          <View style={styles.infoCol}>
-            <Text style={styles.momentTitle}>Antes de dormir</Text>
-            <Text style={styles.timeSubtitle}>Ayer, 11:15 PM</Text>
-          </View>
-          <View style={styles.valueCol}>
-            <Text style={styles.valueText}>
-              124 <Text style={styles.unitText}>mg/dL</Text>
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* Item 2 */}
-        <View style={styles.row}>
-          <View style={styles.iconCircle}>
-            <Icon name="utensils" size={18} color={COLORS.primary} />
-          </View>
-          <View style={styles.infoCol}>
-            <Text style={styles.momentTitle}>Post-cena</Text>
-            <Text style={styles.timeSubtitle}>Ayer, 09:30 PM</Text>
-          </View>
-          <View style={styles.valueCol}>
-            <Text style={styles.valueText}>
-              138 <Text style={styles.unitText}>mg/dL</Text>
-            </Text>
-          </View>
-        </View>
+        {lecturas.map((l, i) => (
+          <React.Fragment key={l.id}>
+            {i > 0 && <View style={styles.divider} />}
+            <View style={styles.row}>
+              <View style={styles.iconCircle}>
+                <Icon name={l.icono} size={18} color={COLORS.primary} />
+              </View>
+              <View style={styles.infoCol}>
+                <Text style={styles.momentTitle}>{l.momento}</Text>
+                <Text style={styles.timeSubtitle}>{l.cuando}</Text>
+              </View>
+              <View style={styles.valueCol}>
+                <Text style={styles.valueText}>
+                  {l.valor} <Text style={styles.unitText}>mg/dL</Text>
+                </Text>
+              </View>
+            </View>
+          </React.Fragment>
+        ))}
       </View>
     </View>
   );

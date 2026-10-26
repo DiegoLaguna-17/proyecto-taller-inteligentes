@@ -3,19 +3,32 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { FUENTE } from '../../../utils/medidas';
 
 interface ActividadHoyCardsProps {
+  /** Tomas registradas hoy. */
+  tomas: number;
+  /** Meta diaria: un registro por momento del día del catálogo (ayunas, después de comer, antes de dormir). */
+  meta: number;
+  promedio: number | null;
+  /** null = sin tomas hoy. */
+  enRango: boolean | null;
   onPressDesglose?: () => void;
 }
 
 export const ActividadHoyCards: React.FC<ActividadHoyCardsProps> = ({
+  tomas,
+  meta,
+  promedio,
+  enRango,
   onPressDesglose,
 }) => {
+  const avance = Math.min(100, Math.round((tomas / meta) * 100));
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="inicio-actividad">
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>ACTIVIDAD DE HOY</Text>
-        <TouchableOpacity onPress={onPressDesglose} activeOpacity={0.7}>
+        <TouchableOpacity onPress={onPressDesglose} activeOpacity={0.7} testID="inicio-ver-desglose">
           <Text style={styles.desgloseLink}>Ver desglose</Text>
         </TouchableOpacity>
       </View>
@@ -28,11 +41,11 @@ export const ActividadHoyCards: React.FC<ActividadHoyCardsProps> = ({
             <Icon name="doubleCheck" size={16} color={COLORS.primary} />
           </View>
           <View style={styles.valueRow}>
-            <Text style={styles.bigNumber}>3</Text>
-            <Text style={styles.subNumber}>/ 4 meta</Text>
+            <Text style={styles.bigNumber} numberOfLines={1} adjustsFontSizeToFit testID="inicio-tomas-hoy">{tomas}</Text>
+            <Text style={styles.subNumber}>/ {meta} meta</Text>
           </View>
           <View style={styles.progressBarTrack}>
-            <View style={[styles.progressBarFill, { width: '75%' }]} />
+            <View style={[styles.progressBarFill, { width: `${avance}%` }]} />
           </View>
         </View>
 
@@ -43,12 +56,14 @@ export const ActividadHoyCards: React.FC<ActividadHoyCardsProps> = ({
             <Icon name="chart" size={16} color={COLORS.primary} />
           </View>
           <View style={styles.valueRow}>
-            <Text style={styles.bigNumber}>118</Text>
+            <Text style={styles.bigNumber} testID="inicio-promedio-hoy">{promedio ?? '--'}</Text>
             <Text style={styles.subUnit}>mg/dL</Text>
           </View>
           <View style={styles.statusRow}>
-            <Icon name="check" size={13} color={COLORS.normal} />
-            <Text style={styles.statusText}>Dentro de meta</Text>
+            <Icon name="check" size={13} color={enRango === false ? COLORS.riesgoHiper : COLORS.normal} />
+            <Text style={styles.statusText}>
+              {enRango === null ? 'Sin tomas hoy' : enRango ? 'Dentro de meta' : 'Fuera de meta'}
+            </Text>
           </View>
         </View>
       </View>
@@ -112,7 +127,7 @@ const styles = StyleSheet.create({
   },
   bigNumber: {
     fontFamily: FONTS.bold,
-    fontSize: 26,
+    fontSize: FUENTE.tituloGrande,
     color: COLORS.textPrimary,
   },
   subNumber: {
@@ -146,7 +161,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontFamily: FONTS.semiBold,
     fontSize: 11,
-    color: COLORS.normal,
+    color: COLORS.normalText,
   },
 });
 

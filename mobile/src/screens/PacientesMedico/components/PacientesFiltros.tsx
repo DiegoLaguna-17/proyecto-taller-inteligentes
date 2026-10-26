@@ -11,6 +11,8 @@ interface PacientesFiltrosProps {
   onChangeSearch: (t: string) => void;
   selectedFiltro: PacientesFiltroType;
   onSelectFiltro: (f: PacientesFiltroType) => void;
+  /** Cantidades reales de cada filtro. */
+  conteos: { todos: number; riesgo: number; estables: number };
 }
 
 export const PacientesFiltros: React.FC<PacientesFiltrosProps> = ({
@@ -18,7 +20,13 @@ export const PacientesFiltros: React.FC<PacientesFiltrosProps> = ({
   onChangeSearch,
   selectedFiltro,
   onSelectFiltro,
+  conteos,
 }) => {
+  const pills: { id: PacientesFiltroType; texto: string; punto?: string }[] = [
+    { id: 'todos', texto: `Todos (${conteos.todos})` },
+    { id: 'riesgo', texto: `En riesgo (${conteos.riesgo})`, punto: COLORS.riesgoHiper },
+    { id: 'estables', texto: `Estables (${conteos.estables})`, punto: COLORS.textSecondary },
+  ];
   return (
     <View style={styles.container}>
       {/* Search Input */}
@@ -30,72 +38,29 @@ export const PacientesFiltros: React.FC<PacientesFiltrosProps> = ({
           placeholderTextColor={COLORS.textMuted}
           value={searchText}
           onChangeText={onChangeSearch}
+          testID="medico-buscar"
         />
       </View>
 
       {/* Filter pills */}
       <View style={styles.pillsRow}>
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            selectedFiltro === 'todos' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFiltro('todos')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.pillText,
-              selectedFiltro === 'todos'
-                ? styles.pillTextActive
-                : styles.pillTextInactive,
-            ]}
-          >
-            Todos (18)
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            selectedFiltro === 'riesgo' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFiltro('riesgo')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.dot, { backgroundColor: COLORS.riesgoHiper }]} />
-          <Text
-            style={[
-              styles.pillText,
-              selectedFiltro === 'riesgo'
-                ? styles.pillTextActive
-                : styles.pillTextInactive,
-            ]}
-          >
-            En riesgo (2)
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.pill,
-            selectedFiltro === 'estables' ? styles.pillActive : styles.pillInactive,
-          ]}
-          onPress={() => onSelectFiltro('estables')}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.dot, { backgroundColor: COLORS.textSecondary }]} />
-          <Text
-            style={[
-              styles.pillText,
-              selectedFiltro === 'estables'
-                ? styles.pillTextActive
-                : styles.pillTextInactive,
-            ]}
-          >
-            Estables (16)
-          </Text>
-        </TouchableOpacity>
+        {pills.map((p) => {
+          const activo = selectedFiltro === p.id;
+          return (
+            <TouchableOpacity
+              key={p.id}
+              style={[styles.pill, activo ? styles.pillActive : styles.pillInactive]}
+              onPress={() => onSelectFiltro(p.id)}
+              activeOpacity={0.8}
+              testID={`medico-filtro-${p.id}`}
+            >
+              {p.punto && <View style={[styles.dot, { backgroundColor: p.punto }]} />}
+              <Text style={[styles.pillText, activo ? styles.pillTextActive : styles.pillTextInactive]}>
+                {p.texto}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -125,6 +90,7 @@ const styles = StyleSheet.create({
   },
   pillsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   pill: {

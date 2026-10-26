@@ -32,13 +32,15 @@ export const FechaHoraCard: React.FC<FechaHoraCardProps> = ({
           <Text style={styles.timeSub}>Hora actual del dispositivo</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.changeBtn}
-          onPress={onPressCambiar}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.changeBtnText}>Cambiar</Text>
-        </TouchableOpacity>
+        {onPressCambiar ? (
+          <TouchableOpacity
+            style={styles.changeBtn}
+            onPress={onPressCambiar}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.changeBtnText}>Cambiar</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -70,7 +72,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   requiredStar: {
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
   },
   detectedBadge: {
     fontFamily: FONTS.semiBold,

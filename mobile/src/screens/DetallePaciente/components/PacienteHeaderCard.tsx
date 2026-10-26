@@ -5,35 +5,38 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface PacienteHeaderCardProps {
-  name?: string;
-  idCode?: string;
-  ageAndCondition?: string;
-  phone?: string;
-  lastVisit?: string;
+  name: string;
+  initials: string;
+  idCode: string;
+  ageAndCondition: string;
+  phone: string;
+  /** Texto de la última toma ("Hoy, 08:30") o "Sin tomas". */
+  lastReading: string;
 }
 
 export const PacienteHeaderCard: React.FC<PacienteHeaderCardProps> = ({
-  name = 'Elena Soto',
-  idCode = 'ID: #4082',
-  ageAndCondition = '48 años · Diabetes Tipo 2',
-  phone = '+34 600 293 ...',
-  lastVisit = '18 Abr, 2024',
+  name,
+  initials,
+  idCode,
+  ageAndCondition,
+  phone,
+  lastReading,
 }) => {
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="detalle-cabecera">
       <View style={styles.topRow}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarInitials}>ES</Text>
+          <Text style={styles.avatarInitials}>{initials}</Text>
         </View>
 
         <View style={styles.infoCol}>
           <View style={styles.nameRow}>
-            <Text style={styles.nameText}>{name}</Text>
+            <Text style={styles.nameText} testID="detalle-nombre">{name}</Text>
             <View style={styles.idPill}>
               <Text style={styles.idPillText}>{idCode}</Text>
             </View>
           </View>
-          <Text style={styles.conditionText}>{ageAndCondition}</Text>
+          <Text style={styles.conditionText} testID="detalle-condicion">{ageAndCondition}</Text>
         </View>
       </View>
 
@@ -44,7 +47,7 @@ export const PacienteHeaderCard: React.FC<PacienteHeaderCardProps> = ({
           </View>
           <View>
             <Text style={styles.subLabel}>Teléfono</Text>
-            <Text style={styles.subValue}>{phone}</Text>
+            <Text style={styles.subValue} testID="detalle-telefono">{phone}</Text>
           </View>
         </View>
 
@@ -53,8 +56,8 @@ export const PacienteHeaderCard: React.FC<PacienteHeaderCardProps> = ({
             <Icon name="calendar" size={14} color={COLORS.primary} />
           </View>
           <View>
-            <Text style={styles.subLabel}>Última Visita</Text>
-            <Text style={styles.subValue}>{lastVisit}</Text>
+            <Text style={styles.subLabel}>Última toma</Text>
+            <Text style={styles.subValue} testID="detalle-ultima-toma">{lastReading}</Text>
           </View>
         </View>
       </View>

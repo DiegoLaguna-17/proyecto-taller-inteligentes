@@ -5,14 +5,15 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface SelectorRangoReporteProps {
-  rangeName?: string;
-  rangeDates?: string;
+  rangeName: string;
+  rangeDates: string;
+  /** Alterna entre los últimos 7 y 30 días. */
   onPress?: () => void;
 }
 
 export const SelectorRangoReporte: React.FC<SelectorRangoReporteProps> = ({
-  rangeName = 'Últimos 30 días',
-  rangeDates = '24 Sep - 24 Oct, 2024',
+  rangeName,
+  rangeDates,
   onPress,
 }) => {
   return (
@@ -22,6 +23,7 @@ export const SelectorRangoReporte: React.FC<SelectorRangoReporteProps> = ({
         style={styles.card}
         onPress={onPress}
         activeOpacity={0.7}
+        testID="reportes-rango"
       >
         <View style={styles.calendarCircle}>
           <Icon name="calendar" size={18} color={COLORS.primary} />

@@ -2,25 +2,30 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { MetricasReporte } from '../../../services/medicoVista';
 
-export const DistribucionLecturasBar: React.FC = () => {
+interface DistribucionLecturasBarProps {
+  metricas: MetricasReporte;
+}
+
+export const DistribucionLecturasBar: React.FC<DistribucionLecturasBarProps> = ({ metricas }) => {
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID="reportes-distribucion">
       <View style={styles.headerRow}>
         <Text style={styles.title}>Distribución de lecturas</Text>
-        <Text style={styles.countText}>864 mediciones</Text>
+        <Text style={styles.countText}>{metricas.total} mediciones</Text>
       </View>
 
       <View style={styles.barTrack}>
-        <View style={[styles.barSegment, { width: '4%', backgroundColor: COLORS.riesgoHipo }]} />
-        <View style={[styles.barSegment, { width: '74%', backgroundColor: COLORS.primary }]} />
-        <View style={[styles.barSegment, { width: '22%', backgroundColor: '#94A3B8' }]} />
+        <View style={[styles.barSegment, { width: `${metricas.pctBajo}%`, backgroundColor: COLORS.riesgoHipo }]} />
+        <View style={[styles.barSegment, { width: `${metricas.pctRango}%`, backgroundColor: COLORS.primary }]} />
+        <View style={[styles.barSegment, { width: `${metricas.pctAlto}%`, backgroundColor: '#94A3B8' }]} />
       </View>
 
       <View style={styles.labelsRow}>
-        <Text style={styles.segmentLabel}>Bajo 4%</Text>
-        <Text style={[styles.segmentLabel, styles.boldLabel]}>Rango 74%</Text>
-        <Text style={styles.segmentLabel}>Alto 22%</Text>
+        <Text style={styles.segmentLabel}>Bajo {metricas.pctBajo}%</Text>
+        <Text style={[styles.segmentLabel, styles.boldLabel]}>Rango {metricas.pctRango}%</Text>
+        <Text style={styles.segmentLabel}>Alto {metricas.pctAlto}%</Text>
       </View>
     </View>
   );

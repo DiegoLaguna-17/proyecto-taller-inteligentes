@@ -3,73 +3,67 @@ import { View, Text, StyleSheet } from 'react-native';
 import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { Icon } from '../../../shared/Icon';
 import { COLORS } from '../../../utils/colors';
+import { RegistroHistorial } from '../../../services/glucosa';
+import { clasificacionDeRegistro, etiquetaMomento, fechaCorta } from '../../../services/historial';
 import { FONTS } from '../../../utils/typography';
 
-const TOMAS = [
-  {
-    id: '1',
-    value: 124,
-    detail: 'Postprandial · Hoy, 14:30',
-    classification: 'Normal',
-    icon: 'utensils',
-    circleBg: COLORS.surfaceLight,
-    iconColor: COLORS.primary,
-  },
-  {
-    id: '2',
-    value: 112,
-    detail: 'Ayunas · Hoy, 08:30',
-    classification: 'Normal',
-    icon: 'sun',
-    circleBg: COLORS.surfaceLight,
-    iconColor: COLORS.primary,
-  },
-  {
-    id: '3',
-    value: 68,
-    detail: 'Antes de dormir · Ayer, 23:15',
-    classification: 'Riesgo Hipo',
-    icon: 'moon',
-    circleBg: COLORS.riesgoHipoBg,
-    iconColor: COLORS.riesgoHipo,
-  },
-  {
-    id: '4',
-    value: 195,
-    detail: 'Postprandial · Ayer, 15:00',
-    classification: 'Riesgo Hiper',
-    icon: 'fastFood',
-    circleBg: COLORS.riesgoHiperBg,
-    iconColor: COLORS.riesgoHiper,
-  },
-];
+interface TomasListProps {
+  /** Registros del periodo, más recientes primero. */
+  tomas: RegistroHistorial[];
+}
 
-export const TomasList: React.FC = () => {
+const ICONO_MOMENTO: Record<string, string> = {
+  AYUNAS: 'sun',
+  'DESPUES DE COMER': 'utensils',
+  'ANTES DE DORMIR': 'moon',
+};
+
+const ESTILO = {
+  Normal: { circleBg: COLORS.surfaceLight, iconColor: COLORS.primary },
+  'Riesgo Hipo': { circleBg: COLORS.riesgoHipoBg, iconColor: COLORS.riesgoHipo },
+  'Riesgo Hiper': { circleBg: COLORS.riesgoHiperBg, iconColor: COLORS.riesgoHiper },
+} as const;
+
+export const TomasList: React.FC<TomasListProps> = ({ tomas }) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Tomas registradas</Text>
-        <Text style={styles.countText}>4 registros recientes</Text>
+        <Text style={styles.countText}>
+          {tomas.length === 1 ? '1 registro' : `${tomas.length} registros`}
+        </Text>
       </View>
 
       <View style={styles.list}>
-        {TOMAS.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: item.circleBg }]}>
-              <Icon name={item.icon} size={18} color={item.iconColor} />
-            </View>
-
-            <View style={styles.infoCol}>
-              <View style={styles.readingRow}>
-                <Text style={styles.readingValue}>{item.value}</Text>
-                <Text style={styles.readingUnit}>mg/dL</Text>
+        {tomas.map((item) => {
+          const clasificacion = clasificacionDeRegistro(item);
+          const estilo = ESTILO[clasificacion];
+          const hora = item.hora ? item.hora.slice(0, 5) : '';
+          return (
+            <View key={item.id} style={styles.card} testID={`historial-toma-${item.id}`}>
+              <View style={[styles.iconCircle, { backgroundColor: estilo.circleBg }]}>
+                <Icon
+                  name={ICONO_MOMENTO[(item.momentoDia ?? '').toUpperCase()] ?? 'drop'}
+                  size={18}
+                  color={estilo.iconColor}
+                />
               </View>
-              <Text style={styles.detailText}>{item.detail}</Text>
-            </View>
 
-            <ClassificationBadge classification={item.classification} />
-          </View>
-        ))}
+              <View style={styles.infoCol}>
+                <View style={styles.readingRow}>
+                  <Text style={styles.readingValue}>{item.nivelGlucosa ?? '--'}</Text>
+                  <Text style={styles.readingUnit}>mg/dL</Text>
+                </View>
+                <Text style={styles.detailText}>
+                  {etiquetaMomento(item.momentoDia)} · {fechaCorta(item.fecha)}
+                  {hora ? `, ${hora}` : ''}
+                </Text>
+              </View>
+
+              <ClassificationBadge classification={clasificacion} />
+            </View>
+          );
+        })}
       </View>
     </View>
   );

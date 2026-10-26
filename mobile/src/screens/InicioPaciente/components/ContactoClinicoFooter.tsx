@@ -5,14 +5,14 @@ import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface ContactoClinicoFooterProps {
-  doctorName?: string;
+  doctorName: string;
 }
 
 export const ContactoClinicoFooter: React.FC<ContactoClinicoFooterProps> = ({
-  doctorName = 'Dra. Morales',
+  doctorName,
 }) => {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="inicio-medico">
       <Icon name="phone" size={14} color={COLORS.textSecondary} />
       <Text style={styles.text}>
         Contacto clínico rápido asignado: {doctorName}

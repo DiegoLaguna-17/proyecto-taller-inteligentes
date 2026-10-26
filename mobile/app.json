@@ -22,7 +22,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GlucoTracker necesita acceder a tus fotos para elegir tu foto de perfil."
+        }
+      ],
+      "expo-sharing"
     ]
   }
 }

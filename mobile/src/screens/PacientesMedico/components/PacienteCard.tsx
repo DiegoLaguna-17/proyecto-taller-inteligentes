@@ -2,65 +2,66 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ClassificationBadge } from '../../../shared/ClassificationBadge';
 import { Icon } from '../../../shared/Icon';
-import { PatientSummary } from '../../../utils/mockData';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
+import { PacienteConEstado, clasificacionDeAlerta, iniciales } from '../../../services/medicoVista';
+import { etiquetaFechaHora } from '../../../services/historial';
 
 interface PacienteCardProps {
-  patient: PatientSummary;
+  item: PacienteConEstado;
+  hoy: Date;
   onPress: () => void;
 }
 
-export const PacienteCard: React.FC<PacienteCardProps> = ({
-  patient,
-  onPress,
-}) => {
+export const PacienteCard: React.FC<PacienteCardProps> = ({ item, hoy, onPress }) => {
+  const { paciente, alerta } = item;
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={`medico-paciente-${paciente.id}`}
     >
       {/* Avatar with optional urgent dot */}
       <View style={styles.avatarContainer}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.initialsText}>{patient.initials}</Text>
+          <Text style={styles.initialsText}>{iniciales(paciente.nombre)}</Text>
         </View>
-        {patient.isUrgent && <View style={styles.urgentDot} />}
+        {alerta && <View style={styles.urgentDot} />}
       </View>
 
       {/* Info col */}
       <View style={styles.infoCol}>
         <View style={styles.nameRow}>
           <Text style={styles.nameText} numberOfLines={1}>
-            {patient.name}
+            {paciente.nombre}
           </Text>
-          <Text style={styles.codeText}>{patient.code}</Text>
+          <Text style={styles.codeText}>#{paciente.id}</Text>
         </View>
 
-        {patient.alertText ? (
+        {alerta ? (
           <View style={styles.alertRow}>
             <Icon name="bell" size={13} color={COLORS.riesgoHiper} />
-            <Text style={styles.alertText}>{patient.alertText}</Text>
+            <Text style={styles.alertText}>
+              {etiquetaFechaHora(alerta.fecha, alerta.hora, hoy)} · Alerta activa
+              {item.alertasActivas > 1 ? ` (+${item.alertasActivas - 1})` : ''}
+            </Text>
           </View>
         ) : (
-          <Text style={styles.timeText}>
-            Última toma: {patient.lastReadingTime}
-          </Text>
+          <Text style={styles.timeText}>Sin alertas activas</Text>
         )}
       </View>
 
-      {/* Value & Badge */}
-      <View style={styles.valueCol}>
-        <View style={styles.readingRow}>
-          <Text style={styles.readingValue}>{patient.lastReading}</Text>
-          <Text style={styles.readingUnit}>mg/dL</Text>
+      {/* Value & Badge: solo cuando hay una alerta activa (el estado sale de las alertas) */}
+      {alerta && alerta.glucosa !== null && (
+        <View style={styles.valueCol}>
+          <View style={styles.readingRow}>
+            <Text style={styles.readingValue}>{alerta.glucosa}</Text>
+            <Text style={styles.readingUnit}>mg/dL</Text>
+          </View>
+          <ClassificationBadge classification={clasificacionDeAlerta(alerta)} size="sm" />
         </View>
-        <ClassificationBadge
-          classification={patient.classification}
-          size="sm"
-        />
-      </View>
+      )}
 
       {/* Chevron */}
       <Icon name="chevronRight" size={18} color={COLORS.textMuted} />
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
   alertText: {
     fontFamily: FONTS.medium,
     fontSize: 11,
-    color: COLORS.riesgoHiper,
+    color: COLORS.riesgoHiperText,
   },
   valueCol: {
     alignItems: 'flex-end',

@@ -1,29 +1,32 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from '../../../shared/Icon';
-import { AdminRequest } from '../../../utils/mockData';
+import { UsuarioAdmin } from '../../../services/administrador';
+import { iniciales } from '../../../services/medicoVista';
 import { COLORS } from '../../../utils/colors';
 import { FONTS } from '../../../utils/typography';
 
 interface SolicitudCardProps {
-  request: AdminRequest;
+  request: UsuarioAdmin;
   onPress: () => void;
 }
 
+// El backend no devuelve la fecha de la solicitud: en lugar de "Recibido hace…" se muestra el correo.
 export const SolicitudCard: React.FC<SolicitudCardProps> = ({
   request,
   onPress,
 }) => {
-  const isMedico = request.role === 'Médico';
+  const isMedico = request.rol === 'Médico';
 
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
+      testID={`solicitud-${request.clave}`}
     >
       <View style={styles.avatarCircle}>
-        <Text style={styles.initialsText}>{request.initials}</Text>
+        <Text style={styles.initialsText}>{iniciales(request.nombre)}</Text>
         <View style={styles.roleSubIcon}>
           <Icon
             name={isMedico ? 'stethoscope' : 'user'}
@@ -35,7 +38,7 @@ export const SolicitudCard: React.FC<SolicitudCardProps> = ({
 
       <View style={styles.infoCol}>
         <View style={styles.nameRow}>
-          <Text style={styles.nameText}>{request.name}</Text>
+          <Text style={styles.nameText}>{request.nombre}</Text>
           <View
             style={[
               styles.rolePill,
@@ -52,19 +55,19 @@ export const SolicitudCard: React.FC<SolicitudCardProps> = ({
                 { color: isMedico ? COLORS.primary : COLORS.textSecondary },
               ]}
             >
-              {request.role}
+              {request.rol}
             </Text>
           </View>
         </View>
 
         <Text style={styles.specialtyText} numberOfLines={1}>
-          {request.specialtyOrDiagnosis}
-          {request.licenseNumber ? ` • ${request.licenseNumber}` : ''}
+          {request.resumen}
+          {isMedico ? ` • Matrícula ${request.matriculaUrl ? 'cargada' : 'no cargada'}` : ''}
         </Text>
 
         <View style={styles.timeRow}>
-          <Icon name="clock" size={12} color={COLORS.textMuted} />
-          <Text style={styles.timeText}>{request.timeAgo}</Text>
+          <Icon name="mail" size={12} color={COLORS.textMuted} />
+          <Text style={styles.timeText} numberOfLines={1}>{request.correo ?? 'Sin correo'}</Text>
         </View>
       </View>
 

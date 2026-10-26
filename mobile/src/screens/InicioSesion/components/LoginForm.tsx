@@ -10,6 +10,7 @@ interface LoginFormProps {
   pass: string;
   setPass: (val: string) => void;
   error?: string;
+  loading?: boolean;
   onLogin: () => void;
 }
 
@@ -19,6 +20,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   pass,
   setPass,
   error,
+  loading = false,
   onLogin,
 }) => {
   return (
@@ -32,6 +34,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         keyboardType="email-address"
         autoCapitalize="none"
         error={error}
+        testID="login-correo"
+        errorTestID="login-error"
       />
 
       <InputField
@@ -41,6 +45,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         onChangeText={setPass}
         leftIcon="lock"
         isPassword
+        testID="login-contrasena"
         rightLabelText="¿Olvidaste tu contraseña?"
         onRightLabelPress={() => {
           Alert.alert(
@@ -53,6 +58,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       <CustomButton
         title="Iniciar sesión"
         onPress={onLogin}
+        loading={loading}
+        testID="login-ingresar"
         iconRight="arrowRight"
         style={styles.loginBtn}
       />
