@@ -125,7 +125,7 @@ function Leer-Credenciales([string[]]$claves) {
     $archivo = Join-Path $script:MobileDir '.maestro\.env.e2e.local'
     if (Test-Path $archivo) {
         foreach ($l in Get-Content $archivo) {
-            if ($l -match '^\s*([A-Z_]+)\s*=\s*(.*)$' -and $claves -contains $Matches[1]) { $valores[$Matches[1]] = $Matches[2].Trim() }
+            if ($l -match '^\s*([A-Z0-9_]+)\s*=\s*(.*)$' -and $claves -contains $Matches[1]) { $valores[$Matches[1]] = $Matches[2].Trim() }
         }
     }
     foreach ($k in $claves) {
@@ -158,4 +158,54 @@ function Verificar-NombresDeFlujos([string[]]$carpetas) {
     if ($problemas.Count -gt 0) {
         Fallar ("Nombres de flujo invalidos en Windows (no usar : \ / * ? `" < > | ni terminar en espacio o punto; usa ' - ' en lugar de dos puntos):`n" + ($problemas -join "`n"))
     }
+}
+
+# ---- Suite C (escrituras reales, ADR-0013) ----
+
+# Exige que los contenedores esten levantados con docker-compose.e2e-real.yml. Solo lee 5 variables NO secretas con
+# `docker compose exec printenv` y NUNCA imprime sus valores (solo cual comprobacion falla).
+function Verificar-ModoE2eReal {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Fallar 'No encuentro docker en el PATH.' }
+    $raiz = Split-Path $script:MobileDir
+    $base = @('compose', '-f', (Join-Path $raiz 'docker-compose.yml'), '-f', (Join-Path $raiz 'docker-compose.e2e-real.yml'))
+    $esperado = @(
+        @('backend', 'E2E_REAL', 'true'),
+        @('backend', 'OTP_ACTIVADO', 'false'),
+        @('backend', 'ML_ENABLED', 'true'),
+        @('nlp_service', 'E2E_REAL', 'true'),
+        @('nlp_service', 'NLP_PROVIDER', 'gemini')
+    )
+    $fallan = @()
+    foreach ($e in $esperado) {
+        $salida = Invocar-Nativo 'docker' ($base + @('exec', '-T', $e[0], 'printenv', $e[1]))
+        $valor = ("$($salida | Select-Object -First 1)").Trim()
+        if ($valor -ne $e[2]) { $fallan += "$($e[0]) $($e[1])" }
+    }
+    if ($fallan.Count -gt 0) {
+        Fallar ("El backend/chatbot no estan en modo e2e-real (fallan: " + ($fallan -join ', ') + "). Levantalos con: docker compose -f docker-compose.yml -f docker-compose.e2e-real.yml up -d --build")
+    }
+}
+
+# La cuenta de paciente debe ser la del paciente de prueba E2E_PACIENTE_ID: GET de solo lectura; no se imprime ningun dato.
+function Verificar-CuentaDePrueba([string]$idPaciente, [string]$correo) {
+    $puerto = if ($env:BACKEND_PORT) { $env:BACKEND_PORT } else { '8000' }
+    try {
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$puerto/api/pacientes/perfil/$idPaciente" -Method Get -TimeoutSec 10
+    } catch {
+        Fallar 'No pude leer el perfil del paciente de prueba (GET). Comprueba que el backend responde y que E2E_PACIENTE_ID es correcto.'
+    }
+    if (-not $r.correo -or ("$($r.correo)".Trim() -ine $correo.Trim())) {
+        Fallar 'PACIENTE_CORREO no corresponde al paciente E2E_PACIENTE_ID. La suite C solo escribe con la cuenta del paciente de prueba.'
+    }
+}
+
+function Mostrar-PlanDeEscrituras([bool]$chatActivo) {
+    Write-Host ''
+    Write-Host 'LA SUITE C ESCRIBE EN LA BASE DE SUPABASE DE DESARROLLO (docs/e2e.md, ADR-0013):' -ForegroundColor Yellow
+    Write-Host '  registro_glucosa      3 filas  (C1 = 93 mg/dL por el medico, C2 = 57 mg/dL por el medico, C3 = 97 mg/dL por el paciente)'
+    Write-Host '  alertas               1 fila   (C2: hipoglucemia; el backend envia ademas un correo al medico asignado)'
+    Write-Host '  auditoria_endpoints   ~10 a 40 filas (login y cada llamada que audita el backend)'
+    if ($chatActivo) { Write-Host '  Gemini (plan gratuito) 1 llamada (C4)' } else { Write-Host '  Gemini                0 llamadas (C4 omitido: define E2E_CHAT_ACTIVO=si para incluirlo)' }
+    Write-Host '  Limpieza: docs/sql/limpiar_datos_e2e.sql (primero el SELECT, en el SQL Editor de Supabase).'
+    Write-Host ''
 }

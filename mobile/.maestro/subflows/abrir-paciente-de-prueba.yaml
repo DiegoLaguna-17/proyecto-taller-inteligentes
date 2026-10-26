@@ -1,0 +1,22 @@
+appId: host.exp.exponent
+name: "Abrir el paciente de prueba por su nombre"
+# Localiza a la paciente de prueba POR TEXTO (nunca por el índice de la lista: medico-paciente-<id> cambia y puede estar fuera
+# de pantalla). Variable opcional: E2E_PACIENTE_NOMBRE_REGEX (expresión regular del nombre, tolerante a tildes; por defecto
+# 'Ana Rodr.guez'). Si varias tarjetas coinciden, se abre la primera: afina la expresión (p. ej. con el segundo apellido).
+---
+- extendedWaitUntil:
+    visible:
+      id: 'medico-metricas'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: '.*${E2E_PACIENTE_NOMBRE_REGEX || "Ana Rodr.guez"}.*'
+    direction: DOWN
+    timeout: 30000
+    visibilityPercentage: 60
+- tapOn:
+    text: '.*${E2E_PACIENTE_NOMBRE_REGEX || "Ana Rodr.guez"}.*'
+- extendedWaitUntil:
+    visible:
+      id: 'detalle-cabecera'
+    timeout: 20000

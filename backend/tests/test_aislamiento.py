@@ -181,7 +181,7 @@ def _sin_comentarios(texto: str) -> str:
 
 def test_ningun_compose_principal_ni_env_example_fija_otp_apagado():
     raiz = BACKEND.parent
-    archivos = [p for p in raiz.glob("docker-compose*.yml") if "prueba" not in p.name]
+    archivos = [p for p in raiz.glob("docker-compose*.yml") if "prueba" not in p.name and "e2e-real" not in p.name]
     archivos += [p for p in raiz.rglob(".env.example") if "node_modules" not in p.parts and ".venv" not in p.parts]
     assert (raiz / "docker-compose.yml") in archivos and (BACKEND / ".env.example") in archivos
     for archivo in archivos:
@@ -197,3 +197,37 @@ def test_otp_apagado_solo_en_el_compose_de_prueba():
     prueba = _sin_comentarios((BACKEND.parent / "docker-compose.prueba.yml").read_text(encoding="utf-8"))
     assert OTP_FALSE.search(prueba)
     assert not OTP_FALSE.search(_sin_comentarios((BACKEND.parent / "docker-compose.yml").read_text(encoding="utf-8")))
+
+
+# ---------------------------------------------------------------- suite C de escrituras reales (ADR-0013)
+def test_el_modo_e2e_real_no_esta_en_el_compose_principal_ni_en_ningun_env_example():
+    raiz = BACKEND.parent
+    textos = {"docker-compose.yml": (raiz / "docker-compose.yml").read_text(encoding="utf-8")}
+    for ruta in raiz.rglob(".env.example"):
+        if "node_modules" not in ruta.parts and ".venv" not in ruta.parts and "venv" not in ruta.parts:
+            textos[str(ruta.relative_to(raiz))] = ruta.read_text(encoding="utf-8")
+    assert len(textos) >= 4  # compose + .env.example de la raiz, backend, nlp_service y ml_service
+    for nombre, texto in textos.items():
+        sin = _sin_comentarios(texto)
+        assert "E2E_REAL" not in sin, nombre
+        assert "e2e-real" not in sin.lower(), nombre
+        assert not re.search(r"NLP_PROVIDER\s*[:=]\s*[\"']?gemini", sin) or nombre.endswith(".env.example"), nombre  # el principal no fija el proveedor real
+
+
+def test_el_override_e2e_real_fija_lo_esperado_y_no_lleva_secretos_ni_puertos():
+    texto = (BACKEND.parent / "docker-compose.e2e-real.yml").read_text(encoding="utf-8")
+    sin = _sin_comentarios(texto)
+    assert OTP_FALSE.search(sin)  # OTP apagado, solo en archivos de prueba
+    assert re.search(r"ML_ENABLED:\s*[\"']?true", sin)
+    assert len(re.findall(r"E2E_REAL:\s*[\"']?true", sin)) == 2  # backend y nlp_service
+    assert re.search(r"NLP_PROVIDER:\s*gemini", sin)  # proveedor REAL; el de prueba usa fake
+    assert not re.search(r"^\s+ports:", sin, re.MULTILINE)  # sin puertos nuevos
+    assert not re.search(r"(API_KEY|SECRET|PASSWORD|TOKEN|PASS)\s*:", sin, re.IGNORECASE)  # la clave no va en el archivo
+    assert "AIza" not in texto
+    assert re.search(r"CHATBOT_RATE_LIMIT_PER_MINUTE:\s*[\"']?[1-5][\"']?\s*$", sin, re.MULTILINE)  # tope bajo para el plan gratuito
+
+
+def test_el_compose_de_prueba_y_el_e2e_real_no_se_confunden():
+    prueba = _sin_comentarios((BACKEND.parent / "docker-compose.prueba.yml").read_text(encoding="utf-8"))
+    assert "E2E_REAL" not in prueba
+    assert re.search(r"NLP_PROVIDER:\s*fake", prueba)

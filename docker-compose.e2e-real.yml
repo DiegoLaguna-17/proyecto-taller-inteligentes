@@ -1,0 +1,21 @@
+# Override de PRUEBAS E2E CON ESCRITURAS REALES (ADR-0013). NO es un compose principal y NO debe usarse fuera de pruebas.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e-real.yml up -d --build
+#
+# Diferencias con docker-compose.prueba.yml: aqui el chatbot usa el proveedor REAL (Gemini, plan gratuito, con limite de
+# tasa bajo) y la suite C (mobile/.maestro/flows/real-escritura) ESCRIBE en la base de Supabase de desarrollo.
+# SIN SECRETOS: la clave del proveedor sale de backend/nlp_service/.env (env_file del compose principal) o del entorno;
+# jamas se escribe aqui. No publica puertos nuevos (los de docker-compose.yml no cambian).
+# Lo que se define aqui tiene prioridad sobre los .env de los servicios.
+services:
+  backend:
+    environment:
+      E2E_REAL: "true"        # marca que ejecutar-suite.ps1 -Suite C exige ver en el contenedor (ADR-0013)
+      OTP_ACTIVADO: "false"   # sin OTP, como en docker-compose.prueba.yml (ADR-0012). SOLO PARA PRUEBAS.
+      ML_ENABLED: "true"      # el registro del medico devuelve riesgo_ml (modelo del servicio ml_service)
+  nlp_service:
+    environment:
+      E2E_REAL: "true"
+      NLP_PROVIDER: gemini                    # proveedor real (la clave NO va aqui)
+      CHATBOT_REQUIRE_AUTH: "false"           # hasta TASK-014, como en docker-compose.prueba.yml
+      CHATBOT_RATE_LIMIT_PER_MINUTE: "2"      # tope bajo para no gastar el plan gratuito

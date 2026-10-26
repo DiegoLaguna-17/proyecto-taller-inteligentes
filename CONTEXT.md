@@ -1,6 +1,6 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-11-04 — Session 33
+> Last updated: 2026-11-05 — Session 34
 
 ## ⚡ Resume from here
 
@@ -19,6 +19,7 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 34 | 2026-11-05 | Fase E2E-2 (rama `pruebas-e2e`): suite C de escrituras reales preparada (ADR-0013, `docker-compose.e2e-real.yml`, flujos C1 a C4, guardas del script y SQL de limpieza). No se ejecutó nada. | docs/adr/0013, design.md, tasks.md, CONTEXT.md, docker-compose.e2e-real.yml, mobile/.maestro, docs/sql, docs/e2e.md |
 | 33 | 2026-11-04 | Fase E2E (rama `feature/pruebas-e2e`): ADR-0012, design.md 1.17.0 y tasks 068 a 070 primero; luego `OTP_ACTIVADO` en el backend, login de la app con ambos caminos, recorridos de Maestro y `docs/e2e.md`. | docs/adr/0012, design.md, tasks.md, CONTEXT.md, backend, mobile, docs/e2e.md |
 | 32 | 2026-11-03 | Alineación documental (solo docs y README del móvil): `RiesgoMlBloque` simplificado a mano por el autor (sin motivo, faltantes ni supuestos); se retiran sus testIDs de la documentación y se anota la decisión abierta. Sin cambios de código. | design.md, mobile/README.md, docs/adr/0011, docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
 | 31 | 2026-11-03 | Fase ML-2 (TASK-017g), solo `mobile/`: spec primero (design.md 1.16.0, tasks.md); pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modo simulado). | design.md, tasks.md, CONTEXT.md, mobile/ |

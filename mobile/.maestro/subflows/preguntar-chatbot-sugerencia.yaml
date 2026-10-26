@@ -1,0 +1,20 @@
+appId: host.exp.exponent
+name: "Hacer la consulta sugerida del chatbot y esperar la respuesta"
+# Envía una consulta sugerida (chat-sugerencia-1) SIN escribir: evita el teclado y el error «Maestro IME is not active».
+# Hace UNA sola llamada al servicio. Espera el aviso médico, que solo aparece cuando la respuesta terminó.
+---
+- tapOn:
+    id: 'nav-chatbot'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-sugerencia-1'
+    timeout: 15000
+- tapOn:
+    id: 'chat-sugerencia-1'
+# Gemini puede tardar: se espera el aviso médico final (hasta 45 s) y se descarta el error del servicio
+- extendedWaitUntil:
+    visible:
+      id: 'chat-aviso-medico'
+    timeout: 45000
+- assertNotVisible:
+    id: 'chat-error'

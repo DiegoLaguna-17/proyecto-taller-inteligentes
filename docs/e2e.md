@@ -107,6 +107,56 @@ Flujos: `01-paciente-login-historial`, `02-paciente-chatbot-proveedor-falso` y `
 - Maestro puede mostrar en su salida el valor de las variables `-e` (correo y contraseña): usa **solo cuentas de prueba**.
 - El `docker-compose.prueba.yml` desactiva el OTP (`OTP_ACTIVADO=false`): **no lo uses fuera de pruebas** (ADR-0012).
 
+## 6.1 Suite C — escrituras reales (backend local, ML y chatbot con Gemini)
+
+> **Esta suite ESCRIBE en la base de Supabase de desarrollo y envía un correo real.** Solo con cuentas de prueba, en una red local de desarrollo. Decisión y riesgos: [ADR-0013](adr/0013-escrituras-reales-en-e2e.md).
+
+**Qué escribe una ejecución completa**
+
+| Dónde | Filas | Origen |
+|---|---|---|
+| `registro_glucosa` | 3 | C1 = **93** mg/dL (médico), C2 = **57** mg/dL (médico), C3 = **97** mg/dL (paciente) |
+| `alertas` | 1 | C2 (hipoglucemia). El backend envía además un **correo** al médico asignado al paciente |
+| `auditoria_endpoints` | ~10 a 40 | Logins y llamadas que audita el backend (no las controlan los flujos) |
+| Gemini (plan gratuito) | **0 o 1 llamada** | C4, solo con `E2E_CHAT_ACTIVO=si`; una pregunta corta. El compose fija `CHATBOT_RATE_LIMIT_PER_MINUTE=2` |
+
+**Requisitos**
+- Paciente de prueba **tipo 2** con datos completos (peso 20 a 300 kg, altura en metros, género, fecha de nacimiento y tratamiento) y con el **médico de prueba asignado** (la alerta de C2 va al médico asignado). Sin datos completos el bloque de riesgo no trae porcentaje.
+- Clave del proveedor en `backend/nlp_service/.env` (`NLP_PROVIDER_API_KEY`), nunca en un archivo versionado.
+- Crea `mobile\.maestro\.env.e2e.local` (ignorado por git) copiando `env.e2e.ejemplo` y completando solo cuentas de prueba: `PACIENTE_CORREO`, `PACIENTE_CLAVE`, `MEDICO_CORREO`, `MEDICO_CLAVE`, `E2E_PACIENTE_ID` (id numérico del paciente), `E2E_CUENTAS_DE_PRUEBA=si` y, opcionalmente, `E2E_CHAT_ACTIVO=si` (incluye C4) y `E2E_ESPERA_RIESGO=si` (exige el porcentaje de riesgo en C1).
+
+**Comandos exactos (PowerShell, desde la raíz del repositorio y desde `mobile/`)**
+
+```powershell
+# 1) Raíz del repo: levantar con el override e2e-real
+docker compose -f docker-compose.yml -f docker-compose.e2e-real.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.e2e-real.yml run --rm ml_entrenar_demo   # solo la primera vez: modelo de ML
+
+# 2) mobile/, ventana 1: Metro en modo real (crea los adb reverse 8000 y 8001)
+cd mobile
+powershell -ExecutionPolicy Bypass -File .maestro\scripts\iniciar-expo.ps1 -Modo real
+
+# 3) mobile/, ventana 2: la suite C (sin -ConfirmoEscrituras se niega a correr)
+powershell -ExecutionPolicy Bypass -File .maestro\scripts\ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras -ExpoUrl exp://<IP de la PC>:8081
+# un solo flujo, o más rápido (sin animaciones):
+powershell -ExecutionPolicy Bypass -File .maestro\scripts\ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras -Flujo C1 -ExpoUrl exp://<IP de la PC>:8081
+npm run e2e:real-escritura -- -ConfirmoEscrituras -Rapido -ExpoUrl exp://<IP de la PC>:8081
+```
+
+Antes de empezar, el script imprime qué escribirá y comprueba (sin imprimir secretos): `adb` ve un dispositivo, Metro responde, el backend y el chatbot están en modo e2e-real (5 variables no secretas del contenedor), `E2E_CUENTAS_DE_PRUEBA=si` y que `PACIENTE_CORREO` es el del paciente `E2E_PACIENTE_ID` (un `GET` de solo lectura). El flujo **C4 se omite** salvo `E2E_CHAT_ACTIVO=si` y no se puede lanzar con `-Flujo C4` sin esa variable.
+
+**Flujos:** C1 médico registra glucosa normal y ve el riesgo (porcentaje con coma, versión y leyenda; si faltan datos solo comprueba lo que exista) · C2 médico registra glucosa baja: alerta creada y riesgo · C3 el paciente registra una glucosa y la ve en el historial · C4 una pregunta al chatbot con Gemini real: respuesta y aviso médico, sin comprobar el texto.
+
+**Cómo se localiza al paciente de prueba.** C1 y C2 lo buscan **por texto** en la lista del médico (`abrir-paciente-de-prueba.yaml`: `scrollUntilVisible` hacia abajo hasta el nombre y `tapOn` del texto; por defecto la expresión `Ana Rodr.guez`, que tolera la tilde). Nunca por el índice `medico-paciente-<id>`: ese id cambia y la tarjeta puede estar fuera de pantalla (la lista solo expone en la jerarquía las tarjetas visibles). Si hay varias coincidencias se abre la primera: afina la expresión con `E2E_PACIENTE_NOMBRE_REGEX`. `E2E_PACIENTE_ID` solo sirve para comprobar la cuenta, no para navegar. Los flujos de las suites A y B que abren «el primer paciente» (`abrir-primer-paciente.yaml`) no dependen de quién sea, solo de que haya uno.
+
+**C4 sin teclado.** C4 envía la consulta sugerida `chat-sugerencia-1` en lugar de escribir: evita el error «Maestro IME is not active» (el teclado de Maestro no estaba activo en el teléfono y `inputText` falló antes de enviar nada, por lo que **no se consumió la llamada a Gemini** en esa ejecución). Sigue haciendo **una** llamada. Si ese error aparece en otros flujos (los que escriben usuario y contraseña), reinicia Maestro y vuelve a conectar el teléfono por USB.
+
+**Cómo limpiar.** Abre `docs/sql/limpiar_datos_e2e.sql` en el SQL Editor de Supabase (proyecto de desarrollo), reemplaza los marcadores (`<ID_PACIENTE>`, `<ID_MEDICO>`, `<DESDE>`, `<HASTA>`), **ejecuta primero el bloque SELECT**, revisa las filas y solo entonces el bloque DELETE. Borra por paciente, médico, ventana de fechas y esas tres cifras, en el orden `retroalimentacion` → `alertas` → `registro_glucosa`. El correo enviado no se puede deshacer. Nada lo ejecuta automáticamente.
+
+**Qué no cubre:** la activación de cuentas, la edición de perfiles, el registro de pacientes o médicos, la respuesta a alertas, el PDF, el texto exacto del chatbot ni la seguridad (OTP apagado, sin autenticación). Tampoco limpia la auditoría salvo el bloque opcional del SQL.
+
+**Qué no se pudo verificar sin ejecutar:** que los flujos pasen; que `GET /api/pacientes/perfil/{id}` devuelva `correo` tal como lo espera la comprobación de la cuenta; que `docker compose exec printenv` funcione con tu versión de Docker; y el comportamiento real de Gemini y del ML con el paciente de prueba.
+
 ## 7. Ejecutar un flujo, por etiqueta, y ver reportes
 
 ```powershell

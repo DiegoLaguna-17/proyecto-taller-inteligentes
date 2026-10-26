@@ -1,5 +1,5 @@
 appId: host.exp.exponent
-name: "Registrar una toma como paciente (modo simulado)"
+name: "Registrar una toma como paciente"
 # Variables: VALOR (entero) y MOMENTO (ayunas | despues | dormir). Termina con el modal de resultado a la vista.
 ---
 - tapOn:

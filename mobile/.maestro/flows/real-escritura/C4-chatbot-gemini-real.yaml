@@ -1,0 +1,31 @@
+appId: host.exp.exponent
+name: "Suite C - chatbot con proveedor real (una llamada)"
+tags:
+  - escritura-real
+  - chatbot
+  - chat-gemini
+---
+# SUITE C: ESCRIBE en la base real de desarrollo (ADR-0013). Solo con ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras.
+# Variables (-e, nunca versionadas): EXPO_URL, MEDICO_CORREO, MEDICO_CLAVE, PACIENTE_CORREO, PACIENTE_CLAVE, E2E_PACIENTE_ID (y opcional E2E_PACIENTE_NOMBRE_REGEX).
+# Hace UNA llamada al proveedor real (Gemini, plan gratuito). El script lo omite salvo E2E_CHAT_ACTIVO=si.
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${PACIENTE_CORREO}
+      CLAVE: ${PACIENTE_CLAVE}
+      NAV: nav-inicio
+# UNA consulta sugerida (sin teclado): se espera la respuesta y el aviso médico, sin comprobar el texto
+- runFlow: ../../subflows/preguntar-chatbot-sugerencia.yaml
+- scrollUntilVisible:
+    element:
+      id: 'chat-aviso-medico'
+    timeout: 10000
+- assertVisible:
+    id: 'chat-aviso-medico'
+- assertVisible:
+    id: 'chat-mensaje-asistente-.*'
+- assertNotVisible:
+    id: 'chat-error'
+- takeScreenshot: .maestro/screenshots/c4-chatbot-real
+- runFlow: ../../subflows/cerrar-sesion.yaml

@@ -1,0 +1,43 @@
+appId: host.exp.exponent
+name: "Suite C - paciente registra su glucosa y la ve en el historial"
+tags:
+  - escritura-real
+  - paciente
+  - glucosa
+---
+# SUITE C: ESCRIBE en la base real de desarrollo (ADR-0013). Solo con ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras.
+# Variables (-e, nunca versionadas): EXPO_URL, MEDICO_CORREO, MEDICO_CLAVE, PACIENTE_CORREO, PACIENTE_CLAVE, E2E_PACIENTE_ID (y opcional E2E_PACIENTE_NOMBRE_REGEX).
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${PACIENTE_CORREO}
+      CLAVE: ${PACIENTE_CLAVE}
+      NAV: nav-inicio
+# 97 mg/dL en ayunas: normal; cifra poco habitual para la limpieza
+- runFlow:
+    file: ../../subflows/registrar-toma-paciente.yaml
+    env:
+      VALOR: '97'
+      MOMENTO: ayunas
+- assertVisible:
+    id: 'registro-resultado-mensaje'
+    text: '.*dentro de los parámetros esperados.*'
+- tapOn:
+    id: 'registro-resultado-cerrar'
+- tapOn:
+    id: 'nav-historial'
+- extendedWaitUntil:
+    visible:
+      id: 'historial-vista-lista'
+    timeout: 20000
+- tapOn:
+    id: 'historial-vista-lista'
+- scrollUntilVisible:
+    element:
+      text: '.*97.*'
+    timeout: 20000
+- assertVisible:
+    text: '.*97.*'
+- takeScreenshot: .maestro/screenshots/c3-paciente-historial
+- runFlow: ../../subflows/cerrar-sesion.yaml

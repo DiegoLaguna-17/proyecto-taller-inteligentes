@@ -581,6 +581,9 @@
   - _Verify_: pruebas unitarias de ambos caminos (respuesta con `rol` entra sin OTP; sin `rol` pide OTP; rol desconocido e `id_rol` 0 fallan) y del modo simulado con y sin OTP; sin cambiar `testID` existentes.
 - [~] **TASK-070** [NFR-001]: Recorridos E2E con Maestro sobre Expo Go (suite A simulada y suite B de solo lectura), scripts de PowerShell y `docs/e2e.md`. **Escrito, sin ejecutar (2026-11-04):** `mobile/.maestro/` (config, 15 flujos simulados, 3 de solo lectura, 9 subflujos, 3 scripts de PowerShell), `testID` `nav-*` y `header-perfil`, `docs/e2e.md`; 28 YAML válidos. Pendiente: que el autor los ejecute con el teléfono.
   - _Verify_: sintaxis revisada contra la documentación de Maestro; `tsc`, pruebas y `expo export` en verde. **Los recorridos solo los puede ejecutar el autor con el teléfono**: no se declaran aprobados.
+- [~] **TASK-071** [NFR-001]: Suite C de escrituras reales (ADR-0013, design.md § Suite C).
+  - _Output_: `docker-compose.e2e-real.yml`, `mobile/.maestro/flows/real-escritura/` (C1 a C4), `abrir-paciente-de-prueba.yaml`, `ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras`, `docs/sql/limpiar_datos_e2e.sql`, ADR-0013 y `docs/e2e.md` § Suite C.
+  - _Verify_: YAML y parser de PowerShell válidos, `docker compose config`, pruebas de que el compose principal y los `.env.example` no activan e2e-real y de que las suites A y B no incluyen los flujos C. **Pendiente de ejecución por el autor** (Maestro, Docker, teléfono, Supabase y Gemini): no se declara aprobada.
 - [ ] **TASK-025** [NFR-001]: Auditoría de seguridad — confirmar hash de contraseñas y HTTPS forzado en todos los endpoints.
   - _Refs rationale_: NFR-001.
   - _Output_: Reporte de auditoría manual o automatizada.

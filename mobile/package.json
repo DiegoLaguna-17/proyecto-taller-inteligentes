@@ -35,6 +35,7 @@
     "e2e:expo-real": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/iniciar-expo.ps1 -Modo real",
     "e2e:mock-rapido": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite A -Rapido",
     "e2e:mock": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite A",
+    "e2e:real-escritura": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite C",
     "e2e:real": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite B"
   },
   "private": true

@@ -1,5 +1,5 @@
 appId: host.exp.exponent
-name: "El médico registra una toma por el paciente (modo simulado)"
+name: "El médico registra una toma por el paciente"
 # Parte del detalle del paciente. Variable: VALOR; la última cifra elige el caso del riesgo (mobile/README.md).
 # Termina con el modal de resultado a la vista; el que llama lo cierra con medico-toma-resultado-confirmar.
 ---

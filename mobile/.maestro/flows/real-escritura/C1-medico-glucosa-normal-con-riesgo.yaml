@@ -1,0 +1,56 @@
+appId: host.exp.exponent
+name: "Suite C - médico registra glucosa normal y ve el riesgo"
+tags:
+  - escritura-real
+  - medico
+  - ml
+---
+# SUITE C: ESCRIBE en la base real de desarrollo (ADR-0013). Solo con ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras.
+# Variables (-e, nunca versionadas): EXPO_URL, MEDICO_CORREO, MEDICO_CLAVE, PACIENTE_CORREO, PACIENTE_CLAVE, E2E_PACIENTE_ID (y opcional E2E_PACIENTE_NOMBRE_REGEX).
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${MEDICO_CORREO}
+      CLAVE: ${MEDICO_CLAVE}
+      NAV: nav-pacientes
+- runFlow: ../../subflows/abrir-paciente-de-prueba.yaml
+# 93 mg/dL en ayunas: normal para cualquier grupo de edad diabético (80 a 110 como mínimo común) y cifra poco habitual
+# para ubicar la fila en la limpieza (docs/sql/limpiar_datos_e2e.sql)
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '93'
+- assertVisible:
+    id: 'medico-toma-resultado-mensaje'
+    text: '.*dentro de los parámetros esperados.*'
+# Riesgo del ML: si el backend lo devolvió, el bloque trae porcentaje con coma, versión y leyenda; si faltan datos o el ML
+# está apagado, solo se comprueba lo que exista (el bloque sin riesgo muestra título y leyenda; sin riesgo_ml no hay bloque).
+- runFlow:
+    when:
+      visible:
+        id: 'ml-riesgo-valor'
+    commands:
+      - assertVisible:
+          id: 'ml-riesgo-valor'
+          text: '[0-9]{1,3},[0-9] %'
+      - assertVisible:
+          id: 'ml-riesgo-version'
+      - scrollUntilVisible:
+          element:
+            id: 'ml-riesgo-leyenda'
+          timeout: 10000
+      - assertVisible:
+          id: 'ml-riesgo-leyenda'
+          text: '.*no validado clínicamente.*'
+- runFlow:
+    when:
+      true: ${(typeof E2E_ESPERA_RIESGO !== 'undefined' && E2E_ESPERA_RIESGO) == 'si'}
+    commands:
+      - assertVisible:
+          id: 'ml-riesgo-valor'
+- takeScreenshot: .maestro/screenshots/c1-medico-glucosa-normal
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

@@ -717,6 +717,13 @@ Rama `feature/pruebas-e2e`. **Backend de Adrian: cambios mínimos, aditivos y co
 - **Documentación:** `docs/e2e.md` (requisitos, ejecución, reportes, limitaciones de Expo Go, paso a APK).
 - **No verificable sin teléfono ni Maestro:** que los flujos pasen, el manejo real de las pantallas de Expo Go y los tiempos de carga.
 
+### Suite C: escrituras reales (TASK-071, ADR-0013)
+- **Compose:** `docker-compose.e2e-real.yml` (override de `docker-compose.yml`): `OTP_ACTIVADO=false`, `ML_ENABLED=true`, `E2E_REAL=true` en backend y NLP, `NLP_PROVIDER=gemini` (clave del `.env` del servicio NLP, nunca en el archivo), `CHATBOT_RATE_LIMIT_PER_MINUTE=2`, sin puertos nuevos.
+- **Flujos** (`mobile/.maestro/flows/real-escritura/`, etiqueta `escritura-real`): C1 médico registra 93 mg/dL y ve el riesgo; C2 médico registra 57 mg/dL (alerta y riesgo); C3 paciente registra 97 mg/dL y lo ve en el historial; C4 una pregunta al chatbot real (etiqueta `chat-gemini`, solo con `E2E_CHAT_ACTIVO=si`). Subflujo nuevo `abrir-paciente-de-prueba.yaml` (`medico-paciente-<E2E_PACIENTE_ID>`).
+- **Script:** `ejecutar-suite.ps1 -Suite C -ConfirmoEscrituras`: imprime qué escribirá, exige el modo e2e-real (5 variables no secretas del contenedor), `E2E_CUENTAS_DE_PRUEBA=si` y que `PACIENTE_CORREO` sea el del paciente `E2E_PACIENTE_ID` (GET de solo lectura).
+- **Limpieza:** `docs/sql/limpiar_datos_e2e.sql` (SELECT de vista previa y DELETE aparte, acotados por paciente, médico, fechas y cifras; orden retroalimentacion → alertas → registro_glucosa). No se ejecuta automáticamente.
+- **Pruebas:** el compose principal y los `.env.example` no activan e2e-real; el override fija OTP apagado, ML activo y NLP real sin secretos ni puertos; las suites A y B no incluyen los flujos C.
+
 ## Contenedores (Docker Compose)
 
 Los tres servicios del backend se empaquetan en imágenes separadas y se levantan con un solo `docker compose up -d` desde la raíz (decisión del equipo, [ADR-0010](docs/adr/0010-contenerizacion-docker-compose.md)). La app móvil **no** va en Docker. Las versiones de los servicios chocan entre sí (fastapi 0.115.0 frente a 0.162.0, pydantic 2.9.2 frente a 2.14.1), por eso cada uno lleva **su** imagen y **su** `requirements.txt`.
@@ -931,4 +938,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.16.0 | 2026-11-03 | Fase ML-2 (TASK-017g, ADR-0011): pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modal con contenido adicional, modo simulado por última cifra). Solo `mobile/`; sin cambios en el backend ni en el ML. |
 | 1.16.1 | 2026-11-03 | Alineación documental de la Fase ML-2 con la pantalla simplificada: el bloque ya no muestra motivo, faltantes ni supuestos (testIDs retirados) y queda una Decisión abierta. Sin cambios de código. |
 | 1.17.0 | 2026-11-04 | Fase E2E (TASK-068 a 070, ADR-0012): interruptor `OTP_ACTIVADO` (login sin OTP solo en `docker-compose.prueba.yml`), login de la app con ambos caminos y `EXPO_PUBLIC_SIN_OTP` en modo simulado, recorridos de Maestro en `mobile/.maestro/`, `testID` `nav-*` y `docs/e2e.md`. Cambios mínimos y aditivos en el backend de Adrian. |
+| 1.18.0 | 2026-11-05 | Fase E2E-2 (TASK-071, ADR-0013): suite C de escrituras reales con `docker-compose.e2e-real.yml`, flujos C1 a C4, guardas de `ejecutar-suite.ps1 -Suite C` y limpieza SQL manual. Solo pruebas y documentación; sin cambios en el backend ni en el ML. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |

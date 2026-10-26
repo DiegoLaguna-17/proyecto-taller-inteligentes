@@ -228,7 +228,7 @@ Estas credenciales **no existen en el backend real**: sin la bandera, no entran.
 
 ## Recorridos E2E (Maestro)
 
-Los recorridos de interfaz sobre Expo Go están en `mobile/.maestro/` (suite A en modo simulado, suite B de solo lectura contra el backend real local). Requisitos, comandos y limitaciones: [`docs/e2e.md`](../docs/e2e.md). Atajos: `npm run e2e:expo-mock`, `e2e:mock`, `e2e:expo-real` y `e2e:real`. Para probar el login sin OTP con el backend, ver ADR-0012 (`docker-compose.prueba.yml`).
+Los recorridos de interfaz sobre Expo Go están en `mobile/.maestro/` (suite A en modo simulado, suite B de solo lectura contra el backend real local). Requisitos, comandos y limitaciones: [`docs/e2e.md`](../docs/e2e.md). Atajos: `npm run e2e:expo-mock`, `e2e:mock`, `e2e:mock-rapido`, `e2e:expo-real`, `e2e:real` y `e2e:real-escritura` (suite C: **escribe en la base real de desarrollo**; exige `-- -ConfirmoEscrituras`, ver `docs/e2e.md` § Suite C y ADR-0013). Para probar el login sin OTP con el backend, ver ADR-0012 (`docker-compose.prueba.yml`).
 
 ## Pruebas
 
