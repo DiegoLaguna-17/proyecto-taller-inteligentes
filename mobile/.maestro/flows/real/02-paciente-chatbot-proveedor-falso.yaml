@@ -1,0 +1,20 @@
+appId: host.exp.exponent
+name: "Backend real (solo lectura) - chatbot con el proveedor falso"
+tags:
+  - real
+  - lectura
+  - chatbot
+---
+# Requiere el servicio NLP del compose de prueba (NLP_PROVIDER=fake) y `adb reverse tcp:8001 tcp:8001`.
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${PACIENTE_CORREO}
+      CLAVE: ${PACIENTE_CLAVE}
+      NAV: nav-inicio
+- runFlow: ../../subflows/preguntar-chatbot.yaml
+- assertVisible:
+    id: 'chat-aviso-medico'
+- takeScreenshot: .maestro/screenshots/b02-chatbot
+- runFlow: ../../subflows/cerrar-sesion.yaml

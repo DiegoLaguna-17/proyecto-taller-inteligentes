@@ -1,10 +1,10 @@
 # CONTEXT.md
 > GlucoTracker — Live session journal
-> Last updated: 2026-11-03 — Session 32
+> Last updated: 2026-11-04 — Session 33
 
 ## ⚡ Resume from here
 
-**Active task:** TASK-017 (Fase ML-1/ML-2): 017g (pantalla del médico con el riesgo) hecha; sobre la integración de la Fase ML-1: integración backend ↔ ML en `POST /api/medicos/registrar/glucosa` (ADR-0011). 017h (captura de `anio_diagnostico` y comorbilidades) queda pendiente.
+**Active task:** TASK-070 (Fase E2E, rama `pruebas-e2e`: recorridos escritos, falta ejecutarlos con el teléfono). Antes: TASK-017 (Fase ML-1/ML-2): 017g (pantalla del médico con el riesgo) hecha; sobre la integración de la Fase ML-1: integración backend ↔ ML en `POST /api/medicos/registrar/glucosa` (ADR-0011). 017h (captura de `anio_diagnostico` y comorbilidades) queda pendiente.
 **Phase:** Phase 3-4: Lógica de Negocio y API (backend de Adrian fusionado; ML y NLP como servicios aparte)
 **Status:** in progress — backend fusionado y verificado (87 + 237 + 90 pruebas); contrato y esquema del backend por reconciliar con design.md (TASK-029)
 **Blocker (if any):** TASK-017 necesita resolver la Open Question del perfil clínico en Data Models (los campos que pide el modelo no existen en T_Paciente)
@@ -19,6 +19,7 @@
 
 | # | Date | What was done | Files changed |
 |---|---|---|---|
+| 33 | 2026-11-04 | Fase E2E (rama `feature/pruebas-e2e`): ADR-0012, design.md 1.17.0 y tasks 068 a 070 primero; luego `OTP_ACTIVADO` en el backend, login de la app con ambos caminos, recorridos de Maestro y `docs/e2e.md`. | docs/adr/0012, design.md, tasks.md, CONTEXT.md, backend, mobile, docs/e2e.md |
 | 32 | 2026-11-03 | Alineación documental (solo docs y README del móvil): `RiesgoMlBloque` simplificado a mano por el autor (sin motivo, faltantes ni supuestos); se retiran sus testIDs de la documentación y se anota la decisión abierta. Sin cambios de código. | design.md, mobile/README.md, docs/adr/0011, docs/ml/integracion_backend_ml.md, tasks.md, CONTEXT.md |
 | 31 | 2026-11-03 | Fase ML-2 (TASK-017g), solo `mobile/`: spec primero (design.md 1.16.0, tasks.md); pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modo simulado). | design.md, tasks.md, CONTEXT.md, mobile/ |
 | 30 | 2026-11-03 | Fase ML-1b (TASK-017i): `riesgo_ml.faltantes` y log por cálculo para diagnosticar `datos_insuficientes`. Documentación primero (ADR-0011, design.md 1.15.1, tasks.md). | backend/, docs, tasks.md, CONTEXT.md |
@@ -160,6 +161,8 @@ Pendientes del backend de negocio (`backend/app/`) encontrados al conectar la ap
     - `POST /medicos/registrar/glucosa` ya llama al ML con `ML_ENABLED=true`: sin autenticación ni validación de pertenencia, cualquiera obtiene un riesgo calculado de un paciente con solo su id (RB-01). Activar solo en una red local de desarrollo.
     - El riesgo usa una **duración estimada** (6,5 años, mediana del conjunto sintético) y comorbilidades en `false`: se declaran en `riesgo_ml.supuestos`. Capturar `paciente.anio_diagnostico` y las comorbilidades (TASK-017h, cambio de esquema) elimina los supuestos; el armador ya tiene el punto de extensión.
     - El cliente del backend crea una conexión nueva por llamada (mediana 34 ms, p95 87 ms medidos): suficiente; un cliente compartido podría bajarlo.
+
+22. **Interruptor de OTP para pruebas (ADR-0012):** `OTP_ACTIVADO` (por defecto `true`). Con `false`, `POST /api/login` no envía OTP y devuelve `rol`. **Solo existe en `docker-compose.prueba.yml`; NO debe activarse fuera de pruebas**: el OTP es hoy el único control real de acceso (RB-01). Hay una prueba que falla si el compose principal o un `.env.example` lo fija en `false`, y el backend registra un WARNING al arrancar así. Cambios en tu código: `api/auth.py`, `core/config.py` y `main.py`, aditivos.
 
 **Informativa**
 15. **No hay servicio de notificaciones, recordatorios ni biometría:** la app retiró el menú «Configuración y Seguridad» del perfil porque mostraba alertas estáticas ("recordatorios activos", "conexión segura con el portal clínico") sin ningún endpoint detrás.

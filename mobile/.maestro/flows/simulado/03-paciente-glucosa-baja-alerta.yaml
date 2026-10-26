@@ -1,0 +1,29 @@
+appId: host.exp.exponent
+name: "Paciente - glucosa baja con aviso de alerta"
+tags:
+  - paciente
+  - glucosa
+  - alerta
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: paciente
+      NAV: nav-inicio
+- runFlow:
+    file: ../../subflows/registrar-toma-paciente.yaml
+    env:
+      VALOR: '60'
+      MOMENTO: ayunas
+- assertVisible:
+    id: 'registro-resultado-mensaje'
+    text: '.*Tu glucosa está baja.*'
+# En el modo simulado la alerta siempre se registra: el aviso afirma que se envió el correo al médico
+- assertVisible:
+    id: 'registro-resultado-mensaje'
+    text: '.*Se envió un correo a tu médico asignado.*'
+- takeScreenshot: .maestro/screenshots/a03-glucosa-baja-alerta
+- tapOn:
+    id: 'registro-resultado-cerrar'
+- runFlow: ../../subflows/cerrar-sesion.yaml

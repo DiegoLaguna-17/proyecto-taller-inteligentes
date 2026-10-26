@@ -1,0 +1,60 @@
+appId: host.exp.exponent
+name: "Médico - toma con riesgo de hipoglucemia (17,1 % y extremos)"
+tags:
+  - medico
+  - ml
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- runFlow: ../../subflows/abrir-primer-paciente.yaml
+# Última cifra 1: con riesgo (0.1712), versión del modelo y leyenda
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '111'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- assertVisible:
+    id: 'ml-riesgo-valor'
+    text: '17,1 %'
+- assertVisible:
+    id: 'ml-riesgo-version'
+    text: '.*1\.1\.0.*'
+- scrollUntilVisible:
+    element:
+      id: 'ml-riesgo-leyenda'
+    timeout: 10000
+- assertVisible:
+    id: 'ml-riesgo-leyenda'
+    text: '.*no validado clínicamente.*'
+- takeScreenshot: .maestro/screenshots/a07-riesgo-171
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Última cifra 8: riesgo 0 exacto
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '118'
+- assertVisible:
+    id: 'ml-riesgo-valor'
+    text: '0,0 %'
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Última cifra 9: riesgo 1 exacto
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '119'
+- assertVisible:
+    id: 'ml-riesgo-valor'
+    text: '100,0 %'
+- takeScreenshot: .maestro/screenshots/a07-riesgo-100
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Termina en el detalle del paciente (sin barra de pestañas): se vuelve a una pestaña antes de cerrar sesión
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

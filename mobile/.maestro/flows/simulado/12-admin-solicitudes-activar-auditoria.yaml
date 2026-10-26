@@ -1,0 +1,44 @@
+appId: host.exp.exponent
+name: "Administrador - solicitudes, detalle, activar (simulado) y auditoría"
+tags:
+  - admin
+  - smoke
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: admin
+      NAV: nav-solicitudes
+- assertVisible:
+    id: 'solicitud-pendientes'
+- takeScreenshot: .maestro/screenshots/a12-solicitudes
+- tapOn:
+    id: 'solicitud-(medico|paciente)-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'solicitud-datos'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a12-solicitud-detalle
+- scrollUntilVisible:
+    element:
+      id: 'solicitud-activar'
+- tapOn:
+    id: 'solicitud-activar'
+- tapOn:
+    id: 'solicitud-confirmacion-confirmar'
+- extendedWaitUntil:
+    visible:
+      id: 'solicitud-resultado'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a12-solicitud-activada
+- tapOn:
+    id: 'solicitud-resultado-confirmar'
+- tapOn:
+    id: 'nav-auditoria'
+- extendedWaitUntil:
+    visible:
+      id: 'auditoria-kpis'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a12-auditoria
+- runFlow: ../../subflows/cerrar-sesion.yaml

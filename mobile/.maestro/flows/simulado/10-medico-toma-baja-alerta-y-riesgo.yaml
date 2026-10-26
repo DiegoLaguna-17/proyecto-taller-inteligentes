@@ -1,0 +1,32 @@
+appId: host.exp.exponent
+name: "Médico - lectura baja con alerta y riesgo a la vez"
+tags:
+  - medico
+  - ml
+  - alerta
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- runFlow: ../../subflows/abrir-primer-paciente.yaml
+# 61: hipoglucemia (se crea la alerta) y, por la última cifra 1, con riesgo. El aviso de la alerta va primero y el bloque no lo tapa.
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '61'
+- assertVisible:
+    id: 'medico-toma-resultado-mensaje'
+    text: '.*Se creó la alerta.*'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- assertVisible:
+    id: 'ml-riesgo-valor'
+- takeScreenshot: .maestro/screenshots/a10-alerta-y-riesgo
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Termina en el detalle del paciente (sin barra de pestañas): se vuelve a una pestaña antes de cerrar sesión
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 import app.core.supabase as sb
+from app.core.config import settings
 from app.core.security import verify_password, hash_password
 from app.services.otp_service import OtpCacheService
 from app.services.email_service import EmailService, get_otp_template
@@ -53,6 +54,16 @@ async def login(req_body: LoginRequest, request: Request):
         if not is_match:
             await registrar_auditoria(request, rol="login", status_code=401, id_usuario=usuario["id_usuario"], id_rol=id_rol)
             return JSONResponse(status_code=401, content={"error": "Contraseña incorrecta"})
+
+        # 4. Interruptor de PRUEBAS (ADR-0012): con OTP_ACTIVADO=false no se genera ni se envía el OTP y se devuelve el rol
+        if not settings.OTP_ACTIVADO:
+            await registrar_auditoria(request, rol="login", status_code=200, id_usuario=usuario["id_usuario"], id_rol=id_rol)
+            return {
+                "id_usuario": usuario["id_usuario"],
+                "id_rol": id_rol,
+                "rol": rol,
+                "message": "Login exitoso (OTP desactivado para pruebas)"
+            }
 
         # 4. Generar OTP
         otp = str(random.randint(100000, 999999))

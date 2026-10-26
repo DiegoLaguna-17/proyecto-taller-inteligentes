@@ -33,6 +33,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
+            testID="header-volver"
             accessibilityLabel="Volver"
           >
             <Icon name="arrowLeft" size={24} color={COLORS.textPrimary} />
@@ -70,6 +71,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           onPress={onProfilePress}
           activeOpacity={0.7}
           accessibilityRole="button"
+          testID="header-perfil"
           accessibilityLabel="Mi perfil"
           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
         >

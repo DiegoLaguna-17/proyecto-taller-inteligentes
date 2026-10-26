@@ -1,5 +1,6 @@
 import { API_BASE_URL, USE_MOCK } from './config.ts';
 import { solicitar, ErrorApi, MENSAJES } from './http.ts';
+import { esperarMock } from './latenciaMock.ts';
 import { leerRiesgoMl, type RiesgoMl } from './riesgoMl.ts';
 
 export interface Momento {
@@ -110,7 +111,10 @@ export async function obtenerDatosPaciente(idPaciente: number): Promise<DatosPac
 
 /** POST /api/pacientes/registrarGlucosa -> id del registro creado. */
 export async function registrarGlucosa(toma: NuevaToma): Promise<{ id_registro: number | null }> {
-  if (USE_MOCK) return { id_registro: 1 };
+  if (USE_MOCK) {
+    await esperarMock();
+    return { id_registro: 1 };
+  }
   const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown }>({
     base: API_BASE_URL,
     ruta: '/api/pacientes/registrarGlucosa',
@@ -154,7 +158,10 @@ export function riesgoMlSimulado(nivelGlucosa: number): unknown {
  * y, solo si el backend tiene el ML activo, el riesgo informativo (`riesgo_ml`). Leer el riesgo nunca puede hacer fallar el registro.
  */
 export async function registrarGlucosaMedico(toma: NuevaTomaMedico): Promise<{ id_registro: number | null; riesgoMl: RiesgoMl | null }> {
-  if (USE_MOCK) return { id_registro: 1, riesgoMl: leerRiesgoMl(riesgoMlSimulado(toma.nivel_glucosa)) }; // modo simulado: sin red
+  if (USE_MOCK) {
+    await esperarMock();
+    return { id_registro: 1, riesgoMl: leerRiesgoMl(riesgoMlSimulado(toma.nivel_glucosa)) }; // modo simulado: sin red
+  }
   const d = await solicitar<{ registro_glucosa?: { id_registro?: unknown }; id_registro?: unknown; riesgo_ml?: unknown }>({
     base: API_BASE_URL,
     ruta: '/api/medicos/registrar/glucosa',

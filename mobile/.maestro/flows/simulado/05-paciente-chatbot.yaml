@@ -1,0 +1,30 @@
+appId: host.exp.exponent
+name: "Paciente - chatbot con aviso médico visible"
+tags:
+  - paciente
+  - chatbot
+  - smoke
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: paciente
+      NAV: nav-inicio
+- runFlow: ../../subflows/preguntar-chatbot.yaml
+# La lista se desplaza al final: se comprueba lo que queda a la vista (respuesta y aviso) y luego, subiendo, el mensaje del usuario
+- assertVisible:
+    id: 'chat-mensaje-asistente-1'
+- assertVisible:
+    id: 'chat-aviso-medico'
+- assertNotVisible:
+    id: 'chat-escribiendo'
+- scrollUntilVisible:
+    element:
+      id: 'chat-mensaje-usuario-0'
+    direction: UP
+    timeout: 10000
+- assertVisible:
+    id: 'chat-mensaje-usuario-0'
+- takeScreenshot: .maestro/screenshots/a05-chatbot
+- runFlow: ../../subflows/cerrar-sesion.yaml

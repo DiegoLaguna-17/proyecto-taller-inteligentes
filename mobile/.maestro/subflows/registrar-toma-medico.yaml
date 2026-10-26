@@ -1,0 +1,31 @@
+appId: host.exp.exponent
+name: "El médico registra una toma por el paciente (modo simulado)"
+# Parte del detalle del paciente. Variable: VALOR; la última cifra elige el caso del riesgo (mobile/README.md).
+# Termina con el modal de resultado a la vista; el que llama lo cierra con medico-toma-resultado-confirmar.
+---
+- scrollUntilVisible:
+    element:
+      id: 'detalle-registrar-toma'
+- tapOn:
+    id: 'detalle-registrar-toma'
+- extendedWaitUntil:
+    visible:
+      id: 'registro-valor'
+    timeout: 15000
+- tapOn:
+    id: 'registro-valor'
+- inputText: ${VALOR}
+- hideKeyboard
+- tapOn:
+    id: 'registro-momento-ayunas'
+- scrollUntilVisible:
+    element:
+      id: 'medico-toma-enviar'
+- tapOn:
+    id: 'medico-toma-enviar'
+- tapOn:
+    id: 'medico-toma-confirmacion-confirmar'
+- extendedWaitUntil:
+    visible:
+      id: 'medico-toma-resultado'
+    timeout: 15000

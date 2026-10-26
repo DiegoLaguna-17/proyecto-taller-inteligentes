@@ -1,0 +1,48 @@
+appId: host.exp.exponent
+name: "Login con el OTP simulado (requiere EXPO_PUBLIC_SIN_OTP=false)"
+tags:
+  - otp
+  - login
+---
+- runFlow: ../../subflows/preparar.yaml
+- tapOn:
+    id: 'login-correo'
+- inputText: carlos@email.com
+- tapOn:
+    id: 'login-contrasena'
+- inputText: '12345'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'login-ingresar'
+- extendedWaitUntil:
+    visible:
+      id: 'login-ingresar'
+    timeout: 10000
+- tapOn:
+    id: 'login-ingresar'
+- extendedWaitUntil:
+    visible:
+      id: 'login-otp'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a15-otp
+- tapOn:
+    id: 'login-otp'
+- inputText: '000000'
+- hideKeyboard
+- tapOn:
+    id: 'login-verificar'
+- assertVisible:
+    id: 'login-otp-error'
+- tapOn:
+    id: 'login-otp'
+- eraseText
+- inputText: '123456'
+- hideKeyboard
+- tapOn:
+    id: 'login-verificar'
+- extendedWaitUntil:
+    visible:
+      id: 'nav-inicio'
+    timeout: 15000
+- runFlow: ../../subflows/cerrar-sesion.yaml

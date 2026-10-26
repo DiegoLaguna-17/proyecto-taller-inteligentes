@@ -693,6 +693,30 @@ Restaura las credenciales fijas y los botones de acceso rápido por rol, para de
 ### Identificadores de prueba (`testID`)
 Estables y en español en las pantallas conectadas (login, registro, chat, mensajes de error), para pruebas de interfaz; la lista vive en `mobile/README.md`. No alteran el diseño ni la lógica.
 
+## Pruebas E2E y interruptor de OTP (TASK-068 a TASK-070, ADR-0012)
+Rama `feature/pruebas-e2e`. **Backend de Adrian: cambios mínimos, aditivos y con el comportamiento actual por defecto.**
+
+### Interruptor de OTP (backend)
+- `OTP_ACTIVADO` (`core/config.py`, por defecto `true`, leído con `_bool_env`). Con `true`, `POST /api/login` responde como siempre: `{id_usuario, id_rol, message: "OTP enviado al correo"}` y envía el OTP.
+- Con `false`: mismas validaciones y mismos 401/500; **no** genera OTP ni envía correo y responde `{id_usuario, id_rol, rol, message}` (`rol` es el texto del backend: `paciente`, `medico` o `administrador`). `POST /api/verify-otp` no cambia.
+- **Aviso al arrancar:** `main.py` (función `avisar_otp_desactivado`, ejecutada en el `lifespan`) registra un WARNING si `OTP_ACTIVADO=false`.
+- **Configuración:** `OTP_ACTIVADO=true` en `backend/.env.example` y en `docker-compose.yml` (servicio `backend`, `environment`); `OTP_ACTIVADO: "false"` **solo** en `docker-compose.prueba.yml`. Prueba automática en `backend/tests/test_aislamiento.py`: ningún compose principal ni `.env.example` fija `false`.
+
+### Login de la app con y sin OTP
+- `iniciarSesion` devuelve `{id_usuario, sesion?}`: `sesion` solo si la respuesta trae `id_rol` (> 0) y `rol` (uno de los tres textos del backend); un `rol` desconocido o un `id_rol` ≤ 0 es un error (`MENSAJES.respuesta` o «No se encontró tu perfil…»). Sin `rol` sigue el flujo con OTP (`verificarOtp`). Sin cambios de `testID`.
+- **Modo simulado:** sin `EXPO_PUBLIC_SIN_OTP` (o con cualquier valor distinto de `false`) conserva el acceso directo y los accesos rápidos de siempre. Con `EXPO_PUBLIC_SIN_OTP=false` y `EXPO_PUBLIC_USE_MOCK=true` el login simula el paso del OTP (credenciales fijas del README, código `123456`). Con el backend real la variable no tiene efecto.
+
+### Recorridos de Maestro (`mobile/.maestro/`)
+- **Cómo se abre la app:** con Expo Go no se usa `launchApp` con un appId propio (la documentación de Maestro para React Native lo dice: la app corre dentro del contenedor de Expo). Los flujos declaran `appId: host.exp.exponent` (paquete de Expo Go en Android) y abren la app con `openLink` y la URL `exp://<IP de la PC>:8081` pasada por la variable `EXPO_URL` (nunca escrita en el repositorio). Las pantallas propias de Expo Go (menú de desarrollo, aviso de primera vez) se descartan con `runFlow` + `when: visible`. Más adelante, con un APK propio, bastaría `launchApp` con su paquete.
+- **Estructura:** `config.yaml`, `flows/simulado/` (suite A), `flows/real/` (suite B, solo lectura), `subflows/` (abrir la app, cerrar sesión, iniciar sesión por rol), `scripts/` (PowerShell), `reports/` y `screenshots/` (ignoradas por git).
+- **Suite A (simulado, escribe de mentira):** login de paciente; registrar glucosa normal y baja (con aviso de alerta); historial; chatbot; login de médico, pacientes y detalle; el médico registra una toma por el paciente con el bloque de riesgo (la última cifra de la glucosa elige el caso: ver `mobile/README.md`); el médico responde una alerta; administrador (solicitudes, detalle, activar simulado, auditoría); formularios de registro con validaciones sin enviar; login con OTP simulado (etiqueta `otp`, requiere `EXPO_PUBLIC_SIN_OTP=false`).
+- **Suite B (backend real local con `docker-compose.prueba.yml`, SOLO LECTURA):** login con un usuario de prueba (credenciales por `-e`), historial o lista y detalle, y el chatbot con el proveedor falso. **Prohibido** registrar, activar, editar o responder alertas.
+- **Bloque de riesgo:** `ml-riesgo-bloque` y `ml-riesgo-leyenda` con y sin riesgo; `ml-riesgo-valor` y `ml-riesgo-version` solo con riesgo; sin `riesgo_ml` (ML apagado) el bloque no existe. Los `testID` `ml-riesgo-motivo`, `-faltantes` y `-supuestos` no existen y no se usan.
+- **`testID` nuevos (barra de pestañas y encabezado):** `nav-<pestana>` (`nav-inicio`, `nav-historial`, `nav-chatbot`, `nav-perfil`, `nav-pacientes`, `nav-alertas`, `nav-reportes`, `nav-solicitudes`, `nav-usuarios`, `nav-auditoria`), imprescindibles para cerrar sesión y navegar; no cambian los existentes.
+- **Conexión (receta del equipo):** Metro con `npx expo start -c --port 8081` (sin `--localhost`); la app se abre con la URL manual `exp://<IP de la PC>:8081` (la autodetección de Expo Go dejó un spinner infinito); backend y chatbot por USB con `adb reverse tcp:8000 tcp:8000` y `adb reverse tcp:8001 tcp:8001`, con `EXPO_PUBLIC_API_URL=http://127.0.0.1:8000` y `EXPO_PUBLIC_NLP_URL=http://127.0.0.1:8001`. Los scripts reciben la URL por parámetro o detectan la IPv4 de la PC al ejecutar, sin guardarla; comprueban `GET /status` de Metro y `adb devices` antes de lanzar Maestro.
+- **Documentación:** `docs/e2e.md` (requisitos, ejecución, reportes, limitaciones de Expo Go, paso a APK).
+- **No verificable sin teléfono ni Maestro:** que los flujos pasen, el manejo real de las pantallas de Expo Go y los tiempos de carga.
+
 ## Contenedores (Docker Compose)
 
 Los tres servicios del backend se empaquetan en imágenes separadas y se levantan con un solo `docker compose up -d` desde la raíz (decisión del equipo, [ADR-0010](docs/adr/0010-contenerizacion-docker-compose.md)). La app móvil **no** va en Docker. Las versiones de los servicios chocan entre sí (fastapi 0.115.0 frente a 0.162.0, pydantic 2.9.2 frente a 2.14.1), por eso cada uno lleva **su** imagen y **su** `requirements.txt`.
@@ -906,4 +930,5 @@ El servicio NLP queda **expuesto directamente a la app**, sin pasarela ni backen
 | 1.15.1 | 2026-11-03 | Fase ML-1b (TASK-017i): `riesgo_ml.faltantes` (códigos de los datos que impidieron calcular) y línea de log por cálculo, sin datos personales. Aditivo; sin cambios en el ML ni en el esquema. |
 | 1.16.0 | 2026-11-03 | Fase ML-2 (TASK-017g, ADR-0011): pantalla del médico con el riesgo de hipoglucemia (`riesgoMl.ts`, `RiesgoMlBloque`, modal con contenido adicional, modo simulado por última cifra). Solo `mobile/`; sin cambios en el backend ni en el ML. |
 | 1.16.1 | 2026-11-03 | Alineación documental de la Fase ML-2 con la pantalla simplificada: el bloque ya no muestra motivo, faltantes ni supuestos (testIDs retirados) y queda una Decisión abierta. Sin cambios de código. |
+| 1.17.0 | 2026-11-04 | Fase E2E (TASK-068 a 070, ADR-0012): interruptor `OTP_ACTIVADO` (login sin OTP solo en `docker-compose.prueba.yml`), login de la app con ambos caminos y `EXPO_PUBLIC_SIN_OTP` en modo simulado, recorridos de Maestro en `mobile/.maestro/`, `testID` `nav-*` y `docs/e2e.md`. Cambios mínimos y aditivos en el backend de Adrian. |
 | 1.4.1 | 2026-10-24 | Respuestas del equipo a M1: ADR-0008 (servicio de ML independiente; reemplaza a ADR-0001 para el ML). JSON de metadatos del modelo versionado en git, con la huella del `.pkl` dentro (`sha256_pkl`) y sus campos definidos. Open Question del perfil clínico ampliada con 4 opciones; bloquea TASK-017, no el servicio de ML. Sin cambios en Data Models. |

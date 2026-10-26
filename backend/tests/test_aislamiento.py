@@ -170,3 +170,30 @@ def test_el_ml_no_publica_puertos_y_solo_esta_en_la_red_interna():
     backend = _bloque_compose("backend")
     assert "red_ml" in backend and "ML_URL: http://ml_service:8002" in backend
     assert "ML_ENABLED" not in re.sub(r"#.*", "", backend)  # se activa en backend/.env, no en Compose
+
+# ---------------------------------------------------------------- interruptor de OTP (ADR-0012)
+OTP_FALSE = re.compile(r"OTP_ACTIVADO\s*[:=]\s*[\"']?\s*(false|0|no)\b", re.IGNORECASE)
+
+
+def _sin_comentarios(texto: str) -> str:
+    return "\n".join(re.sub(r"#.*", "", linea) for linea in texto.splitlines())
+
+
+def test_ningun_compose_principal_ni_env_example_fija_otp_apagado():
+    raiz = BACKEND.parent
+    archivos = [p for p in raiz.glob("docker-compose*.yml") if "prueba" not in p.name]
+    archivos += [p for p in raiz.rglob(".env.example") if "node_modules" not in p.parts and ".venv" not in p.parts]
+    assert (raiz / "docker-compose.yml") in archivos and (BACKEND / ".env.example") in archivos
+    for archivo in archivos:
+        assert not OTP_FALSE.search(_sin_comentarios(archivo.read_text(encoding="utf-8"))), f"OTP_ACTIVADO=false en {archivo.name}"
+
+
+def test_otp_activado_true_explicito_en_el_compose_principal_y_en_env_example():
+    assert re.search(r"OTP_ACTIVADO:\s*[\"']?true", _sin_comentarios(_bloque_compose("backend")))
+    assert re.search(r"^OTP_ACTIVADO=true\s*$", (BACKEND / ".env.example").read_text(encoding="utf-8"), re.MULTILINE)
+
+
+def test_otp_apagado_solo_en_el_compose_de_prueba():
+    prueba = _sin_comentarios((BACKEND.parent / "docker-compose.prueba.yml").read_text(encoding="utf-8"))
+    assert OTP_FALSE.search(prueba)
+    assert not OTP_FALSE.search(_sin_comentarios((BACKEND.parent / "docker-compose.yml").read_text(encoding="utf-8")))

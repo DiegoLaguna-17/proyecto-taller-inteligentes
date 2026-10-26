@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # del conjunto sintético de entrenamiento (dataset canónico, semilla 20261024). Es una ESTIMACIÓN, no un dato.
     ML_DURACION_DEFECTO_ANIOS: float = _float_env("ML_DURACION_DEFECTO_ANIOS", 6.5)
 
+    # Interruptor de OTP SOLO para pruebas (ADR-0012). Con true (por defecto) el login envía el OTP como siempre. Con
+    # false el login no envía OTP y devuelve el rol: nunca debe activarse fuera de pruebas (solo en docker-compose.prueba.yml).
+    OTP_ACTIVADO: bool = _bool_env("OTP_ACTIVADO", True)
+
     model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
 
 

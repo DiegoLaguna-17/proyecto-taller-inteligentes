@@ -1,0 +1,37 @@
+appId: host.exp.exponent
+name: "Backend real (solo lectura) - médico, pacientes y detalle"
+tags:
+  - real
+  - lectura
+  - medico
+---
+# Variables: EXPO_URL, MEDICO_CORREO, MEDICO_CLAVE (con -e). NO usa el botón «Registrar toma» ni responde alertas.
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${MEDICO_CORREO}
+      CLAVE: ${MEDICO_CLAVE}
+      NAV: nav-pacientes
+- assertVisible:
+    id: 'medico-metricas'
+- takeScreenshot: .maestro/screenshots/b03-pacientes
+- runFlow:
+    when:
+      visible:
+        id: 'medico-paciente-.*'
+    commands:
+      - runFlow: ../../subflows/abrir-primer-paciente.yaml
+      - assertVisible:
+          id: 'detalle-telemetria'
+      - takeScreenshot: .maestro/screenshots/b03-detalle
+      - tapOn:
+          id: 'detalle-volver'
+- tapOn:
+    id: 'nav-alertas'
+- extendedWaitUntil:
+    visible:
+      id: 'alertas-pestana-activas'
+    timeout: 30000
+- takeScreenshot: .maestro/screenshots/b03-alertas
+- runFlow: ../../subflows/cerrar-sesion.yaml

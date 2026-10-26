@@ -1,0 +1,5 @@
+# Configuración del workspace de Maestro (docs.maestro.dev: project configuration, test discovery and tags).
+# Las suites se ejecutan por carpeta (ver docs/e2e.md y scripts/ejecutar-suite.ps1). Los subflujos de subflows/ NO son
+# pruebas: solo se invocan con runFlow, por eso no están en `flows`.
+flows:
+  - "flows/**"

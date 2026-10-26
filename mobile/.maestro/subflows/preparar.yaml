@@ -1,0 +1,5 @@
+appId: host.exp.exponent
+name: "Abrir la app y dejarla en el login"
+---
+- runFlow: abrir-app.yaml
+- runFlow: cerrar-sesion.yaml

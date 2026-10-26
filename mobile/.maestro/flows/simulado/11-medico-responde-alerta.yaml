@@ -1,0 +1,42 @@
+appId: host.exp.exponent
+name: "Médico - responder una alerta activa"
+tags:
+  - medico
+  - alerta
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- tapOn:
+    id: 'nav-alertas'
+- extendedWaitUntil:
+    visible:
+      id: 'alertas-alerta-.*'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a11-alertas
+- tapOn:
+    id: 'alertas-alerta-.*'
+- assertVisible:
+    id: 'alertas-modal'
+- tapOn:
+    id: 'alertas-respuesta'
+- inputText: Revisar la dosis y repetir la medición en 15 minutos
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'alertas-enviar'
+- tapOn:
+    id: 'alertas-enviar'
+- assertVisible:
+    id: 'alertas-confirmacion-texto'
+- tapOn:
+    id: 'alertas-confirmar'
+- extendedWaitUntil:
+    visible:
+      id: 'alertas-exito'
+    timeout: 15000
+- takeScreenshot: .maestro/screenshots/a11-alerta-respondida
+- runFlow: ../../subflows/cerrar-sesion.yaml

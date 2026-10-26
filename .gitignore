@@ -39,6 +39,10 @@ mobile/.expo/
 mobile/*.log
 mobile/coverage/
 mobile/stitch/
+# Recorridos E2E (Maestro): reportes, capturas y credenciales locales de prueba (docs/e2e.md)
+mobile/.maestro/reports/
+mobile/.maestro/screenshots/
+mobile/.maestro/.env.e2e.local
 
 # --- Editor ---
 .vscode/*

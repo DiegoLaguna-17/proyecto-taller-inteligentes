@@ -1,0 +1,14 @@
+appId: host.exp.exponent
+name: "Acceso rápido del modo simulado"
+# Variables: ROL (paciente | medico | admin) y NAV (testID de la pestaña inicial: nav-inicio, nav-pacientes o nav-solicitudes)
+---
+- extendedWaitUntil:
+    visible:
+      id: 'login-mock-${ROL}'
+    timeout: 10000
+- tapOn:
+    id: 'login-mock-${ROL}'
+- extendedWaitUntil:
+    visible:
+      id: '${NAV}'
+    timeout: 20000

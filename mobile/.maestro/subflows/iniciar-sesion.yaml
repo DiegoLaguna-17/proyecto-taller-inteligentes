@@ -1,0 +1,30 @@
+appId: host.exp.exponent
+name: "Iniciar sesión con correo y contraseña"
+# Variables: CORREO, CLAVE y NAV (testID de la pestaña inicial). Nunca se versionan credenciales reales: llegan con -e.
+---
+# La pantalla debe estar lista (botón presente) antes de escribir
+- extendedWaitUntil:
+    visible:
+      id: 'login-ingresar'
+    timeout: 10000
+- tapOn:
+    id: 'login-correo'
+- inputText: ${CORREO}
+- tapOn:
+    id: 'login-contrasena'
+- inputText: ${CLAVE}
+# El teclado de Android puede tapar el botón: se cierra y, si hace falta, se desplaza hasta verlo
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'login-ingresar'
+- extendedWaitUntil:
+    visible:
+      id: 'login-ingresar'
+    timeout: 10000
+- tapOn:
+    id: 'login-ingresar'
+- extendedWaitUntil:
+    visible:
+      id: '${NAV}'
+    timeout: 30000

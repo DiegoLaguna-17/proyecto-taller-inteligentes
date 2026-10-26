@@ -1,0 +1,26 @@
+appId: host.exp.exponent
+name: "Paciente - registrar una glucosa normal"
+tags:
+  - paciente
+  - glucosa
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: paciente
+      NAV: nav-inicio
+- runFlow:
+    file: ../../subflows/registrar-toma-paciente.yaml
+    env:
+      VALOR: '100'
+      MOMENTO: ayunas
+- assertVisible:
+    id: 'registro-resultado-estado'
+- assertVisible:
+    id: 'registro-resultado-mensaje'
+    text: '.*dentro de los parámetros esperados.*'
+- takeScreenshot: .maestro/screenshots/a02-glucosa-normal
+- tapOn:
+    id: 'registro-resultado-cerrar'
+- runFlow: ../../subflows/cerrar-sesion.yaml

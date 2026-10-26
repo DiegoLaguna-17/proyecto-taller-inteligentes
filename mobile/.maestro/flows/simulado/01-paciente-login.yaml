@@ -1,0 +1,25 @@
+appId: host.exp.exponent
+name: "Paciente - iniciar sesión con credenciales simuladas"
+tags:
+  - smoke
+  - paciente
+  - login
+---
+- runFlow: ../../subflows/preparar.yaml
+- assertVisible:
+    id: 'login-correo'
+- takeScreenshot: .maestro/screenshots/a01-login
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: carlos@email.com
+      CLAVE: '12345'
+      NAV: nav-inicio
+- assertVisible:
+    id: 'inicio-saludo'
+- assertVisible:
+    id: 'inicio-registrar-toma'
+- takeScreenshot: .maestro/screenshots/a01-inicio-paciente
+- runFlow: ../../subflows/cerrar-sesion.yaml
+- assertVisible:
+    id: 'login-correo'

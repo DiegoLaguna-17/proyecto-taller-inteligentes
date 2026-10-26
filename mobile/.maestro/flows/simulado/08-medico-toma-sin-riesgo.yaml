@@ -1,0 +1,101 @@
+appId: host.exp.exponent
+name: "Médico - casos sin riesgo (solo título y leyenda)"
+tags:
+  - medico
+  - ml
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- runFlow: ../../subflows/abrir-primer-paciente.yaml
+# Cifras 2 y 3 (datos insuficientes con uno y varios faltantes), 4 (sin faltantes), 5 (no aplica el tipo),
+# 6 (momento no cubierto) y 7 (no disponible): el bloque muestra solo el título y la leyenda; sin porcentaje ni versión.
+# (El motivo, los faltantes y los supuestos no se muestran: sus testID ya no existen.)
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '112'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- scrollUntilVisible:
+    element:
+      id: 'ml-riesgo-leyenda'
+    timeout: 10000
+- assertVisible:
+    id: 'ml-riesgo-leyenda'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- assertNotVisible:
+    id: 'ml-riesgo-version'
+- takeScreenshot: .maestro/screenshots/a08-sin-riesgo-faltante
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '113'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- scrollUntilVisible:
+    element:
+      id: 'ml-riesgo-leyenda'
+    timeout: 10000
+- assertVisible:
+    id: 'ml-riesgo-leyenda'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '114'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '115'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '116'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '117'
+- assertVisible:
+    id: 'ml-riesgo-bloque'
+- scrollUntilVisible:
+    element:
+      id: 'ml-riesgo-leyenda'
+    timeout: 10000
+- assertVisible:
+    id: 'ml-riesgo-leyenda'
+- assertNotVisible:
+    id: 'ml-riesgo-valor'
+- takeScreenshot: .maestro/screenshots/a08-sin-riesgo-no-disponible
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Termina en el detalle del paciente (sin barra de pestañas): se vuelve a una pestaña antes de cerrar sesión
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

@@ -43,6 +43,7 @@ services:
       # Integracion con el ML (ADR-0011): el backend lo llama por la red interna red_ml. ML_ENABLED NO se fija aqui:
       # vale false por defecto y se activa con ML_ENABLED=true en backend/.env (el registro del medico responde
       # exactamente como antes mientras este apagado).
+      OTP_ACTIVADO: "true"                      # segundo factor activo (ADR-0012); false SOLO en docker-compose.prueba.yml
       ML_URL: http://ml_service:8002            # direccion INTERNA (nunca publica)
       ML_TIMEOUT: ${ML_TIMEOUT:-2.0}            # segundos; sin reintentos
       ML_DURACION_DEFECTO_ANIOS: ${ML_DURACION_DEFECTO_ANIOS:-6.5}   # mediana del conjunto sintetico (estimada)

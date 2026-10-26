@@ -87,6 +87,8 @@ cp .env.example .env        # en Windows: copy .env.example .env
 | `EXPO_PUBLIC_API_URL` | Backend de negocio (login, glucosa, historial, perfil). **Sin sufijo `/api`** | `http://TU-IP-LOCAL:8000` |
 | `EXPO_PUBLIC_NLP_URL` | Servicio NLP (chatbot), URL **propia** | `http://TU-IP-LOCAL:8001` |
 | `EXPO_PUBLIC_USE_MOCK` | `true` = modo simulado (ver abajo); cualquier otro valor = backend real | `false` |
+| `EXPO_PUBLIC_MOCK_LATENCIA` | **Solo en modo simulado.** Espera artificial en ms de los servicios simulados (registro de glucosa y chatbot) para imitar una red lenta; sin la variable es 0 (como siempre) y tope 10000. Con el backend real no tiene efecto | `0` |
+| `EXPO_PUBLIC_SIN_OTP` | **Solo en modo simulado.** `false` = el login simula el paso del OTP (código `123456`); sin la variable conserva el acceso directo. Con el backend real no tiene efecto: la app obedece lo que responda el servidor (ADR-0012) | `false` |
 | `EXPO_PUBLIC_CHAT_ANIMACION` | `escritura` = la respuesta del chatbot se revela por palabras (máx. 4 s) con «escribiendo…»; `inmediato` = todo de golpe y sin esperas. Siempre inmediato si el teléfono tiene «reducir movimiento» | `escritura` |
 
 **La URL va SIN `/api`** (la app ya agrega `/api/...`). Ejemplo correcto: `EXPO_PUBLIC_API_URL=http://192.168.1.50:8000`; incorrecto: `http://192.168.1.50:8000/api` (formato del front web). Con el sufijo, la app pediría `/api/api/login` y el servidor respondería 404; `config.ts` lo quita solo, pero escríbela bien. Si ves "No se encontró el servicio solicitado… revisa la dirección del servidor", casi siempre es la URL base.
@@ -224,6 +226,10 @@ Estas credenciales **no existen en el backend real**: sin la bandera, no entran.
 | 8 | `118` | Con riesgo 0 (0,0 %) |
 | 9 | `119` | Con riesgo 1 (100,0 %) |
 
+## Recorridos E2E (Maestro)
+
+Los recorridos de interfaz sobre Expo Go están en `mobile/.maestro/` (suite A en modo simulado, suite B de solo lectura contra el backend real local). Requisitos, comandos y limitaciones: [`docs/e2e.md`](../docs/e2e.md). Atajos: `npm run e2e:expo-mock`, `e2e:mock`, `e2e:expo-real` y `e2e:real`. Para probar el login sin OTP con el backend, ver ADR-0012 (`docker-compose.prueba.yml`).
+
 ## Pruebas
 
 ```bash
@@ -250,6 +256,11 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `login-volver` | Botón "Volver" del paso del código |
 | | `login-solicitar-registro` | Enlace "Solicitar registro" |
 | | `login-mock-paciente`, `login-mock-medico`, `login-mock-admin` | Accesos rápidos (solo con `EXPO_PUBLIC_USE_MOCK=true`) |
+| Navegación (barra inferior y encabezado) | `nav-inicio`, `nav-historial`, `nav-chatbot`, `nav-perfil` | Pestañas del paciente y de todos los roles (`nav-perfil`) |
+| | `nav-pacientes`, `nav-alertas`, `nav-reportes` | Pestañas del médico |
+| | `nav-solicitudes`, `nav-usuarios`, `nav-auditoria` | Pestañas del administrador |
+| | `header-volver` | Botón «Volver» del encabezado de las subpantallas (registro de toma, ediciones…) |
+| | `header-perfil` | Avatar del encabezado (abre el perfil) |
 | Registro de toma | `registro-cargando` | Indicador de carga de momentos y datos del paciente |
 | | `registro-error-carga`, `registro-reintentar` | Error de carga y botón "Reintentar" |
 | | `registro-valor` | Campo del nivel de glucosa (dígitos) |
@@ -285,6 +296,7 @@ Estables y en español, para pruebas de interfaz (p. ej. Maestro o Detox). No af
 | | `perfil-ficha`, `perfil-ficha-error` | Ficha clínica y su error |
 | | `perfil-condicion`, `perfil-tratamientos`, `perfil-medico`, `perfil-embarazo`, `perfil-en-rango` | Datos de la ficha |
 | | `perfil-editar`, `perfil-cerrar-sesion` | Botones "Editar mis datos" y "Cerrar sesión" |
+| | `perfil-cerrar-sesion-confirmacion` (`-mensaje`, `-confirmar`, `-cancelar`) | Modal de confirmación del cierre de sesión (antes era un `Alert` nativo sin `testID`) |
 | | `perfil-cargando`, `perfil-reintentar`, `login-aviso` | Perfil cargando o con error y reintento; aviso en el login (sesión guardada que ya no es válida) |
 | Editar datos | `editar-nombre`, `editar-correo`, `editar-telefono`, `editar-altura`, `editar-peso` | Campos personales y medidas |
 | | `editar-emergencia-nombre`, `editar-emergencia-numero` | Contacto de emergencia |

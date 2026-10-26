@@ -8,13 +8,37 @@ Punto de entrada de la aplicación. Ver /requirements.md, /design.md y
 este proyecto sigue Spec Driven Development.
 
 """
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Routers portados del backend
 from app.api import auth, medicos, pacientes, administradores, registro, general, pdf
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def avisar_otp_desactivado() -> bool:
+    """WARNING al arrancar con OTP_ACTIVADO=false (ADR-0012). Devuelve True si avisó."""
+    if settings.OTP_ACTIVADO:
+        return False
+    logger.warning(
+        "OTP_ACTIVADO=false: el login NO envía ni exige el código OTP. Solo para pruebas (docker-compose.prueba.yml); "
+        "nunca en un servicio expuesto ni con datos reales."
+    )
+    return True
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    avisar_otp_desactivado()
+    yield
 
 app = FastAPI(
+    lifespan=lifespan,
     title="GlucoTracker API",
     version="1.0.0",
     description="Backend de GlucoTracker: autenticación, médicos, pacientes, "

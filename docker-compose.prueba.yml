@@ -9,6 +9,8 @@ services:
   backend:
     environment:
       ML_ENABLED: "true"
+      # Sin OTP: el login devuelve el rol sin enviar correo (ADR-0012). SOLO PARA PRUEBAS E2E; nunca fuera de este archivo.
+      OTP_ACTIVADO: "false"
   nlp_service:
     environment:
       NLP_PROVIDER: fake

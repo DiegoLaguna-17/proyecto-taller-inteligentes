@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+name: "Hacer una pregunta al chatbot y esperar la respuesta completa"
+---
+- tapOn:
+    id: 'nav-chatbot'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-entrada'
+    timeout: 15000
+- tapOn:
+    id: 'chat-entrada'
+- inputText: ¿Qué es la hipoglucemia?
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'chat-enviar'
+    timeout: 10000
+- tapOn:
+    id: 'chat-enviar'
+- extendedWaitUntil:
+    visible:
+      id: 'chat-respuesta'
+    timeout: 60000
+# El aviso médico solo aparece cuando la respuesta terminó de revelarse
+- extendedWaitUntil:
+    visible:
+      id: 'chat-aviso-medico'
+    timeout: 30000

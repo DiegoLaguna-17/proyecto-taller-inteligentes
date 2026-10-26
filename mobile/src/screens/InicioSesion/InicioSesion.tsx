@@ -17,7 +17,7 @@ import { FONTS } from '../../utils/typography';
 import { tomarTurno, liberarTurno } from '../../utils/turno';
 import { FUENTE } from '../../utils/medidas';
 import { UserRole } from '../../utils/tipos';
-import { USE_MOCK } from '../../services/config';
+import { USE_MOCK, MOCK_CON_OTP } from '../../services/config';
 import { iniciarSesion, verificarOtp, SesionUsuario } from '../../services/auth';
 import { mensajeDeError } from '../../services/http';
 
@@ -50,8 +50,8 @@ export const InicioSesion: React.FC<InicioSesionProps> = ({
     setErrorMessage('');
     const cleanEmail = email.trim().toLowerCase();
 
-    if (USE_MOCK) {
-      // Modo simulado: credenciales fijas, solo con EXPO_PUBLIC_USE_MOCK=true
+    if (USE_MOCK && !MOCK_CON_OTP) {
+      // Modo simulado: credenciales fijas, solo con EXPO_PUBLIC_USE_MOCK=true (con EXPO_PUBLIC_SIN_OTP=false pasa por el OTP simulado)
       if (cleanEmail === 'carlos@email.com' && password === '12345') {
         onLoginSuccess(sesionSimulada('paciente'));
       } else if (
@@ -77,7 +77,13 @@ export const InicioSesion: React.FC<InicioSesionProps> = ({
     if (!tomarTurno(turno)) return;
     setCargando(true);
     try {
-      const { id_usuario } = await iniciarSesion(cleanEmail, password);
+      const { id_usuario, sesion } = await iniciarSesion(cleanEmail, password);
+      if (sesion) {
+        // El backend no exige OTP (solo en pruebas, OTP_ACTIVADO=false, ADR-0012): entra directo
+        setPassword('');
+        onLoginSuccess(sesion);
+        return;
+      }
       setIdUsuario(id_usuario);
       setCodigo('');
       setPaso('otp');

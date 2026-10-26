@@ -1,0 +1,34 @@
+appId: host.exp.exponent
+name: "Backend real (solo lectura) - paciente, login e historial"
+tags:
+  - real
+  - lectura
+  - smoke
+  - paciente
+---
+# Variables: EXPO_URL, PACIENTE_CORREO, PACIENTE_CLAVE (con -e; nunca versionadas). PROHIBIDO registrar, editar o activar.
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion.yaml
+    env:
+      CORREO: ${PACIENTE_CORREO}
+      CLAVE: ${PACIENTE_CLAVE}
+      NAV: nav-inicio
+- assertVisible:
+    id: 'inicio-saludo'
+- takeScreenshot: .maestro/screenshots/b01-inicio
+- tapOn:
+    id: 'nav-historial'
+- extendedWaitUntil:
+    visible:
+      id: 'historial-vista-lista'
+    timeout: 30000
+- takeScreenshot: .maestro/screenshots/b01-historial
+- tapOn:
+    id: 'nav-perfil'
+- extendedWaitUntil:
+    visible:
+      id: 'perfil-nombre'
+    timeout: 30000
+- takeScreenshot: .maestro/screenshots/b01-perfil
+- runFlow: ../../subflows/cerrar-sesion.yaml

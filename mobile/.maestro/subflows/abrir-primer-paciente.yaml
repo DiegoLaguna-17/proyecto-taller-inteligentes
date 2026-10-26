@@ -1,0 +1,13 @@
+appId: host.exp.exponent
+name: "Abrir el primer paciente de la lista del médico"
+---
+- extendedWaitUntil:
+    visible:
+      id: 'medico-paciente-.*'
+    timeout: 20000
+- tapOn:
+    id: 'medico-paciente-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'detalle-cabecera'
+    timeout: 20000

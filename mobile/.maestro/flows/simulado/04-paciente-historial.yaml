@@ -1,0 +1,29 @@
+appId: host.exp.exponent
+name: "Paciente - historial"
+tags:
+  - paciente
+  - historial
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: paciente
+      NAV: nav-inicio
+- tapOn:
+    id: 'nav-historial'
+- extendedWaitUntil:
+    visible:
+      id: 'historial-vista-lista'
+    timeout: 15000
+- assertVisible:
+    id: 'historial-promedio'
+- takeScreenshot: .maestro/screenshots/a04-historial-grafico
+- tapOn:
+    id: 'historial-vista-lista'
+- assertVisible:
+    id: 'historial-toma-.*'
+- tapOn:
+    id: 'historial-periodo-mensual'
+- takeScreenshot: .maestro/screenshots/a04-historial-lista-mensual
+- runFlow: ../../subflows/cerrar-sesion.yaml

@@ -1,0 +1,30 @@
+appId: host.exp.exponent
+name: "Médico - ML apagado (sin riesgo_ml, sin bloque)"
+tags:
+  - medico
+  - ml
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- runFlow: ../../subflows/abrir-primer-paciente.yaml
+# Última cifra 0: el backend simulado no devuelve riesgo_ml (como con ML_ENABLED=false)
+- runFlow:
+    file: ../../subflows/registrar-toma-medico.yaml
+    env:
+      VALOR: '110'
+- assertVisible:
+    id: 'medico-toma-resultado-mensaje'
+- assertNotVisible:
+    id: 'ml-riesgo-bloque'
+- assertNotVisible:
+    id: 'ml-riesgo-leyenda'
+- takeScreenshot: .maestro/screenshots/a09-ml-apagado
+- tapOn:
+    id: 'medico-toma-resultado-confirmar'
+# Termina en el detalle del paciente (sin barra de pestañas): se vuelve a una pestaña antes de cerrar sesión
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

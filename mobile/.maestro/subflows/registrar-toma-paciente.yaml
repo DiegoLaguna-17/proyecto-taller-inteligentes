@@ -1,0 +1,27 @@
+appId: host.exp.exponent
+name: "Registrar una toma como paciente (modo simulado)"
+# Variables: VALOR (entero) y MOMENTO (ayunas | despues | dormir). Termina con el modal de resultado a la vista.
+---
+- tapOn:
+    id: 'inicio-registrar-toma'
+- extendedWaitUntil:
+    visible:
+      id: 'registro-valor'
+    timeout: 15000
+- tapOn:
+    id: 'registro-valor'
+- inputText: ${VALOR}
+- hideKeyboard
+- tapOn:
+    id: 'registro-momento-${MOMENTO}'
+- scrollUntilVisible:
+    element:
+      id: 'registro-enviar'
+- tapOn:
+    id: 'registro-enviar'
+- tapOn:
+    id: 'registro-confirmar'
+- extendedWaitUntil:
+    visible:
+      id: 'registro-resultado'
+    timeout: 15000

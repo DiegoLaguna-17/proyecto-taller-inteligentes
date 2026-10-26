@@ -1,0 +1,36 @@
+appId: host.exp.exponent
+name: "Solicitud de registro de médico - validaciones sin enviar"
+tags:
+  - registro
+  - medico
+---
+- runFlow: ../../subflows/preparar.yaml
+- tapOn:
+    id: 'login-solicitar-registro'
+- extendedWaitUntil:
+    visible:
+      id: 'registro-paciente-form'
+    timeout: 20000
+# El conmutador de perfil no tiene testID: se toca por su texto
+- tapOn: 'Médico'
+- extendedWaitUntil:
+    visible:
+      id: 'registro-medico-form'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'registro-medico-enviar'
+- tapOn:
+    id: 'registro-medico-enviar'
+- assertNotVisible:
+    id: 'registro-paciente-exito'
+# El mensaje está al final del formulario, bajo los campos: se desplaza hasta verlo antes de comprobarlo
+- scrollUntilVisible:
+    element:
+      id: 'registro-medico-error'
+    timeout: 15000
+- assertVisible:
+    id: 'registro-medico-error'
+    text: 'Revisa los campos marcados en rojo.'
+- takeScreenshot: .maestro/screenshots/a14-registro-medico-errores
+- runFlow: ../../subflows/preparar.yaml

@@ -1,0 +1,21 @@
+appId: host.exp.exponent
+name: "Abrir la app en Expo Go"
+---
+# Expo Go no admite launchApp con un appId propio: se abre la URL de desarrollo (variable EXPO_URL, p. ej. exp://<IP>:8081)
+- openLink: ${EXPO_URL}
+# Pantallas propias de Expo Go (primera vez / menú de desarrollo): se descartan solo si aparecen
+- runFlow:
+    when:
+      visible: '(Continue|Continuar)'
+    commands:
+      - tapOn: '(Continue|Continuar)'
+- runFlow:
+    when:
+      visible: '(Go home|Ir al inicio)'
+    commands:
+      - pressKey: back
+# La app está lista cuando se ve el login o, si había una sesión guardada, la barra de pestañas
+- extendedWaitUntil:
+    visible:
+      id: 'login-correo|nav-perfil'
+    timeout: 120000

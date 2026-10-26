@@ -1,0 +1,376 @@
+appId: host.exp.exponent
+name: "Volver a una pestaña o al login"
+# Deja la app en una pantalla con barra de pestañas (nav-perfil visible) o en el login. Cierra modales por testID, vuelve con
+# el botón atrás de la app (header-volver, detalle-volver, solicitud-volver) y, solo en el último intento, con «atrás» del
+# sistema. Si ya se ve la barra de pestañas o el login, no hace nada. Falla rápido (8 s) si no lo consigue.
+---
+# Intento 1
+- runFlow:
+    when:
+      notVisible:
+        id: 'nav-perfil|login-correo'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-toma-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-toma-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-resultado-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-resultado-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'solicitud-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'solicitud-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'admin-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'admin-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'reportes-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'reportes-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+          commands:
+            - tapOn:
+                id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+      - runFlow:
+          when:
+            visible:
+              id: 'editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-paciente-exito-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-paciente-exito-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-banner-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-banner-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'header-volver|detalle-volver|solicitud-volver'
+          commands:
+            - tapOn:
+                id: 'header-volver|detalle-volver|solicitud-volver'
+# Intento 2
+- runFlow:
+    when:
+      notVisible:
+        id: 'nav-perfil|login-correo'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-toma-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-toma-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-resultado-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-resultado-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'solicitud-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'solicitud-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'admin-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'admin-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'reportes-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'reportes-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+          commands:
+            - tapOn:
+                id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+      - runFlow:
+          when:
+            visible:
+              id: 'editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-paciente-exito-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-paciente-exito-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-banner-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-banner-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'header-volver|detalle-volver|solicitud-volver'
+          commands:
+            - tapOn:
+                id: 'header-volver|detalle-volver|solicitud-volver'
+# Intento 3
+- runFlow:
+    when:
+      notVisible:
+        id: 'nav-perfil|login-correo'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-toma-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-toma-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-resultado-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-resultado-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'solicitud-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'solicitud-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'admin-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'admin-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'reportes-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'reportes-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+          commands:
+            - tapOn:
+                id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+      - runFlow:
+          when:
+            visible:
+              id: 'editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-paciente-exito-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-paciente-exito-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-banner-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-banner-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'header-volver|detalle-volver|solicitud-volver'
+          commands:
+            - tapOn:
+                id: 'header-volver|detalle-volver|solicitud-volver'
+# Intento 4
+- runFlow:
+    when:
+      notVisible:
+        id: 'nav-perfil|login-correo'
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-toma-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-toma-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-resultado-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-resultado-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'solicitud-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'solicitud-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'admin-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'admin-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'reportes-modal-cerrar'
+          commands:
+            - tapOn:
+                id: 'reportes-modal-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+          commands:
+            - tapOn:
+                id: 'perfil-cerrar-sesion-confirmacion-cancelar'
+      - runFlow:
+          when:
+            visible:
+              id: 'editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'medico-editar-resultado-confirmar'
+          commands:
+            - tapOn:
+                id: 'medico-editar-resultado-confirmar'
+      - runFlow:
+          when:
+            visible:
+              id: 'registro-paciente-exito-cerrar'
+          commands:
+            - tapOn:
+                id: 'registro-paciente-exito-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'alertas-banner-cerrar'
+          commands:
+            - tapOn:
+                id: 'alertas-banner-cerrar'
+      - runFlow:
+          when:
+            visible:
+              id: 'header-volver|detalle-volver|solicitud-volver'
+          commands:
+            - tapOn:
+                id: 'header-volver|detalle-volver|solicitud-volver'
+      - runFlow:
+          when:
+            notVisible:
+              id: 'nav-perfil|login-correo|header-volver|detalle-volver|solicitud-volver'
+          commands:
+            - pressKey: back
+- extendedWaitUntil:
+    visible:
+      id: 'nav-perfil|login-correo'
+    timeout: 8000

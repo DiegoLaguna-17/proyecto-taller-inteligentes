@@ -1,0 +1,29 @@
+appId: host.exp.exponent
+name: "Cerrar la sesión si hay una abierta"
+# Si hay sesión (se ve la barra de pestañas): Perfil -> «Cerrar sesión» -> confirmar en el modal -> login.
+# Si no hay sesión, no hace nada más que comprobar que se ve el login.
+---
+# Antes de buscar nav-perfil se sale de pantallas internas y modales (donde la barra de pestañas está oculta)
+- runFlow: volver-a-pestanas.yaml
+- runFlow:
+    when:
+      visible:
+        id: 'nav-perfil'
+    commands:
+      - tapOn:
+          id: 'nav-perfil'
+      - scrollUntilVisible:
+          element:
+            id: 'perfil-cerrar-sesion'
+      - tapOn:
+          id: 'perfil-cerrar-sesion'
+      - extendedWaitUntil:
+          visible:
+            id: 'perfil-cerrar-sesion-confirmacion-confirmar'
+          timeout: 10000
+      - tapOn:
+          id: 'perfil-cerrar-sesion-confirmacion-confirmar'
+- extendedWaitUntil:
+    visible:
+      id: 'login-correo'
+    timeout: 20000

@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { TopHeader } from '../../shared/TopHeader';
 import { Icon } from '../../shared/Icon';
 import { CustomButton } from '../../shared/CustomButton';
+import { ModalMensaje } from '../../shared/ModalMensaje';
 import { PerfilHeaderCard } from './components/PerfilHeaderCard';
 import { FichaClinicaCard } from './components/FichaClinicaCard';
 import { UserProfile } from '../../utils/tipos';
@@ -56,6 +56,7 @@ export const PerfilUsuario: React.FC<PerfilUsuarioProps> = ({
 }) => {
   const [semanas, setSemanas] = useState<number | null>(null);
   const [enRangoSemana, setEnRangoSemana] = useState<number | null>(null);
+  const [confirmandoSalida, setConfirmandoSalida] = useState(false);
 
   // Datos complementarios de la ficha (si fallan, la ficha se muestra sin ellos)
   useEffect(() => {
@@ -74,16 +75,8 @@ export const PerfilUsuario: React.FC<PerfilUsuarioProps> = ({
     };
   }, [user.role, idPaciente, perfil?.embarazo]);
 
-  const handleConfirmLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro de que deseas salir de tu cuenta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: onLogout },
-      ]
-    );
-  };
+  // Confirmación con el modal de la app (no con Alert nativo, cuyos botones no admiten testID para los recorridos E2E)
+  const handleConfirmLogout = () => setConfirmandoSalida(true);
 
   return (
     <View style={styles.container}>
@@ -151,6 +144,20 @@ export const PerfilUsuario: React.FC<PerfilUsuarioProps> = ({
           </Text>
         </View>
       </ScrollView>
+
+      <ModalMensaje
+        visible={confirmandoSalida}
+        titulo="Cerrar sesión"
+        mensaje="¿Estás seguro de que deseas salir de tu cuenta?"
+        textoConfirmar="Cerrar sesión"
+        onConfirm={() => {
+          setConfirmandoSalida(false);
+          onLogout();
+        }}
+        textoCancelar="Cancelar"
+        onCancel={() => setConfirmandoSalida(false)}
+        testIDPrefix="perfil-cerrar-sesion-confirmacion"
+      />
     </View>
   );
 };

@@ -30,7 +30,12 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "node --test \"src/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e:expo-mock": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/iniciar-expo.ps1 -Modo simulado",
+    "e2e:expo-real": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/iniciar-expo.ps1 -Modo real",
+    "e2e:mock-rapido": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite A -Rapido",
+    "e2e:mock": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite A",
+    "e2e:real": "powershell -NoProfile -ExecutionPolicy Bypass -File .maestro/scripts/ejecutar-suite.ps1 -Suite B"
   },
   "private": true
 }

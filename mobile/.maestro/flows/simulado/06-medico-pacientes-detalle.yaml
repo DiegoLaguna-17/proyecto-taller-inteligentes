@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+name: "Médico - lista de pacientes y detalle"
+tags:
+  - smoke
+  - medico
+---
+- runFlow: ../../subflows/preparar.yaml
+- runFlow:
+    file: ../../subflows/iniciar-sesion-rapido.yaml
+    env:
+      ROL: medico
+      NAV: nav-pacientes
+- assertVisible:
+    id: 'medico-metricas'
+- takeScreenshot: .maestro/screenshots/a06-medico-pacientes
+- runFlow: ../../subflows/abrir-primer-paciente.yaml
+- assertVisible:
+    id: 'detalle-nombre'
+- scrollUntilVisible:
+    element:
+      id: 'detalle-telemetria'
+    timeout: 10000
+- assertVisible:
+    id: 'detalle-telemetria'
+- takeScreenshot: .maestro/screenshots/a06-medico-detalle
+# Termina en el detalle del paciente (sin barra de pestañas): se vuelve a una pestaña antes de cerrar sesión
+- runFlow: ../../subflows/volver-a-pestanas.yaml
+- runFlow: ../../subflows/cerrar-sesion.yaml

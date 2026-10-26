@@ -1,5 +1,6 @@
 import { NLP_API_BASE_URL, USE_MOCK } from './config.ts';
 import { solicitar, ErrorApi, MENSAJES } from './http.ts';
+import { esperarMock } from './latenciaMock.ts';
 
 /** Largo máximo por defecto del servicio (CHATBOT_MAX_INPUT_CHARS). Si el servicio usa otro, responde 422. */
 export const LIMITE_CONSULTA = 1000;
@@ -15,6 +16,7 @@ const MENSAJE_NO_DISPONIBLE = 'El asistente no está disponible en este momento.
  */
 export async function consultarChatbot(texto: string): Promise<string> {
   if (USE_MOCK) {
+    await esperarMock();
     return 'He registrado tu consulta. Recuerda mantener un registro constante de tus tomas para un mejor seguimiento clínico con tu especialista.\n\nConsulta siempre a tu médico tratante para cambios en tu medicación.';
   }
   try {

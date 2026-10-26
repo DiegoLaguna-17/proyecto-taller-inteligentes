@@ -6,6 +6,7 @@ import { COLORS } from '../utils/colors';
 import { FONTS } from '../utils/typography';
 import { UserRole } from '../utils/tipos';
 import { ESPACIO } from '../utils/medidas';
+import { normalizarTestId } from '../utils/testId';
 
 export type NavTabId = string;
 
@@ -63,6 +64,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
             style={styles.tabButton}
             onPress={() => onSelectTab(tab.id)}
             activeOpacity={0.7}
+            testID={`nav-${normalizarTestId(tab.id)}`}
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: isActive }}
